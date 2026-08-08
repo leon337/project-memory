@@ -6,7 +6,8 @@ Para facilitar operação e aprendizado:
 
 - **Central** = nome de uso para o processo técnico `Control Plane`;
 - **Robô local** = nome de uso para o processo técnico `local agent`;
-- **Painel Web** = interface em `http://127.0.0.1:8000` usada para enviar tarefas à Central.
+- **Painel Web** = interface em `http://127.0.0.1:8000` usada para enviar tarefas à Central;
+- **Painel do Robô** = gerenciador local planejado para operar, configurar, diagnosticar e ensinar o funcionamento do sistema.
 
 Os nomes técnicos permanecem no código porque descrevem papéis arquiteturais, mas a interface humana usa os nomes intuitivos.
 
@@ -43,6 +44,40 @@ Central
 ```
 
 O controle físico permanece local. A Central envia intenções/tarefas; o Robô local decide, pela Policy Layer, se a ação tipada pode ser executada.
+
+## Arquitetura planejada do Painel do Robô
+
+O Painel do Robô será um processo local separado da Central e do Robô.
+
+```text
+                  Painel do Robô
+               operação + aprendizado
+                /        |        \
+               /         |         \
+          Central      Robô      Configuração
+             |           |            |
+          tarefas     execução      capacidades
+             \           |            /
+              \          |           /
+               logs + diagnóstico + testes
+```
+
+A separação é intencional: o painel precisa continuar disponível para religar ou diagnosticar a Central e o Robô quando qualquer um deles estiver parado.
+
+Responsabilidades planejadas:
+
+- detectar se Central e Robô estão ligados;
+- iniciar, parar e reiniciar esses processos locais;
+- mostrar estado das capacidades habilitadas;
+- alterar somente configurações explicitamente suportadas;
+- executar diagnóstico;
+- apresentar logs por componente;
+- mostrar histórico e estado das tarefas;
+- oferecer testes guiados;
+- explicar comandos e resultados esperados em linguagem simples;
+- oferecer uma área de comandos de manutenção controlados para o modo de desenvolvimento.
+
+O painel não será um terminal remoto de shell arbitrário. Comandos de manutenção executáveis pelo painel terão um catálogo explícito. Outros comandos poderão ser exibidos com explicação para execução manual.
 
 ## 1. Central
 
