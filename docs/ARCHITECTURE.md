@@ -1,5 +1,15 @@
 # ARCHITECTURE
 
+## Terminologia usada
+
+Para facilitar operação e aprendizado:
+
+- **Central** = nome de uso para o processo técnico `Control Plane`;
+- **Robô local** = nome de uso para o processo técnico `local agent`;
+- **Painel Web** = interface em `http://127.0.0.1:8000` usada para enviar tarefas à Central.
+
+Os nomes técnicos permanecem no código porque descrevem papéis arquiteturais, mas a interface humana usa os nomes intuitivos.
+
 ## Estado arquitetural atual
 
 ```text
@@ -7,13 +17,13 @@ Usuário
   ↓
 Painel Web local
   ↓
-Control Plane — FastAPI
+Central (Control Plane / FastAPI)
   ↓
 SQLite — fila, histórico e leases
   ↓
 HTTP polling autenticado
   ↓
-Agente local
+Robô local (local agent)
   ↓
 Planner
   ├─ Determinístico ativo
@@ -29,26 +39,34 @@ Executores
   ↓
 Verificação do resultado
   ↓
-Control Plane
+Central
 ```
 
-O controle físico permanece local. O Control Plane envia intenções/tarefas; o agente local decide, pela Policy Layer, se a ação tipada pode ser executada.
+O controle físico permanece local. A Central envia intenções/tarefas; o Robô local decide, pela Policy Layer, se a ação tipada pode ser executada.
 
-## 1. Control Plane
+## 1. Central
 
-Implementado em `src/context_anchor/control_plane.py`.
+Implementada tecnicamente em `src/context_anchor/control_plane.py`.
 
 Responsabilidades:
 
-- painel Web;
-- autenticação do usuário;
-- autenticação separada do agente;
-- criação e consulta de tarefas;
-- entrega de tarefas ao agente;
-- emissão de lease por execução;
-- recepção de resultado protegido pelo token do lease.
+- servir o Painel Web;
+- autenticar o usuário;
+- autenticar o Robô local com credencial separada;
+- criar e consultar tarefas;
+- entregar tarefas ao Robô;
+- emitir lease por execução;
+- receber resultado protegido pelo token do lease.
 
 Por padrão escuta apenas `127.0.0.1`.
+
+Comando humano principal:
+
+```text
+central
+```
+
+Alias técnico preservado: `context-anchor-control`.
 
 ## 2. Persistência e leases
 
@@ -66,33 +84,31 @@ succeeded | failed
 
 Se um lease expirar antes da conclusão, a tarefa pode voltar a `queued`. Depois do limite de tentativas, ela passa a `failed`.
 
-Cada claim gera um `lease_token` novo. Um resultado só é aceito se o token ainda pertencer à execução atual, impedindo que um agente atrasado finalize uma tarefa já retomada.
+Cada claim gera um `lease_token` novo. Um resultado só é aceito se o token ainda pertencer à execução atual, impedindo que uma execução atrasada finalize uma tarefa já retomada.
 
-Dados relevantes:
+## 3. Robô local
 
-- id e comando;
-- status;
-- timestamps;
-- agente atual;
-- resultado/erro;
-- lease e expiração;
-- número de tentativas.
-
-## 3. Agente local
-
-Implementado em `src/context_anchor/local_agent.py`.
+Implementado tecnicamente em `src/context_anchor/local_agent.py`.
 
 Fluxo atual:
 
-1. verifica emergency stop;
+1. verifica parada de emergência;
 2. registra sua identidade de processo local;
-3. autentica no Control Plane;
+3. autentica na Central;
 4. reivindica uma tarefa e seu lease;
 5. pede um plano ao planner ativo;
 6. passa o plano pela Policy Layer;
 7. executa a ação autorizada;
 8. verifica o resultado;
 9. devolve resultado junto ao lease da execução.
+
+Comando humano principal:
+
+```text
+robo
+```
+
+Alias técnico preservado: `context-anchor-agent`.
 
 ## 4. Planner
 
@@ -127,9 +143,9 @@ Implementada em `src/context_anchor/policy.py`.
 - teclas aceitas pertencem a allowlist específica;
 - aplicativos pertencem a allowlist fixa.
 
-## 6. Browser Layer
+## 6. Navegador
 
-Implementada em `src/context_anchor/actions.py` com Playwright/Chromium.
+Implementado em `src/context_anchor/actions.py` com Playwright/Chromium.
 
 Verificação atual:
 
@@ -139,7 +155,7 @@ Verificação atual:
 - status HTTP;
 - `verified`.
 
-Preferência arquitetural permanece:
+Preferência arquitetural:
 
 ```text
 API/DOM
@@ -148,7 +164,7 @@ API/DOM
 → visão + mouse/teclado como fallback
 ```
 
-## 7. Desktop Action Layer
+## 7. Ações de desktop
 
 Backend físico em `src/context_anchor/desktop.py`.
 
@@ -166,15 +182,15 @@ PyAutoGUI é importado de forma lazy para que processos de servidor e CI não ex
 
 O backend inicial considera Linux/X11. Wayland permanece não validado.
 
-## 8. Application Registry
+## 8. Registro de aplicativos
 
-O agente não aceita nome de executável arbitrário.
+O Robô não aceita nome de executável arbitrário.
 
 O registro interno mapeia ids estáveis para executáveis conhecidos, como Firefox, Chromium, Nemo/Nautilus, Xed/Gedit, VS Code, calculadora e LibreOffice.
 
 A abertura usa `subprocess.Popen` com `shell=False`.
 
-## 9. Perception Layer
+## 9. Percepção
 
 Primeiro slice implementado:
 
@@ -188,26 +204,30 @@ Ainda faltam:
 - DOM compartilhado como contexto para planner;
 - fusão de múltiplas fontes de percepção.
 
-## 10. Emergency Stop
+## 10. Parada de emergência
 
-Implementado em `src/context_anchor/emergency_stop.py`.
+Implementada em `src/context_anchor/emergency_stop.py`.
 
 Mecanismos:
 
 - sentinel persistente em arquivo;
-- PID do agente acompanhado do tempo de início do processo Linux;
+- PID do Robô acompanhado do tempo de início do processo Linux;
 - verificação contra reutilização de PID;
 - `SIGTERM` direto ao processo local quando a identidade confere;
-- agente recusa reinício enquanto o sentinel existir;
-- configuração do stop não depende das credenciais do agente.
+- Robô recusa reinício enquanto o sentinel existir;
+- configuração da parada não depende das credenciais do Robô.
 
-Isso é separado do planner e não depende de uma decisão do modelo.
+Comando humano principal: `parar-robo`.
+
+Alias técnico preservado: `context-anchor-stop`.
 
 ## 11. Diagnóstico local
 
-`src/context_anchor/doctor.py` fornece `context-anchor-doctor`.
+`src/context_anchor/doctor.py` apenas observa o ambiente e informa dependências e sessão gráfica; não executa ações físicas.
 
-Ele apenas observa o ambiente e informa dependências/sessão gráfica; não executa ações físicas.
+Comando humano principal: `diagnostico-robo`.
+
+Alias técnico preservado: `context-anchor-doctor`.
 
 ## 12. Credenciais
 
@@ -219,9 +239,9 @@ Credenciais não devem aparecer:
 - no Git;
 - diretamente no modelo.
 
-`.env` permanece fora do repositório. Usuário e agente possuem tokens separados.
+`.env` permanece fora do repositório. Usuário e Robô possuem tokens separados.
 
-## 13. Control Plane remoto — planejado
+## 13. Central remota — planejada
 
 Antes de exposição à Internet ainda são necessários:
 
@@ -234,25 +254,25 @@ Antes de exposição à Internet ainda são necessários:
 - auditoria adequada;
 - confirmação humana para ações sensíveis.
 
-## 14. Channel Adapters — planejados
+## 14. Adaptadores de canais — planejados
 
 Arquitetura-alvo:
 
 ```text
-Web Adapter
-WhatsApp Adapter
-Telegram Adapter
-Instagram Adapter
-        ↓
-Command Gateway
-        ↓
-Control Plane
-        ↓
-Agente local
+Web
+WhatsApp
+Telegram
+Instagram
+    ↓
+Gateway de comandos
+    ↓
+Central
+    ↓
+Robô local
 ```
 
 Nenhum adaptador de mensageria foi implementado ainda.
 
 ## 15. Princípio local-first
 
-Serviços externos poderão enviar objetivos e receber resultados, mas não terão acesso direto ao mouse, teclado, câmera ou aplicativos. Toda ação física deverá passar pelo agente local, pelo feature gate e pela Policy Layer.
+Serviços externos poderão enviar objetivos e receber resultados, mas não terão acesso direto ao mouse, teclado, câmera ou aplicativos. Toda ação física deverá passar pelo Robô local, pelo feature gate e pela Policy Layer.
