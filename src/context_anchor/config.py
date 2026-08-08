@@ -23,7 +23,12 @@ class ControlPlaneSettings(BaseAppSettings):
     agent_token: str = Field(min_length=24)
 
 
-class LocalAgentSettings(BaseAppSettings):
+class EmergencyStopSettings(BaseAppSettings):
+    emergency_stop_path: Path = Path("runtime/EMERGENCY_STOP")
+    agent_pid_path: Path = Path("runtime/local_agent.pid")
+
+
+class LocalAgentSettings(EmergencyStopSettings):
     control_plane_url: str = "http://127.0.0.1:8000"
     agent_id: str = "desktop-principal"
     agent_token: str = Field(min_length=24)
@@ -31,5 +36,3 @@ class LocalAgentSettings(BaseAppSettings):
     browser_headless: bool = False
     desktop_enabled: bool = False
     screenshot_dir: Path = Path("runtime/screenshots")
-    emergency_stop_path: Path = Path("runtime/EMERGENCY_STOP")
-    agent_pid_path: Path = Path("runtime/local_agent.pid")
