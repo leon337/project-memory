@@ -113,8 +113,8 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarefa não encontrada.")
         return task
 
-    @app.get("/api/agent/next", dependencies=[Depends(require_agent)])
-    def next_task(agent_id: Annotated[str, Query(min_length=1, max_length=100)]) -> AgentTask | Response:
+    @app.get("/api/agent/next", dependencies=[Depends(require_agent)], response_model=None)
+    def next_task(agent_id: Annotated[str, Query(min_length=1, max_length=100)]):
         task = store.claim_next(agent_id)
         if task is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
