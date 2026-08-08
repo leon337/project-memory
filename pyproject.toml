@@ -25,6 +25,7 @@ dev = [
 context-anchor-control = "context_anchor.control_plane:main"
 context-anchor-agent = "context_anchor.local_agent:run"
 context-anchor-stop = "context_anchor.emergency_stop:main"
+context-anchor-doctor = "context_anchor.doctor:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
