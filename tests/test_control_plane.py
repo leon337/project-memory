@@ -13,6 +13,8 @@ def make_client(tmp_path: Path) -> tuple[TestClient, str, str]:
         db_path=tmp_path / "control-plane.db",
         user_token=user_token,
         agent_token=agent_token,
+        task_lease_seconds=120,
+        task_max_attempts=3,
     )
     return TestClient(create_app(settings)), user_token, agent_token
 
@@ -44,18 +46,50 @@ def test_authenticated_task_roundtrip(tmp_path: Path) -> None:
     )
     assert claimed.status_code == 200
     assert claimed.json()["id"] == task_id
+    lease_token = claimed.json()["lease_token"]
 
     finished = client.post(
         f"/api/agent/tasks/{task_id}/result",
         headers=agent_headers,
-        json={"ok": True, "result": {"verified": True}},
+        json={
+            "lease_token": lease_token,
+            "ok": True,
+            "result": {"verified": True},
+        },
     )
     assert finished.status_code == 200
     assert finished.json()["status"] == "succeeded"
+    assert finished.json()["attempts"] == 1
 
     fetched = client.get(f"/api/tasks/{task_id}", headers=user_headers)
     assert fetched.status_code == 200
     assert fetched.json()["result"] == {"verified": True}
+
+
+def test_stale_lease_result_is_rejected(tmp_path: Path) -> None:
+    client, user_token, agent_token = make_client(tmp_path)
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+    agent_headers = {"Authorization": f"Bearer {agent_token}"}
+
+    created = client.post(
+        "/api/tasks",
+        headers=user_headers,
+        json={"command": "abrir example.com"},
+    )
+    task_id = created.json()["id"]
+    claimed = client.get(
+        "/api/agent/next",
+        headers=agent_headers,
+        params={"agent_id": "test-agent"},
+    )
+    assert claimed.status_code == 200
+
+    finished = client.post(
+        f"/api/agent/tasks/{task_id}/result",
+        headers=agent_headers,
+        json={"lease_token": "x" * 24, "ok": True, "result": {}},
+    )
+    assert finished.status_code == 409
 
 
 def test_invalid_user_token_is_rejected(tmp_path: Path) -> None:
