@@ -84,6 +84,16 @@ class TaskStore:
             row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         return self._row_to_dict(row) if row else None
 
+    def list_recent(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        if limit < 1 or limit > 100:
+            raise ValueError("limit deve estar entre 1 e 100.")
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
     def _recover_expired_in_transaction(
         self,
         conn: sqlite3.Connection,
