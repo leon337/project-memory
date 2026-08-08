@@ -121,3 +121,14 @@ Ao orientar comandos ou testes, a explicação deve incluir, quando relevante:
 - qual princípio técnico está sendo aprendido.
 
 A prioridade durante o MVP é aprender o funcionamento real do sistema junto com a implementação, sem transformar detalhes não bloqueantes em burocracia.
+
+## D-020 — Terminologia didática para os processos principais
+
+Na comunicação com o usuário e, quando possível, na interface, os nomes principais devem ser intuitivos.
+
+- `Control Plane` será apresentado como **Central**.
+- `local agent` será apresentado como **Robô local**.
+
+Os nomes técnicos podem continuar existindo no código e na documentação arquitetural, mas devem aparecer entre parênteses quando forem úteis para aprendizado, por exemplo: `Central (Control Plane)` e `Robô local (local agent)`.
+
+A intenção é reduzir confusão operacional durante testes com múltiplos terminais sem alterar a separação arquitetural entre os dois processos.
