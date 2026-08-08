@@ -41,3 +41,11 @@ class LocalAgentSettings(DesktopSettings):
     agent_token: str = Field(min_length=24)
     poll_interval_seconds: float = Field(default=2.0, ge=0.5, le=60)
     browser_headless: bool = False
+
+
+class DashboardSettings(BaseAppSettings):
+    dashboard_host: str = "127.0.0.1"
+    dashboard_port: int = Field(default=8765, ge=1024, le=65535)
+    central_pid_path: Path = Path("runtime/central.pid")
+    log_dir: Path = Path("runtime/logs")
+    env_path: Path = Path(".env")
