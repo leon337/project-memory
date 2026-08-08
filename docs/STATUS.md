@@ -17,66 +17,132 @@ O objetivo final continua incluindo:
 
 ## Estado verificável agora
 
-O repositório `leon337/project-memory` deixou de conter apenas documentação e possui um primeiro MVP implementado no branch `main`.
+O branch `main` contém um MVP 0.2 funcional em código, com núcleo Web, navegador e primeiro slice de desktop implementados.
 
-### Implementado
+### Control Plane e tarefas
 
-- pacote Python 3.11+ em `src/context_anchor`;
-- Control Plane em FastAPI;
-- painel Web local;
-- fila durável de tarefas em SQLite;
-- autenticação separada por token para usuário e agente local;
-- agente local que consulta o Control Plane por HTTP polling;
-- planner determinístico inicial;
-- Policy Layer com allowlist;
-- automação de navegador com Playwright/Chromium;
+- FastAPI com painel Web local;
+- autenticação separada para usuário e agente;
+- SQLite como fila e histórico;
+- polling HTTP autenticado;
+- estados `queued`, `running`, `succeeded` e `failed`;
+- leases de execução com token de propriedade;
+- lease padrão de 120 segundos e máximo padrão de 3 tentativas;
+- tarefa interrompida pode voltar para a fila após expiração do lease;
+- resultado atrasado com lease antigo é recusado;
+- após interrupções repetidas a tarefa falha em vez de entrar em loop infinito.
+
+### Navegador
+
+- Playwright + Chromium;
+- comandos `abrir <site>` e `pesquisar/buscar <termo>`;
 - verificação de URL final, título e status HTTP;
-- comandos do MVP: `abrir <site>` e `pesquisar/buscar <termo>`;
-- bloqueio de localhost, `.local`, IPs privados/loopback e esquemas não HTTP(S);
-- `.env.example` sem segredos reais;
-- testes unitários da política e do armazenamento;
-- teste de integração do Control Plane;
-- workflow GitHub Actions para compilação e `pytest`;
-- README com instalação e operação.
+- bloqueio de localhost, `.local`, IPs privados/loopback e esquemas não HTTP(S).
 
-### Arquitetura técnica escolhida para o MVP
+### Desktop
 
-- alvo inicial: desktop Linux;
-- linguagem: Python 3.11+;
-- Control Plane: FastAPI;
-- persistência: SQLite;
-- comunicação servidor → agente: polling HTTP autenticado;
-- automação de navegador: Playwright + Chromium;
-- modelo de IA: ainda não escolhido; o MVP usa planner determinístico para validar o ciclo operacional antes de integrar um LLM.
+Implementado em `src/context_anchor/desktop.py` com backend PyAutoGUI carregado apenas quando necessário.
 
-## Validação
+Ações tipadas atuais:
 
-- O primeiro workflow de CI após a criação do pipeline concluiu com sucesso.
-- Após adicionar o teste de integração do Control Plane, o CI falhou. A falha revelou incompatibilidade na declaração da rota `/api/agent/next`, que podia retornar uma tarefa ou HTTP 204 e estava sendo interpretada pelo FastAPI como um modelo de resposta inválido.
-- A rota foi corrigida para declarar `response_model=None` e tratar explicitamente a resposta 204.
-- O workflow seguinte, no commit `25c3a0d034069dcbf332df6fe4e08794e3acb2da`, concluiu com sucesso em instalação, compilação e testes.
-- Uma tentativa de clonar o repositório dentro do ambiente de execução desta sessão falhou porque esse ambiente não conseguiu resolver `github.com`; por isso a validação automatizada foi delegada ao GitHub Actions. Isso não indica falha do código do projeto.
-- O fluxo real com Chromium visível em um desktop Linux ainda não foi executado nesta sessão e permanece como próximo teste vertical.
+- capturar screenshot;
+- consultar janela ativa via `xdotool` quando disponível;
+- mover mouse;
+- clique esquerdo e direito;
+- digitar texto limitado;
+- pressionar teclas de uma allowlist;
+- abrir aplicativos de uma allowlist fixa.
+
+Allowlist inicial de aplicativos:
+
+- Firefox;
+- Chromium;
+- Nemo/Nautilus;
+- Xed/Gedit;
+- VS Code;
+- calculadora;
+- LibreOffice.
+
+Aplicativos são iniciados com `shell=False`; nome recebido remotamente não vira comando arbitrário.
+
+O controle físico fica desativado por padrão por `CONTEXT_ANCHOR_DESKTOP_ENABLED=false`.
+
+### Emergency stop
+
+Implementado em `src/context_anchor/emergency_stop.py` e disponível por `context-anchor-stop`.
+
+- cria o marcador persistente `runtime/EMERGENCY_STOP` por padrão;
+- agente se recusa a iniciar enquanto o marcador existir;
+- registra PID e tempo de início do processo Linux;
+- verifica PID + identidade do processo antes de enviar `SIGTERM`;
+- não depende de token do agente nem do planner/modelo para funcionar;
+- PyAutoGUI mantém `FAILSAFE` habilitado como proteção adicional.
+
+### Diagnóstico local
+
+Implementado comando `context-anchor-doctor`.
+
+Ele inspeciona sem controlar o computador:
+
+- Python;
+- sistema operacional;
+- tipo de sessão gráfica;
+- `DISPLAY`/Wayland;
+- instalação do PyAutoGUI;
+- `xdotool` e `scrot`;
+- aplicativos da allowlist disponíveis.
+
+### Planner
+
+- planner determinístico continua ativo;
+- criado contrato provider-agnostic em `src/context_anchor/planner.py`;
+- saída estruturada só aceita ações tipadas conhecidas;
+- campos extras e ação `shell` são rejeitados por esquema;
+- Policy Layer continua sendo consultada depois do planner;
+- nenhum provedor de IA foi ativado ainda.
+
+## Validação automatizada
+
+- workflow GitHub Actions instala dependências, compila o pacote e executa `pytest`;
+- a primeira falha de integração do FastAPI encontrada anteriormente foi corrigida;
+- CI do commit `8878d2e98a2475a723f47d42f032d8baeb271f19`, já contendo desktop, emergency stop e leases, passou em instalação, compilação e testes;
+- CI do commit `d9d473fe78494e7e56322bc592134f97db98501e`, incluindo o contrato de planner estruturado, também passou integralmente.
+
+## Validação física ainda pendente
+
+Ainda não houve nesta sessão execução em um desktop Linux real com tela gráfica.
+
+Precisam ser confirmados no computador alvo:
+
+- Chromium visível via Playwright;
+- captura real de screenshot;
+- leitura da janela ativa;
+- movimento e clique do mouse;
+- digitação e teclas;
+- abertura dos aplicativos instalados;
+- comportamento do `FAILSAFE`;
+- emergency stop encerrando o processo real;
+- compatibilidade da sessão gráfica usada pelo computador.
+
+O backend inicial foi projetado para Linux/X11. Wayland ainda não foi validado.
 
 ## Ainda não implementado
 
-- controle de mouse e teclado;
-- percepção de tela;
 - árvore de acessibilidade;
-- abertura/controle genérico de aplicativos;
+- percepção semântica de screenshots;
+- controle genérico de arquivos;
 - câmera;
-- planner por modelo de IA;
-- memória operacional de tarefas longas;
+- planner conectado a um modelo de IA real;
+- loop autônomo de múltiplas ações orientado a objetivo;
 - confirmação humana para ações sensíveis;
-- emergency stop independente;
-- Control Plane publicado para acesso remoto;
-- TLS, pareamento de dispositivo e autenticação forte para Internet;
+- Control Plane publicado para Internet;
+- TLS, pareamento de dispositivo e autenticação forte para acesso remoto;
 - WhatsApp;
 - Telegram;
 - Instagram.
 
 ## Limite operacional atual
 
-O servidor escuta `127.0.0.1` por padrão e esta versão não deve ser exposta diretamente à Internet.
+O servidor escuta `127.0.0.1` por padrão e não deve ser exposto diretamente à Internet nesta versão.
 
-O MVP não executa shell arbitrário, não contorna login/MFA e não recebe senhas pelo modelo.
+O sistema não oferece shell arbitrário, não contorna login/MFA e não armazena credenciais no Git ou no planner.
