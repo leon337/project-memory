@@ -8,12 +8,19 @@ import httpx
 from .actions import ActionExecutor
 from .config import LocalAgentSettings
 from .emergency_stop import EmergencyStop, EmergencyStopTriggered
-from .policy import evaluate_plan, plan_command
+from .planner import DeterministicPlanner, Planner
+from .policy import evaluate_plan
 from .schemas import AgentTask
 
 
-def execute_command(executor: ActionExecutor, command: str) -> dict[str, Any]:
-    plan = plan_command(command)
+def execute_command(
+    executor: ActionExecutor,
+    command: str,
+    *,
+    planner: Planner | None = None,
+) -> dict[str, Any]:
+    active_planner = planner or DeterministicPlanner()
+    plan = active_planner.plan(command)
     decision = evaluate_plan(plan, desktop_enabled=executor.desktop_enabled)
     if not decision.allowed:
         raise PermissionError(decision.reason)
@@ -40,6 +47,7 @@ def run() -> None:
         screenshot_dir=cfg.screenshot_dir,
         emergency_stop=stop,
     )
+    planner = DeterministicPlanner()
 
     with stop.register_agent_process():
         with httpx.Client(base_url=cfg.control_plane_url, headers=headers, timeout=35) as client:
@@ -55,7 +63,7 @@ def run() -> None:
                         task = AgentTask.model_validate(response.json())
 
                         try:
-                            result = execute_command(executor, task.command)
+                            result = execute_command(executor, task.command, planner=planner)
                             payload = {
                                 "lease_token": task.lease_token,
                                 "ok": True,
