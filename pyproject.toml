@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "context-anchor-operator"
-version = "0.2.0"
-description = "Robô operador local com Central Web, navegador e ações controladas de desktop"
+version = "0.3.0"
+description = "Robô operador local com Painel do Robô, Central Web, navegador e ações controladas de desktop"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.116,<1",
@@ -22,6 +22,9 @@ dev = [
 ]
 
 [project.scripts]
+# Interface principal para operação e aprendizado.
+painel-robo = "context_anchor.dashboard:main"
+
 # Comandos principais, pensados para uso humano e aprendizado.
 central = "context_anchor.control_plane:main"
 robo = "context_anchor.local_agent:run"
