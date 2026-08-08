@@ -140,3 +140,29 @@ Os comandos principais para uso humano são:
 Os comandos técnicos antigos `context-anchor-control`, `context-anchor-agent`, `context-anchor-stop` e `context-anchor-doctor` permanecem como aliases de compatibilidade para não quebrar instalações, documentação antiga ou diagnóstico de versões anteriores.
 
 Os nomes técnicos internos podem continuar existindo no código e na documentação arquitetural quando forem úteis para aprendizado, preferencialmente apresentados após o nome intuitivo, por exemplo: `Central (Control Plane)` e `Robô local (local agent)`.
+
+## D-021 — Painel do Robô como centro de operação e aprendizado
+
+Antes de ampliar os testes manuais de desktop, será criado um **Painel do Robô** local e independente da Central.
+
+O painel terá duas funções simultâneas:
+
+1. operar e configurar o sistema sem depender de vários terminais;
+2. ensinar o usuário o que cada configuração, comando e processo faz.
+
+O Painel do Robô deverá, progressivamente, oferecer:
+
+- status visual da Central, Robô, desktop e parada de emergência;
+- botões para ligar, desligar e reiniciar Central e Robô;
+- habilitação/desabilitação de capacidades como navegador, screenshot, mouse, teclado e aplicativos;
+- configurações expostas por controles visuais em vez de edição manual de `.env` quando possível;
+- diagnóstico do ambiente e dependências;
+- histórico de tarefas e resultados;
+- logs separados e identificados por componente;
+- testes guiados das capacidades do Robô;
+- área de aprendizado que explique comandos, resultado esperado e erros comuns;
+- campo para receber comandos de manutenção fornecidos durante o desenvolvimento, com visualização e explicação antes da execução.
+
+O campo de comandos do painel não será um shell remoto irrestrito. Ele deverá executar somente operações locais explicitamente suportadas pelo modo de desenvolvimento, ou apresentar o comando para cópia/execução manual quando estiver fora dessa lista.
+
+O Painel do Robô será um processo local separado da Central para continuar disponível mesmo quando a Central ou o Robô forem desligados ou reiniciados.
