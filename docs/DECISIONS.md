@@ -107,3 +107,17 @@ Resultados só são aceitos enquanto esse lease ainda for o proprietário atual.
 Um provedor de IA futuro deverá devolver somente uma ação pertencente ao esquema estruturado conhecido pelo sistema.
 
 O esquema não possui ação de shell nem campos livres para comandos de ferramenta. Mesmo uma ação estruturalmente válida continua sujeita à Policy Layer antes da execução.
+
+## D-019 — Construção também deve ensinar operação e diagnóstico
+
+Durante o desenvolvimento, cada etapa prática deve ser explicada em linguagem simples para que o usuário aprenda a operar, diagnosticar e recuperar o sistema sem depender permanentemente do assistente.
+
+Ao orientar comandos ou testes, a explicação deve incluir, quando relevante:
+
+- o que o comando faz;
+- por que ele é necessário;
+- qual resultado é esperado;
+- como reconhecer uma falha;
+- qual princípio técnico está sendo aprendido.
+
+A prioridade durante o MVP é aprender o funcionamento real do sistema junto com a implementação, sem transformar detalhes não bloqueantes em burocracia.
