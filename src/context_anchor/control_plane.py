@@ -7,7 +7,8 @@ import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.responses import HTMLResponse
 
-from .config import ControlPlaneSettings
+from .config import ControlPlaneSettings, DashboardSettings
+from .process_registry import registered_process
 from .schemas import AgentResult, AgentTask, TaskCreate, TaskView
 from .store import TaskStore
 
@@ -157,7 +158,9 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
 
 def main() -> None:
     cfg = ControlPlaneSettings()
-    uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port)
+    dashboard_cfg = DashboardSettings()
+    with registered_process(dashboard_cfg.central_pid_path):
+        uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port)
 
 
 if __name__ == "__main__":
