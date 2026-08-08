@@ -123,25 +123,33 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
 
     @app.get("/api/agent/next", dependencies=[Depends(require_agent)], response_model=None)
     def next_task(agent_id: Annotated[str, Query(min_length=1, max_length=100)]):
-        task = store.claim_next(agent_id)
+        task = store.claim_next(
+            agent_id,
+            lease_seconds=cfg.task_lease_seconds,
+            max_attempts=cfg.task_max_attempts,
+        )
         if task is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        return AgentTask(id=task["id"], command=task["command"])
+        return AgentTask(
+            id=task["id"],
+            command=task["command"],
+            lease_token=task["lease_token"],
+        )
 
     @app.post("/api/agent/tasks/{task_id}/result", response_model=TaskView, dependencies=[Depends(require_agent)])
     def finish_task(task_id: str, payload: AgentResult) -> dict:
-        current = store.get_task(task_id)
-        if current is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarefa não encontrada.")
-        if current["status"] != "running":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tarefa não está em execução.")
         updated = store.complete_task(
             task_id,
+            lease_token=payload.lease_token,
             ok=payload.ok,
             result=payload.result,
             error=payload.error,
         )
-        assert updated is not None
+        if updated is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Lease da tarefa expirou ou não pertence mais a esta execução.",
+            )
         return updated
 
     return app
