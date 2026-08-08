@@ -16,7 +16,7 @@ INDEX_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Context Anchor</title>
+  <title>Central do Robô</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 16px; }
     input, button { box-sizing: border-box; width: 100%; padding: 12px; margin: 6px 0; }
@@ -27,16 +27,16 @@ INDEX_HTML = """<!doctype html>
   </style>
 </head>
 <body>
-  <h1>Context Anchor — MVP 0.2</h1>
-  <p>Navegador e ações tipadas de desktop. O controle físico permanece sujeito à política e à habilitação local do agente.</p>
+  <h1>Central do Robô — MVP 0.2</h1>
+  <p>A Central recebe seus comandos e entrega as tarefas ao Robô local, que executa apenas ações permitidas.</p>
   <details>
     <summary>Comandos disponíveis</summary>
     <p><strong>Navegador:</strong> <code>abrir example.com</code>, <code>pesquisar inteligência artificial</code>.</p>
     <p><strong>Desktop:</strong> <code>capturar tela</code>, <code>janela ativa</code>, <code>mover mouse 120 350</code>, <code>clicar</code>, <code>clicar direito</code>, <code>digitar texto</code>, <code>tecla enter</code>, <code>abrir aplicativo firefox</code>.</p>
-    <small>Se CONTEXT_ANCHOR_DESKTOP_ENABLED=false, as ações físicas serão recusadas pelo agente local.</small>
+    <small>Se CONTEXT_ANCHOR_DESKTOP_ENABLED=false, as ações físicas serão recusadas pelo Robô local.</small>
   </details>
   <label>Token do usuário</label>
-  <input id="token" type="password" autocomplete="off" placeholder="Token configurado no servidor" />
+  <input id="token" type="password" autocomplete="off" placeholder="Token configurado na Central" />
   <label>Comando</label>
   <input id="command" placeholder="pesquisar FastAPI" />
   <button id="send">Executar</button>
@@ -90,7 +90,7 @@ def _bearer_token(authorization: str | None) -> str:
 def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
     cfg = settings or ControlPlaneSettings()
     store = TaskStore(cfg.db_path)
-    app = FastAPI(title="Context Anchor Control Plane", version="0.2.0")
+    app = FastAPI(title="Central do Robô", version="0.2.0")
 
     def require_user(authorization: Annotated[str | None, Header()] = None) -> None:
         token = _bearer_token(authorization)
