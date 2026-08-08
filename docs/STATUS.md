@@ -10,65 +10,58 @@ O objetivo final continua incluindo mouse, teclado, aplicativos, navegador, site
 
 O branch `main` contém o **MVP 0.3** em código.
 
-O projeto possui três processos com papéis separados:
+O projeto possui três processos separados:
 
 - **Painel do Robô** — interface local de operação e aprendizado;
 - **Central** — recebe, persiste e distribui tarefas;
 - **Robô local** — executa ações permitidas no computador.
 
-### Painel do Robô — implementado no MVP 0.3
+## Painel do Robô — implementado e em validação física
 
-Implementado em `src/context_anchor/dashboard.py` e iniciado pelo comando:
+Implementado em `src/context_anchor/dashboard.py` e iniciado por:
 
 ```text
 painel-robo
 ```
 
-Por padrão o Painel escuta somente `127.0.0.1:8765`.
+Por padrão escuta somente `127.0.0.1:8765`.
 
-Primeiro slice funcional:
+Capacidades atuais:
 
-- estado visual da Central;
-- estado visual do Robô;
-- estado de habilitação do Desktop;
-- estado da parada de emergência;
-- botões tipados para ligar/parar Central;
-- botões tipados para ligar/parar/reiniciar Robô;
-- controle visual para alterar `CONTEXT_ANCHOR_DESKTOP_ENABLED` no `.env`;
-- indicação de que o Robô precisa ser reiniciado após mudança de configuração;
-- diagnóstico local pela interface;
-- fila com tarefas recentes;
-- envio de tarefas do Robô sem digitar o token no navegador;
-- logs separados de Central e Robô quando esses processos são iniciados pelo Painel;
-- laboratório de comandos guiados com explicação de objetivo, motivo, resultado esperado e local de execução;
-- layout responsivo com áreas Visão geral, Configurações e Laboratório.
+- estado visual da Central, Robô, Desktop e emergência;
+- ligar/parar Central;
+- ligar/parar/reiniciar Robô;
+- alterar `CONTEXT_ANCHOR_DESKTOP_ENABLED` pelo painel;
+- diagnóstico local;
+- tarefas recentes;
+- envio de tarefas sem digitar token no navegador;
+- logs de Central e Robô quando gerenciados pelo Painel;
+- laboratório de comandos guiados;
+- áreas Visão geral, Configurações e Laboratório.
 
-O laboratório não possui endpoint genérico de shell. Comandos desconhecidos são explicados como não catalogados e não são executados automaticamente.
+O laboratório não executa shell arbitrário. Comandos desconhecidos são apenas explicados como não catalogados.
 
-### Gerenciamento de processos — implementado
+## Gerenciamento de processos
 
-Criado `src/context_anchor/process_registry.py`.
+Implementado em `src/context_anchor/process_registry.py`.
 
-- processos registrados guardam PID e tempo de início do Linux;
-- antes de encerrar um processo, a identidade é verificada para reduzir risco de reutilização de PID;
-- a Central passa a registrar `runtime/central.pid` quando iniciada pela versão nova;
-- o Robô continua registrando `runtime/local_agent.pid`;
-- o Painel consegue administrar processos iniciados/registrados pela versão nova;
-- se detectar uma Central antiga iniciada fora do Painel, informa que ela precisa ser parada manualmente uma vez antes de passar a ser gerenciada pelo Painel.
+- registros de processo guardam PID e tempo de início no Linux;
+- a identidade é verificada antes de encerrar um processo;
+- a Central registra `runtime/central.pid`;
+- o Robô registra `runtime/local_agent.pid`;
+- o Painel administra processos compatíveis com esses registros.
 
-### Nomes e comandos visíveis
+## Comandos humanos atuais
 
-Comandos humanos atuais:
-
-- `painel-robo` — abre o gerenciador local;
-- `central` — liga a Central;
-- `robo` — liga o Robô;
+- `painel-robo` — Painel do Robô;
+- `central` — Central;
+- `robo` — Robô local;
 - `parar-robo` — parada de emergência;
 - `diagnostico-robo` — diagnóstico.
 
-Os aliases técnicos antigos continuam disponíveis por compatibilidade.
+Aliases técnicos antigos permanecem por compatibilidade.
 
-### Central e tarefas
+## Central e tarefas
 
 - FastAPI;
 - autenticação separada para usuário e Robô;
@@ -76,34 +69,33 @@ Os aliases técnicos antigos continuam disponíveis por compatibilidade.
 - polling HTTP autenticado;
 - estados `queued`, `running`, `succeeded` e `failed`;
 - leases com token de propriedade;
-- recuperação de tarefa interrompida;
-- limite de tentativas;
-- `TaskStore.list_recent()` adicionado para o Painel consultar tarefas recentes.
+- recuperação de tarefas interrompidas e limite de tentativas;
+- `TaskStore.list_recent()` para tarefas recentes no Painel.
 
-### Navegador
+## Navegador
 
 - Playwright + Chromium;
 - comandos `abrir <site>` e `pesquisar/buscar <termo>`;
 - verificação de URL final, título e status HTTP;
 - bloqueio de localhost, `.local`, IPs privados/loopback e esquemas não HTTP(S).
 
-### Desktop
+## Desktop
 
 Implementado em `src/context_anchor/desktop.py` com PyAutoGUI carregado somente quando necessário.
 
 Ações tipadas atuais:
 
-- capturar screenshot;
-- consultar janela ativa via `xdotool`;
+- screenshot;
+- janela ativa via `xdotool`;
 - mover mouse;
 - clique esquerdo e direito;
 - digitar texto limitado;
-- pressionar teclas permitidas;
+- teclas permitidas;
 - abrir aplicativos de allowlist fixa.
 
-Aplicativos são iniciados com `shell=False`; nome recebido remotamente não vira comando arbitrário.
+Aplicativos são iniciados com `shell=False`; nomes remotos não viram comandos arbitrários.
 
-### Parada de emergência
+## Parada de emergência
 
 Implementada em `src/context_anchor/emergency_stop.py`.
 
@@ -113,67 +105,64 @@ Implementada em `src/context_anchor/emergency_stop.py`.
 - independente do planner/modelo;
 - PyAutoGUI mantém `FAILSAFE` habilitado.
 
-### Diagnóstico
+## Diagnóstico
 
-`diagnostico-robo` e o Painel consultam:
+`diagnostico-robo` e o Painel verificam Python, sistema, sessão gráfica, `DISPLAY`/Wayland, PyAutoGUI, `xdotool`, `scrot` e aplicativos permitidos.
 
-- Python;
-- sistema operacional;
-- sessão gráfica;
-- `DISPLAY`/Wayland;
-- PyAutoGUI;
-- `xdotool`;
-- `scrot`;
-- aplicativos permitidos disponíveis.
-
-### Planner
+## Planner
 
 - planner determinístico continua ativo;
 - contrato provider-agnostic em `src/context_anchor/planner.py`;
 - saída estruturada aceita somente ações conhecidas;
-- ação `shell` não existe no esquema;
+- não existe ação `shell` no esquema;
 - toda ação continua passando pela Policy Layer;
 - nenhum provedor de IA real foi ativado ainda.
 
 ## Validação automatizada
 
 - GitHub Actions instala dependências, compila e executa `pytest`;
-- CI do commit `3bffd1bf8bca5093d399ce2f98b26a27eceadc48`, já contendo o Painel, seus endpoints tipados e testes do laboratório guiado, concluiu com sucesso;
-- os testes verificam que não existe endpoint `/api/shell` genérico;
+- CI do commit `3bffd1bf8bca5093d399ce2f98b26a27eceadc48`, contendo o Painel, endpoints tipados e testes do laboratório, concluiu com sucesso;
+- testes verificam a ausência de endpoint genérico `/api/shell`;
 - testes anteriores de Central, desktop, emergency stop, planner, política e leases continuam no pipeline.
 
 ## Validação física — Linux real
 
-Já confirmados no computador alvo:
+Já confirmado no computador alvo:
 
-- sessão `X11`;
-- `DISPLAY=:0.0`;
+- sessão `X11` e `DISPLAY=:0.0`;
 - `xdotool` e `scrot` instalados;
 - Firefox, Chrome/Chromium, Xed, VS Code, calculadora e LibreOffice detectados;
 - Central em `127.0.0.1:8000` funcionando;
 - Robô fazendo polling autenticado;
-- `abrir example.com` concluído fisicamente com sucesso;
-- `pesquisar inteligência artificial` concluído fisicamente com sucesso;
-- `which central` encontrou o novo comando dentro da `.venv`;
-- `which robo` encontrou o novo comando dentro da `.venv`;
-- o `.env` local foi alterado durante a sessão de `CONTEXT_ANCHOR_DESKTOP_ENABLED=false` para `true`.
+- `abrir example.com` executado fisicamente com sucesso;
+- `pesquisar inteligência artificial` executado fisicamente com sucesso;
+- comandos `central`, `robo` e `painel-robo` instalados dentro da `.venv`;
+- `.env` local está com `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`;
+- `painel-robo` iniciou fisicamente em `127.0.0.1:8765`;
+- Visão geral, Configurações e Laboratório abriram corretamente no navegador;
+- o Painel detectou Central ligada, Robô ligado, Desktop habilitado e emergência normal;
+- foi criado localmente um atalho `.desktop` em `/home/leo/Área de trabalho/Painel do Robo.desktop` e ele inicia o Painel;
+- o botão **Reiniciar Robô** foi acionado fisicamente pelo Painel;
+- a interface mostrou `Robô ligado.` e o servidor registrou `POST /api/robot/restart` com HTTP `200 OK`.
 
 Falha já entendida:
 
 - `abrir google.com e pesquisar inteligencia artificial` foi interpretado pelo planner determinístico como uma única URL inválida;
-- isso confirma o limite atual de uma ação por comando, não uma falha do navegador ou da comunicação.
+- isso confirma o limite atual de uma ação por comando, não uma falha de rede.
 
-Ainda não validados fisicamente:
+Uma tarefa antiga `capturar tela` aparece como `failed` no histórico; ela ocorreu antes da validação atual do Robô reiniciado com Desktop habilitado e não conta como validação final da captura.
 
-- `painel-robo` no computador alvo;
-- controle de Central/Robô pelos botões do Painel;
-- captura real de screenshot;
+Ainda precisam ser validados fisicamente pelo Painel:
+
+- captura real de screenshot após o reinício atual;
 - leitura da janela ativa;
 - mouse;
 - teclado;
-- abertura de aplicativo pelo executor de desktop;
+- abertura de aplicativo permitido;
+- diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
-- parada de emergência real pelo Painel.
+- parada de emergência real pelo Painel;
+- ligar/parar Central e Robô pelo Painel em sequência completa.
 
 ## Ainda não implementado
 
