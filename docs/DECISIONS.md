@@ -42,7 +42,7 @@ O backend físico inicial foi desenhado para Linux/X11. Outros ambientes serão 
 
 O núcleo usa Python 3.11+, FastAPI e SQLite.
 
-Control Plane e agente local se comunicam por HTTP polling autenticado.
+A Central e o Robô local se comunicam por HTTP polling autenticado.
 
 ## D-009 — Automação de navegador
 
@@ -64,9 +64,9 @@ WhatsApp, Telegram e Instagram entram depois que o núcleo local estiver validad
 
 ## D-012 — Seguro por padrão
 
-O Control Plane escuta apenas localhost por padrão.
+A Central escuta apenas localhost por padrão.
 
-Usuário e agente têm credenciais separadas. Ações não reconhecidas ou fora da allowlist são bloqueadas.
+Usuário e Robô têm credenciais separadas. Ações não reconhecidas ou fora da allowlist são bloqueadas.
 
 ## D-013 — Sem shell arbitrário
 
@@ -90,11 +90,11 @@ O sistema não aceita caminho de executável ou argumentos de shell fornecidos l
 
 ## D-016 — Emergency stop independente do planner
 
-O emergency stop deve continuar funcionando mesmo que o planner, a comunicação remota ou as credenciais do agente estejam com problema.
+O emergency stop deve continuar funcionando mesmo que o planner, a comunicação remota ou as credenciais do Robô estejam com problema.
 
 A implementação local usa sentinel persistente, PID e identidade de processo Linux antes de enviar `SIGTERM`.
 
-O sentinel precisa ser limpo conscientemente antes de o agente voltar a executar.
+O sentinel precisa ser limpo conscientemente antes de o Robô voltar a executar.
 
 ## D-017 — Leases para propriedade de tarefa
 
@@ -122,13 +122,21 @@ Ao orientar comandos ou testes, a explicação deve incluir, quando relevante:
 
 A prioridade durante o MVP é aprender o funcionamento real do sistema junto com a implementação, sem transformar detalhes não bloqueantes em burocracia.
 
-## D-020 — Terminologia didática para os processos principais
+## D-020 — Terminologia e comandos didáticos
 
-Na comunicação com o usuário e, quando possível, na interface, os nomes principais devem ser intuitivos.
+Na comunicação com o usuário e na interface visível, os nomes principais devem ser intuitivos.
 
 - `Control Plane` será apresentado como **Central**.
-- `local agent` será apresentado como **Robô local**.
+- `local agent` será apresentado como **Robô local** ou apenas **Robô**.
+- o painel Web terá o título **Central do Robô**.
 
-Os nomes técnicos podem continuar existindo no código e na documentação arquitetural, mas devem aparecer entre parênteses quando forem úteis para aprendizado, por exemplo: `Central (Control Plane)` e `Robô local (local agent)`.
+Os comandos principais para uso humano são:
 
-A intenção é reduzir confusão operacional durante testes com múltiplos terminais sem alterar a separação arquitetural entre os dois processos.
+- `central` — liga a Central;
+- `robo` — liga o Robô local;
+- `parar-robo` — controla a parada de emergência;
+- `diagnostico-robo` — verifica o ambiente do computador.
+
+Os comandos técnicos antigos `context-anchor-control`, `context-anchor-agent`, `context-anchor-stop` e `context-anchor-doctor` permanecem como aliases de compatibilidade para não quebrar instalações, documentação antiga ou diagnóstico de versões anteriores.
+
+Os nomes técnicos internos podem continuar existindo no código e na documentação arquitetural quando forem úteis para aprendizado, preferencialmente apresentados após o nome intuitivo, por exemplo: `Central (Control Plane)` e `Robô local (local agent)`.
