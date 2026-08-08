@@ -8,89 +8,102 @@ O agente deverá ser capaz de receber um objetivo e executar múltiplas ações 
 
 ## D-002 — Controle do computador
 
-O sistema deverá evoluir para suportar:
-
-- mouse;
-- teclado;
-- aplicativos;
-- navegador;
-- sites;
-- sessões autenticadas;
-- câmera autorizada.
+O sistema deverá evoluir para suportar mouse, teclado, aplicativos, navegador, sites, sessões autenticadas e câmera autorizada.
 
 ## D-003 — Operação remota
 
-O agente deverá poder receber comandos remotamente.
+O agente deverá poder receber comandos por Web, WhatsApp, Telegram e Instagram.
 
-Canais desejados:
-
-- Web;
-- WhatsApp;
-- Telegram;
-- Instagram.
-
-As integrações não precisam fazer parte simultaneamente do primeiro MVP.
+Esses canais não precisam entrar simultaneamente no MVP.
 
 ## D-004 — Autonomia
 
 O objetivo é permitir alto grau de autonomia.
 
-“Controle irrestrito” significa acesso às capacidades concedidas pelo usuário e pelo sistema operacional, e não bypass de mecanismos de autenticação ou segurança.
-
-A arquitetura deverá permitir restringir determinadas categorias de ação.
+“Controle irrestrito” significa acesso às capacidades concedidas pelo usuário e pelo sistema operacional, e não bypass de autenticação ou mecanismos de segurança.
 
 ## D-005 — Credenciais
 
 Senhas, tokens e outras credenciais não devem ser armazenados diretamente no código, prompts, logs ou repositório.
 
-O gerenciamento de credenciais deverá ser separado do mecanismo de raciocínio do agente.
+O gerenciamento de credenciais deverá permanecer separado do mecanismo de raciocínio.
 
 ## D-006 — Controle observável
 
-O agente deverá verificar o resultado das ações executadas e manter histórico suficiente para diagnosticar falhas.
+O agente deverá verificar resultados e manter histórico suficiente para diagnosticar falhas.
 
 ## D-007 — Primeiro alvo operacional
 
-O primeiro alvo do MVP será desktop Linux.
+O primeiro alvo é desktop Linux.
 
-A arquitetura deverá evitar acoplamentos desnecessários ao sistema operacional para permitir suporte posterior a outros ambientes.
+O backend físico inicial foi desenhado para Linux/X11. Outros ambientes serão adicionados sem alterar o contrato de ações quando possível.
 
 ## D-008 — Stack do MVP
 
-O núcleo inicial será implementado em Python 3.11+.
+O núcleo usa Python 3.11+, FastAPI e SQLite.
 
-O Control Plane usará FastAPI e a persistência inicial usará SQLite.
-
-A comunicação entre Control Plane e agente local será HTTP polling autenticado. Essa escolha reduz complexidade no primeiro teste vertical e poderá ser substituída posteriormente sem alterar o contrato de tarefa.
+Control Plane e agente local se comunicam por HTTP polling autenticado.
 
 ## D-009 — Automação de navegador
 
-O primeiro executor real será Playwright com Chromium.
+Playwright com Chromium é o primeiro executor de navegador.
 
-Automação estruturada do navegador terá prioridade sobre visão computacional e coordenadas de mouse quando DOM ou APIs apropriadas estiverem disponíveis.
+Automação estruturada tem prioridade sobre coordenadas visuais quando DOM/API apropriada estiver disponível.
 
 ## D-010 — Planner antes do LLM
 
-O primeiro planner será determinístico e limitado aos comandos necessários para provar o ciclo operacional.
+O planner ativo permanece determinístico até a validação física do caminho de execução.
 
-Um modelo de IA só será integrado depois que o caminho comando → política → execução → verificação estiver validado. O provedor do modelo permanece em aberto.
+Foi criado um contrato provider-agnostic de saída estruturada para preparar a integração futura, mas nenhum modelo de IA está ativado ainda.
 
 ## D-011 — Web primeiro
 
-A interface Web será o primeiro canal funcional.
+A interface Web permanece o primeiro canal funcional.
 
-WhatsApp, Telegram e Instagram só serão adicionados depois que o núcleo local estiver validado, para evitar que problemas de mensageria escondam falhas do agente.
+WhatsApp, Telegram e Instagram entram depois que o núcleo local estiver validado e o acesso remoto estiver protegido.
 
 ## D-012 — Seguro por padrão
 
-O Control Plane deverá escutar apenas localhost por padrão e não será exposto diretamente à Internet no MVP.
+O Control Plane escuta apenas localhost por padrão.
 
-Usuário e agente terão credenciais separadas.
+Usuário e agente têm credenciais separadas. Ações não reconhecidas ou fora da allowlist são bloqueadas.
 
-Ações não reconhecidas ou fora da allowlist serão bloqueadas em vez de executadas por tentativa.
+## D-013 — Sem shell arbitrário
 
-## D-013 — Sem shell arbitrário no MVP
+O sistema não oferece execução genérica de shell recebida remotamente.
 
-O primeiro MVP não oferecerá execução genérica de comandos de shell recebidos remotamente.
+Novas capacidades entram como ações tipadas, validadas e autorizadas pela Policy Layer.
 
-Novas capacidades de desktop serão introduzidas como ações tipadas e autorizadas pela Policy Layer, com validação e auditoria próprias.
+## D-014 — Desktop desativado por padrão
+
+A existência do executor de desktop não implica permissão para usá-lo.
+
+O controle físico fica bloqueado até `CONTEXT_ANCHOR_DESKTOP_ENABLED=true` ser configurado localmente.
+
+Isso permite instalar, testar CI e operar apenas o navegador sem habilitar mouse/teclado por acidente.
+
+## D-015 — Aplicativos por allowlist fixa
+
+Pedidos remotos para abrir aplicativos são resolvidos por ids conhecidos para uma lista fixa de executáveis.
+
+O sistema não aceita caminho de executável ou argumentos de shell fornecidos livremente pelo comando remoto. A abertura usa `shell=False`.
+
+## D-016 — Emergency stop independente do planner
+
+O emergency stop deve continuar funcionando mesmo que o planner, a comunicação remota ou as credenciais do agente estejam com problema.
+
+A implementação local usa sentinel persistente, PID e identidade de processo Linux antes de enviar `SIGTERM`.
+
+O sentinel precisa ser limpo conscientemente antes de o agente voltar a executar.
+
+## D-017 — Leases para propriedade de tarefa
+
+Uma tarefa em execução pertence temporariamente a uma execução específica por meio de um lease e token aleatório.
+
+Resultados só são aceitos enquanto esse lease ainda for o proprietário atual. Tarefas abandonadas podem voltar para a fila e existe limite de tentativas para impedir loop infinito.
+
+## D-018 — Contrato estruturado para planners futuros
+
+Um provedor de IA futuro deverá devolver somente uma ação pertencente ao esquema estruturado conhecido pelo sistema.
+
+O esquema não possui ação de shell nem campos livres para comandos de ferramenta. Mesmo uma ação estruturalmente válida continua sujeita à Policy Layer antes da execução.
