@@ -21,14 +21,18 @@ class TaskView(BaseModel):
     agent_id: str | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
+    lease_expires_at: datetime | None = None
+    attempts: int = 0
 
 
 class AgentTask(BaseModel):
     id: str
     command: str
+    lease_token: str = Field(min_length=20)
 
 
 class AgentResult(BaseModel):
+    lease_token: str = Field(min_length=20)
     ok: bool
     result: dict[str, Any] | None = None
     error: str | None = None
