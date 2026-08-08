@@ -1,30 +1,77 @@
-# Context Anchor Operator
+# Robô Operador — MVP 0.2
 
-Operador digital local controlado por uma interface Web. O sistema recebe uma tarefa, entrega ao agente no computador, aplica uma política local, executa apenas ações tipadas permitidas e devolve o resultado verificado.
+Operador digital local controlado por uma interface Web.
 
-## Estado atual
+Para facilitar o aprendizado, os nomes usados no dia a dia são simples:
 
-O projeto já possui dois slices operacionais:
+- **Central**: recebe e organiza as tarefas;
+- **Robô local**: busca e executa as tarefas no computador;
+- **Painel Web**: lugar onde o usuário digita os comandos.
+
+Os nomes técnicos internos continuam existindo no código: `Control Plane` corresponde à Central e `local agent` corresponde ao Robô local.
+
+## Como o sistema funciona
 
 ```text
-Web
+Usuário
   ↓
-Control Plane (FastAPI)
+Painel Web
   ↓
-Fila durável (SQLite + leases)
+Central (FastAPI)
   ↓
-Agente local autenticado
+Fila de tarefas (SQLite + leases)
   ↓
-Planner determinístico + Policy Layer
-  ├─→ Playwright / Chromium
-  └─→ Desktop Linux / PyAutoGUI
+Robô local
+  ↓
+Planner + Policy Layer
+  ├─→ Navegador: Playwright / Chromium
+  └─→ Desktop: PyAutoGUI / Linux
         ↓
-     verificação
+     resultado
         ↓
-     Painel Web
+     Central / Painel Web
 ```
 
-### Navegador
+## Comandos para ligar e diagnosticar
+
+Com o ambiente virtual ativo:
+
+```bash
+central
+```
+
+Liga a **Central**.
+
+```bash
+robo
+```
+
+Liga o **Robô local**.
+
+```bash
+diagnostico-robo
+```
+
+Verifica o ambiente do computador sem clicar, digitar ou abrir aplicativos.
+
+```bash
+parar-robo status
+parar-robo trigger --reason "parada manual"
+parar-robo clear
+```
+
+Consulta, aciona e limpa a parada de emergência.
+
+Os comandos técnicos antigos continuam funcionando por compatibilidade:
+
+```text
+context-anchor-control
+context-anchor-agent
+context-anchor-stop
+context-anchor-doctor
+```
+
+## Navegador
 
 Comandos suportados:
 
@@ -35,7 +82,7 @@ Comandos suportados:
 
 Endereços `localhost`, `.local`, IPs privados, loopback e esquemas diferentes de HTTP/HTTPS permanecem bloqueados.
 
-### Desktop
+## Desktop
 
 O controle de desktop existe no código, mas fica **desativado por padrão** até ser habilitado localmente.
 
@@ -60,7 +107,7 @@ Aplicativos aceitos pela allowlist atual:
 - `calculadora`;
 - `libreoffice`.
 
-Não existe execução arbitrária de shell. O nome de aplicativo recebido remotamente nunca vira um comando livre: ele precisa corresponder à allowlist fixa e é iniciado com `shell=False`.
+Não existe execução arbitrária de shell. O nome de aplicativo recebido remotamente precisa corresponder à allowlist fixa e é iniciado com `shell=False`.
 
 A digitação é limitada a 500 caracteres por ação, quebras de linha exigem uma ação de tecla separada e atalhos arbitrários ainda não são aceitos.
 
@@ -71,7 +118,7 @@ A digitação é limitada a 500 caracteres por ação, quebras de linha exigem u
 - Chromium instalado pelo Playwright;
 - sessão gráfica X11 para o backend PyAutoGUI inicial.
 
-Para a percepção de janela ativa no Linux, instale `xdotool`. Em Linux Mint/Ubuntu:
+Para percepção de janela ativa e screenshot em Linux Mint/Ubuntu:
 
 ```bash
 sudo apt update
@@ -112,8 +159,6 @@ CONTEXT_ANCHOR_USER_TOKEN=...
 CONTEXT_ANCHOR_AGENT_TOKEN=...
 ```
 
-Não faça commit do arquivo `.env`.
-
 O controle físico do desktop permanece desligado inicialmente:
 
 ```env
@@ -131,7 +176,7 @@ CONTEXT_ANCHOR_DESKTOP_ENABLED=true
 Antes de habilitar o desktop, execute:
 
 ```bash
-context-anchor-doctor
+diagnostico-robo
 ```
 
 O diagnóstico verifica sem realizar nenhuma ação física:
@@ -141,20 +186,20 @@ O diagnóstico verifica sem realizar nenhuma ação física:
 - presença de `DISPLAY`/Wayland;
 - instalação do PyAutoGUI;
 - `xdotool` e `scrot`;
-- quais aplicativos da allowlist estão instalados.
+- aplicativos da allowlist instalados.
 
 ## Executar
 
-Terminal 1 — Control Plane:
+Terminal da **Central**:
 
 ```bash
-python -m context_anchor.control_plane
+central
 ```
 
-Terminal 2 — agente local:
+Terminal do **Robô local**:
 
 ```bash
-python -m context_anchor.local_agent
+robo
 ```
 
 Abra no navegador:
@@ -167,38 +212,32 @@ Informe o token do usuário e envie uma tarefa.
 
 ## Recuperação de tarefas interrompidas
 
-Cada tarefa reivindicada pelo agente recebe um lease temporário e um token de propriedade.
+Cada tarefa reivindicada pelo Robô recebe um lease temporário e um token de propriedade.
 
 - lease padrão: 120 segundos;
 - máximo padrão: 3 tentativas;
 - resultado com lease antigo é recusado;
-- tarefa cujo agente desapareceu volta para a fila quando o lease expira;
+- tarefa cujo Robô desapareceu volta para a fila quando o lease expira;
 - após interrupções repetidas, a tarefa é marcada como `failed` para evitar loop infinito.
 
-Isso também evita que uma execução antiga finalize uma tarefa que já foi retomada por outro agente.
-
-## Emergency stop local
-
-O projeto possui um mecanismo de parada separado do planner/modelo.
+## Parada de emergência
 
 Status:
 
 ```bash
-context-anchor-stop status
+parar-robo status
 ```
 
-Parar o agente imediatamente:
+Parar o Robô imediatamente:
 
 ```bash
-context-anchor-stop trigger --reason "parada manual"
+parar-robo trigger --reason "parada manual"
 ```
 
-O comando grava `runtime/EMERGENCY_STOP`, verifica a identidade do processo pelo PID + tempo de início do Linux e só então tenta enviar `SIGTERM` diretamente ao agente.
-
-Enquanto o arquivo de parada existir, o agente se recusa a iniciar novamente. Para liberar conscientemente uma nova execução:
+Enquanto o marcador de parada existir, o Robô se recusa a iniciar novamente. Para liberar uma nova execução:
 
 ```bash
-context-anchor-stop clear
+parar-robo clear
 ```
 
 O `FAILSAFE` do PyAutoGUI também permanece habilitado como proteção adicional local.
@@ -209,31 +248,31 @@ O `FAILSAFE` do PyAutoGUI também permanece habilitado como proteção adicional
 pytest
 ```
 
-O CI não depende de uma sessão gráfica para testar a lógica de desktop: os testes usam um backend falso para verificar roteamento, políticas, leases e emergency stop. O backend físico ainda precisa ser validado em um desktop Linux real.
+O CI não depende de uma sessão gráfica para testar a lógica de desktop: os testes usam um backend falso para verificar roteamento, políticas, leases e parada de emergência.
 
 ## Segurança atual
 
-- o servidor escuta apenas `127.0.0.1` por padrão;
-- usuário e agente usam tokens separados;
+- a Central escuta apenas `127.0.0.1` por padrão;
+- usuário e Robô usam tokens separados;
 - tokens não são armazenados no painel;
 - o repositório não contém credenciais;
-- desktop control fica desligado por padrão;
+- controle de desktop fica desligado por padrão;
 - ações de desktop passam pela Policy Layer;
 - aplicativos usam allowlist fixa;
 - não existe shell arbitrário;
 - não existe bypass de login, MFA ou controles do sistema operacional;
-- emergency stop persiste entre reinicializações do agente até ser limpo localmente;
+- parada de emergência persiste até ser limpa localmente;
 - leases impedem resultados atrasados e recuperam tarefas interrompidas.
 
-Esta versão ainda não deve ser exposta diretamente à Internet. A operação remota será adicionada apenas depois de autenticação mais forte, TLS, pareamento de dispositivo, rate limiting e política de confirmação para ações sensíveis.
+Esta versão ainda não deve ser exposta diretamente à Internet.
 
 ## Próximas capacidades
 
-1. validar navegador e desktop no computador Linux real;
-2. melhorar percepção estruturada da tela/janelas e compatibilidade Linux;
+1. concluir a validação física do desktop;
+2. melhorar percepção estruturada da tela e janelas;
 3. integrar planner por modelo de IA com saída estruturada;
 4. adicionar confirmação humana para ações sensíveis;
-5. publicar Control Plane com autenticação forte;
-6. adicionar adaptadores Telegram, WhatsApp e Instagram.
+5. publicar a Central com autenticação forte;
+6. adicionar Telegram, WhatsApp e Instagram.
 
 O estado e as decisões do projeto são mantidos em `docs/STATUS.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` e `docs/NEXT.md`.
