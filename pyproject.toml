@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "context-anchor-operator"
-version = "0.1.0"
-description = "MVP de um operador digital local controlado por uma interface Web"
+version = "0.2.0"
+description = "Operador digital local com Control Plane Web, navegador e ações controladas de desktop"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "playwright>=1.54,<2",
+  "pyautogui>=0.9.54,<1",
   "pydantic-settings>=2.10,<3",
   "uvicorn[standard]>=0.35,<1",
 ]
@@ -19,6 +20,11 @@ dependencies = [
 dev = [
   "pytest>=8.4,<9",
 ]
+
+[project.scripts]
+context-anchor-control = "context_anchor.control_plane:main"
+context-anchor-agent = "context_anchor.local_agent:run"
+context-anchor-stop = "context_anchor.emergency_stop:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
