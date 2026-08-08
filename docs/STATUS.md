@@ -123,7 +123,8 @@ Resultados já confirmados no computador alvo:
 - Control Plane iniciou corretamente em `127.0.0.1:8000`;
 - agente local iniciou e manteve polling HTTP autenticado com respostas `204 No Content` enquanto não havia tarefas;
 - uma tarefa enviada pelo painel foi reivindicada pelo agente e abriu uma janela Chromium real via Playwright;
-- o comando único `abrir example.com` foi executado fisicamente com sucesso: o Chromium abriu `example.com`, exibiu `Example Domain` e o agente reportou o resultado ao Control Plane com HTTP 200.
+- o comando único `abrir example.com` foi executado fisicamente com sucesso: o Chromium abriu `example.com`, exibiu `Example Domain` e o agente reportou o resultado ao Control Plane com HTTP 200;
+- o comando único `pesquisar inteligência artificial` foi executado fisicamente com sucesso: o Chromium abriu uma pesquisa no DuckDuckGo, o painel mostrou `status: succeeded`, `http_status: 200` e `verified: true`.
 
 Falha física observada e explicada:
 
@@ -133,7 +134,6 @@ Falha física observada e explicada:
 
 Ainda precisam ser confirmados no computador alvo:
 
-- sucesso de `pesquisar <termo>` como comando único;
 - captura real de screenshot;
 - leitura da janela ativa;
 - movimento e clique do mouse;
