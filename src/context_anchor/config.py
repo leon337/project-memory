@@ -21,6 +21,8 @@ class ControlPlaneSettings(BaseAppSettings):
     db_path: Path = Path("runtime/context_anchor.db")
     user_token: str = Field(min_length=24)
     agent_token: str = Field(min_length=24)
+    task_lease_seconds: int = Field(default=120, ge=30, le=3600)
+    task_max_attempts: int = Field(default=3, ge=1, le=10)
 
 
 class EmergencyStopSettings(BaseAppSettings):
