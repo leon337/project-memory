@@ -56,14 +56,26 @@ def run() -> None:
 
                         try:
                             result = execute_command(executor, task.command)
-                            payload = {"ok": True, "result": result}
+                            payload = {
+                                "lease_token": task.lease_token,
+                                "ok": True,
+                                "result": result,
+                            }
                         except EmergencyStopTriggered as exc:
-                            payload = {"ok": False, "error": f"EmergencyStopTriggered: {exc}"}
+                            payload = {
+                                "lease_token": task.lease_token,
+                                "ok": False,
+                                "error": f"EmergencyStopTriggered: {exc}",
+                            }
                             finish = client.post(f"/api/agent/tasks/{task.id}/result", json=payload)
                             finish.raise_for_status()
                             raise
                         except Exception as exc:
-                            payload = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+                            payload = {
+                                "lease_token": task.lease_token,
+                                "ok": False,
+                                "error": f"{type(exc).__name__}: {exc}",
+                            }
 
                         finish = client.post(f"/api/agent/tasks/{task.id}/result", json=payload)
                         finish.raise_for_status()
