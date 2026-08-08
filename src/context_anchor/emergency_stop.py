@@ -134,9 +134,9 @@ class EmergencyStop:
 
 
 def _default_stop() -> EmergencyStop:
-    from .config import LocalAgentSettings
+    from .config import EmergencyStopSettings
 
-    cfg = LocalAgentSettings()
+    cfg = EmergencyStopSettings()
     return EmergencyStop(cfg.emergency_stop_path, cfg.agent_pid_path)
 
 
