@@ -108,23 +108,39 @@ Ele inspeciona sem controlar o computador:
 - CI do commit `8878d2e98a2475a723f47d42f032d8baeb271f19`, já contendo desktop, emergency stop e leases, passou em instalação, compilação e testes;
 - CI do commit `d9d473fe78494e7e56322bc592134f97db98501e`, incluindo o contrato de planner estruturado, também passou integralmente.
 
-## Validação física ainda pendente
+## Validação física em andamento — Linux real
 
-Ainda não houve nesta sessão execução em um desktop Linux real com tela gráfica.
+Resultados já confirmados no computador alvo:
 
-Precisam ser confirmados no computador alvo:
+- sessão gráfica `X11`;
+- `DISPLAY=:0.0`;
+- `WAYLAND_DISPLAY` vazio;
+- `xdotool` disponível em `/usr/bin/xdotool`;
+- `scrot` disponível em `/usr/bin/scrot` após instalação;
+- Firefox disponível;
+- Google Chrome detectado pelo id `chromium` da allowlist;
+- Xed, VS Code, calculadora e LibreOffice disponíveis;
+- Control Plane iniciou corretamente em `127.0.0.1:8000`;
+- agente local iniciou e manteve polling HTTP autenticado com respostas `204 No Content` enquanto não havia tarefas;
+- uma tarefa enviada pelo painel foi reivindicada pelo agente e abriu uma janela Chromium real via Playwright.
 
-- Chromium visível via Playwright;
+Falha física observada e explicada:
+
+- o comando composto `abrir google.com e pesquisar inteligencia artificial` falhou com `ERR_NAME_NOT_RESOLVED`;
+- o planner determinístico atual aceita uma ação por comando e interpretou todo o texto após `abrir` como um único endereço, produzindo uma URL inválida;
+- isso não demonstrou falha de rede, Playwright ou comunicação Control Plane ↔ agente; demonstrou o limite atual do planner determinístico para comandos compostos.
+
+Ainda precisam ser confirmados no computador alvo:
+
+- sucesso de `abrir <site>` como comando único;
+- sucesso de `pesquisar <termo>` como comando único;
 - captura real de screenshot;
 - leitura da janela ativa;
 - movimento e clique do mouse;
 - digitação e teclas;
 - abertura dos aplicativos instalados;
 - comportamento do `FAILSAFE`;
-- emergency stop encerrando o processo real;
-- compatibilidade da sessão gráfica usada pelo computador.
-
-O backend inicial foi projetado para Linux/X11. Wayland ainda não foi validado.
+- emergency stop encerrando o processo real.
 
 ## Ainda não implementado
 
