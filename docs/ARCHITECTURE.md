@@ -2,8 +2,6 @@
 
 ## Estado arquitetural atual
 
-O primeiro MVP está implementado como dois processos separados:
-
 ```text
 Usuário
   ↓
@@ -11,134 +9,137 @@ Painel Web local
   ↓
 Control Plane — FastAPI
   ↓
-SQLite — fila e histórico de tarefas
+SQLite — fila, histórico e leases
   ↓
 HTTP polling autenticado
   ↓
 Agente local
   ↓
-Planner determinístico
+Planner
+  ├─ Determinístico ativo
+  └─ Contrato estruturado para provedor futuro
   ↓
 Policy Layer
+  ├─ Browser policy
+  └─ Desktop policy + feature gate local
   ↓
-Playwright / Chromium
+Executores
+  ├─ Playwright / Chromium
+  └─ PyAutoGUI / Linux desktop
   ↓
 Verificação do resultado
   ↓
 Control Plane
-  ↓
-Painel Web
 ```
 
-A separação entre Control Plane e agente local já existe mesmo quando ambos rodam inicialmente na mesma máquina.
+O controle físico permanece local. O Control Plane envia intenções/tarefas; o agente local decide, pela Policy Layer, se a ação tipada pode ser executada.
 
 ## 1. Control Plane
 
 Implementado em `src/context_anchor/control_plane.py`.
 
-Responsabilidades atuais:
+Responsabilidades:
 
-- servir o painel Web;
-- autenticar o usuário;
-- autenticar separadamente o agente local;
-- receber comandos;
-- criar tarefas;
-- fornecer a próxima tarefa ao agente;
-- receber o resultado;
-- permitir consulta do estado da tarefa.
+- painel Web;
+- autenticação do usuário;
+- autenticação separada do agente;
+- criação e consulta de tarefas;
+- entrega de tarefas ao agente;
+- emissão de lease por execução;
+- recepção de resultado protegido pelo token do lease.
 
 Por padrão escuta apenas `127.0.0.1`.
 
-## 2. Persistência
+## 2. Persistência e leases
 
 Implementada em `src/context_anchor/store.py` com SQLite.
 
-Estados atuais:
+Fluxo:
 
 ```text
 queued
-  ↓
+  ↓ claim + lease
 running
   ↓
 succeeded | failed
 ```
 
-Cada tarefa registra:
+Se um lease expirar antes da conclusão, a tarefa pode voltar a `queued`. Depois do limite de tentativas, ela passa a `failed`.
 
-- id;
-- comando;
-- estado;
-- criação e atualização;
-- agente que reivindicou a tarefa;
-- resultado estruturado;
-- erro quando houver.
+Cada claim gera um `lease_token` novo. Um resultado só é aceito se o token ainda pertencer à execução atual, impedindo que um agente atrasado finalize uma tarefa já retomada.
 
-SQLite foi escolhido para o MVP por simplicidade e porque o Control Plane atual possui um único escritor lógico.
+Dados relevantes:
+
+- id e comando;
+- status;
+- timestamps;
+- agente atual;
+- resultado/erro;
+- lease e expiração;
+- número de tentativas.
 
 ## 3. Agente local
 
 Implementado em `src/context_anchor/local_agent.py`.
 
-O agente:
+Fluxo atual:
 
-1. autentica no Control Plane com token próprio;
-2. consulta periodicamente a próxima tarefa;
-3. transforma o comando em um plano;
-4. consulta a política;
-5. executa apenas se autorizado;
-6. verifica o resultado;
-7. devolve sucesso ou falha ao Control Plane.
+1. verifica emergency stop;
+2. registra sua identidade de processo local;
+3. autentica no Control Plane;
+4. reivindica uma tarefa e seu lease;
+5. pede um plano ao planner ativo;
+6. passa o plano pela Policy Layer;
+7. executa a ação autorizada;
+8. verifica o resultado;
+9. devolve resultado junto ao lease da execução.
 
-O agente local continua sendo o único componente autorizado a controlar recursos físicos do computador.
+## 4. Planner
 
-## 4. Planner atual
+O contrato está em `src/context_anchor/planner.py`.
 
-Implementado em `src/context_anchor/policy.py`.
+Existem hoje:
 
-O primeiro planner é determinístico e não usa modelo de IA.
+- `DeterministicPlanner`, ativo;
+- `StructuredAction`, esquema fechado para ações conhecidas;
+- `ProviderPlanner`, adaptador para um provedor futuro;
+- `StructuredPlanProvider`, protocolo de integração.
 
-Comandos suportados:
+O contrato não possui campo para shell, código, caminho de executável livre ou credenciais.
 
-- `abrir <site>`;
-- `open <site>`;
-- `pesquisar <termo>`;
-- `buscar <termo>`;
-- `search <termo>`.
-
-Essa escolha valida o ciclo operacional antes de adicionar a variabilidade de um LLM.
-
-O planner futuro deverá produzir ações estruturadas no mesmo contrato, permitindo trocar o mecanismo de raciocínio sem alterar o executor.
+Mesmo uma saída estruturalmente válida ainda precisa ser autorizada pela Policy Layer.
 
 ## 5. Policy Layer
 
-Também implementada em `src/context_anchor/policy.py`.
+Implementada em `src/context_anchor/policy.py`.
 
-A política atual:
+### Navegador
 
-- permite apenas a ação `open_url`;
-- permite apenas HTTP e HTTPS;
-- bloqueia `localhost`;
-- bloqueia domínios `.local`;
-- bloqueia IPs privados, loopback, link-local e reservados;
-- rejeita comandos não reconhecidos.
+- apenas HTTP/HTTPS;
+- bloqueio de localhost, `.local`, IPs privados, loopback, link-local e reservados.
 
-A evolução deverá adicionar categorias de risco, confirmação humana e políticas específicas por capacidade sem remover a decisão central de autorização antes da execução.
+### Desktop
+
+- desktop desativado por padrão;
+- ações precisam pertencer à allowlist tipada;
+- coordenadas possuem validação;
+- texto limitado a 500 caracteres e sem quebra de linha dentro da mesma ação;
+- teclas aceitas pertencem a allowlist específica;
+- aplicativos pertencem a allowlist fixa.
 
 ## 6. Browser Layer
 
-Implementada em `src/context_anchor/actions.py` com Playwright e Chromium.
+Implementada em `src/context_anchor/actions.py` com Playwright/Chromium.
 
-O navegador é mantido aberto pelo processo do agente enquanto ele estiver em execução.
-
-A verificação atual retorna:
+Verificação atual:
 
 - URL solicitada;
 - URL final;
-- título da página;
-- status HTTP quando disponível;
-- indicador `verified`.
+- título;
+- status HTTP;
+- `verified`.
 
-A preferência arquitetural continua sendo:
+Preferência arquitetural permanece:
 
 ```text
 API/DOM
@@ -147,78 +148,93 @@ API/DOM
 → visão + mouse/teclado como fallback
 ```
 
-## 7. Credenciais
+## 7. Desktop Action Layer
 
-Credenciais não podem ser armazenadas:
+Backend físico em `src/context_anchor/desktop.py`.
+
+Capacidades atuais:
+
+- screenshot;
+- janela ativa via `xdotool`;
+- mover mouse;
+- clique esquerdo/direito;
+- digitar texto;
+- pressionar teclas permitidas;
+- abrir aplicativos permitidos.
+
+PyAutoGUI é importado de forma lazy para que processos de servidor e CI não exijam sessão gráfica apenas para importar o pacote.
+
+O backend inicial considera Linux/X11. Wayland permanece não validado.
+
+## 8. Application Registry
+
+O agente não aceita nome de executável arbitrário.
+
+O registro interno mapeia ids estáveis para executáveis conhecidos, como Firefox, Chromium, Nemo/Nautilus, Xed/Gedit, VS Code, calculadora e LibreOffice.
+
+A abertura usa `subprocess.Popen` com `shell=False`.
+
+## 9. Perception Layer
+
+Primeiro slice implementado:
+
+- screenshot;
+- metadado de janela ativa quando `xdotool` está disponível.
+
+Ainda faltam:
+
+- árvore de acessibilidade;
+- percepção semântica da tela;
+- DOM compartilhado como contexto para planner;
+- fusão de múltiplas fontes de percepção.
+
+## 10. Emergency Stop
+
+Implementado em `src/context_anchor/emergency_stop.py`.
+
+Mecanismos:
+
+- sentinel persistente em arquivo;
+- PID do agente acompanhado do tempo de início do processo Linux;
+- verificação contra reutilização de PID;
+- `SIGTERM` direto ao processo local quando a identidade confere;
+- agente recusa reinício enquanto o sentinel existir;
+- configuração do stop não depende das credenciais do agente.
+
+Isso é separado do planner e não depende de uma decisão do modelo.
+
+## 11. Diagnóstico local
+
+`src/context_anchor/doctor.py` fornece `context-anchor-doctor`.
+
+Ele apenas observa o ambiente e informa dependências/sessão gráfica; não executa ações físicas.
+
+## 12. Credenciais
+
+Credenciais não devem aparecer:
 
 - no código;
 - nos prompts;
 - nos logs;
 - no Git;
-- diretamente no modelo de IA.
+- diretamente no modelo.
 
-O repositório contém apenas `.env.example`. O arquivo `.env` real está ignorado pelo Git.
+`.env` permanece fora do repositório. Usuário e agente possuem tokens separados.
 
-O MVP usa dois segredos separados:
+## 13. Control Plane remoto — planejado
 
-- `CONTEXT_ANCHOR_USER_TOKEN`;
-- `CONTEXT_ANCHOR_AGENT_TOKEN`.
-
-Nenhum mecanismo de login de terceiros é contornado. Sessões autenticadas de navegador deverão ser reutilizadas por mecanismos próprios quando essa capacidade for implementada.
-
-## 8. Perception Layer — planejada
-
-Ainda não implementada.
-
-A evolução deverá combinar, nessa ordem de preferência:
-
-- DOM quando disponível;
-- árvore de acessibilidade;
-- metadados de janelas;
-- screenshot;
-- visão computacional como fallback.
-
-O sistema não deverá depender exclusivamente de coordenadas da tela.
-
-## 9. Desktop Action Layer — planejada
-
-Ainda não implementada.
-
-Capacidades futuras:
-
-- mouse;
-- teclado;
-- gerenciamento de janelas;
-- abertura de aplicativos permitidos;
-- arquivos autorizados;
-- câmera quando explicitamente habilitada.
-
-Essas ações deverão passar pela mesma Policy Layer antes da execução.
-
-## 10. Emergency Stop — planejado
-
-Ainda não implementado.
-
-Deverá existir um mecanismo independente do modelo e do loop do agente para interromper imediatamente a execução local.
-
-## 11. Control Plane remoto — planejado
-
-O painel atual é local.
-
-Antes de exposição à Internet serão necessários pelo menos:
+Antes de exposição à Internet ainda são necessários:
 
 - TLS;
-- autenticação mais forte;
+- autenticação forte;
 - pareamento de dispositivo;
-- rotação/revogação de credenciais;
+- revogação/rotação;
 - rate limiting;
 - proteção contra replay;
-- trilha de auditoria adequada;
-- política de confirmação para ações sensíveis.
+- auditoria adequada;
+- confirmação humana para ações sensíveis.
 
-## 12. Channel Adapters — planejados
-
-WhatsApp, Telegram e Instagram permanecem desacoplados do núcleo.
+## 14. Channel Adapters — planejados
 
 Arquitetura-alvo:
 
@@ -235,10 +251,8 @@ Control Plane
 Agente local
 ```
 
-Nenhum desses adaptadores de mensageria foi implementado ainda.
+Nenhum adaptador de mensageria foi implementado ainda.
 
-## 13. Princípio local-first
+## 15. Princípio local-first
 
-O controle físico permanece no agente local.
-
-Serviços externos poderão enviar intenções e receber resultados, mas não terão acesso direto ao mouse, teclado, câmera ou aplicativos sem passar pelo agente local e pela política de autorização.
+Serviços externos poderão enviar objetivos e receber resultados, mas não terão acesso direto ao mouse, teclado, câmera ou aplicativos. Toda ação física deverá passar pelo agente local, pelo feature gate e pela Policy Layer.
