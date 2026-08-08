@@ -11,7 +11,7 @@ Web
   ↓
 Control Plane (FastAPI)
   ↓
-Fila durável (SQLite)
+Fila durável (SQLite + leases)
   ↓
 Agente local autenticado
   ↓
@@ -126,6 +126,23 @@ Somente depois do teste local, altere para:
 CONTEXT_ANCHOR_DESKTOP_ENABLED=true
 ```
 
+## Diagnóstico local
+
+Antes de habilitar o desktop, execute:
+
+```bash
+context-anchor-doctor
+```
+
+O diagnóstico verifica sem realizar nenhuma ação física:
+
+- versão do Python;
+- tipo de sessão gráfica;
+- presença de `DISPLAY`/Wayland;
+- instalação do PyAutoGUI;
+- `xdotool` e `scrot`;
+- quais aplicativos da allowlist estão instalados.
+
 ## Executar
 
 Terminal 1 — Control Plane:
@@ -148,6 +165,18 @@ http://127.0.0.1:8000
 
 Informe o token do usuário e envie uma tarefa.
 
+## Recuperação de tarefas interrompidas
+
+Cada tarefa reivindicada pelo agente recebe um lease temporário e um token de propriedade.
+
+- lease padrão: 120 segundos;
+- máximo padrão: 3 tentativas;
+- resultado com lease antigo é recusado;
+- tarefa cujo agente desapareceu volta para a fila quando o lease expira;
+- após interrupções repetidas, a tarefa é marcada como `failed` para evitar loop infinito.
+
+Isso também evita que uma execução antiga finalize uma tarefa que já foi retomada por outro agente.
+
 ## Emergency stop local
 
 O projeto possui um mecanismo de parada separado do planner/modelo.
@@ -164,7 +193,7 @@ Parar o agente imediatamente:
 context-anchor-stop trigger --reason "parada manual"
 ```
 
-O comando grava `runtime/EMERGENCY_STOP` e tenta enviar `SIGTERM` diretamente ao PID registrado pelo agente local.
+O comando grava `runtime/EMERGENCY_STOP`, verifica a identidade do processo pelo PID + tempo de início do Linux e só então tenta enviar `SIGTERM` diretamente ao agente.
 
 Enquanto o arquivo de parada existir, o agente se recusa a iniciar novamente. Para liberar conscientemente uma nova execução:
 
@@ -180,7 +209,7 @@ O `FAILSAFE` do PyAutoGUI também permanece habilitado como proteção adicional
 pytest
 ```
 
-O CI não depende de uma sessão gráfica para testar a lógica de desktop: os testes usam um backend falso para verificar roteamento, políticas e emergency stop. O backend físico ainda precisa ser validado em um desktop Linux real.
+O CI não depende de uma sessão gráfica para testar a lógica de desktop: os testes usam um backend falso para verificar roteamento, políticas, leases e emergency stop. O backend físico ainda precisa ser validado em um desktop Linux real.
 
 ## Segurança atual
 
@@ -193,7 +222,8 @@ O CI não depende de uma sessão gráfica para testar a lógica de desktop: os t
 - aplicativos usam allowlist fixa;
 - não existe shell arbitrário;
 - não existe bypass de login, MFA ou controles do sistema operacional;
-- emergency stop persiste entre reinicializações do agente até ser limpo localmente.
+- emergency stop persiste entre reinicializações do agente até ser limpo localmente;
+- leases impedem resultados atrasados e recuperam tarefas interrompidas.
 
 Esta versão ainda não deve ser exposta diretamente à Internet. A operação remota será adicionada apenas depois de autenticação mais forte, TLS, pareamento de dispositivo, rate limiting e política de confirmação para ações sensíveis.
 
