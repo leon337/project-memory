@@ -1,31 +1,39 @@
 # NEXT
 
-## 1. Validar percepção e controle do desktop no Linux real
+## 1. Implementar o primeiro Painel do Robô
 
-A validação física do navegador foi concluída com sucesso para `abrir <site>` e `pesquisar <termo>`.
+Criar um processo local independente da Central e do Robô para reduzir dependência de múltiplos terminais durante desenvolvimento e operação.
 
-Próximo fluxo, em passos pequenos:
+Primeiro slice do painel:
 
-1. atualizar a instalação editável para disponibilizar os novos comandos `central`, `robo`, `parar-robo` e `diagnostico-robo`;
-2. habilitar `CONTEXT_ANCHOR_DESKTOP_ENABLED=true` localmente e reiniciar somente o Robô com `robo`;
-3. testar `capturar tela` e `janela ativa`, depois movimento de mouse, clique, digitação, tecla e abertura de um aplicativo permitido;
-4. por fim testar `parar-robo trigger` e confirmar que o Robô encerra e não reinicia até `parar-robo clear`.
+- mostrar se Central e Robô estão ligados;
+- botões para ligar, desligar e reiniciar Central e Robô;
+- mostrar e alterar `DESKTOP_ENABLED` por controle visual;
+- mostrar estado da parada de emergência;
+- botão de diagnóstico;
+- logs básicos separados de Central e Robô;
+- área de comandos de manutenção controlados com explicação antes da execução;
+- modo de aprendizado mostrando o que cada botão/comando faz e o resultado esperado.
+
+Critério de conclusão: o usuário deve conseguir iniciar e parar Central/Robô, habilitar o desktop, executar diagnóstico e entender visualmente o estado do sistema sem precisar administrar três terminais manualmente.
+
+## 2. Validar percepção e controle do desktop pelo Painel do Robô
+
+Com o painel operacional, continuar a validação física já iniciada no Linux/X11.
+
+Testar em sequência:
+
+- `capturar tela` e `janela ativa`;
+- movimento e clique do mouse;
+- digitação e teclas;
+- abertura de aplicativo permitido;
+- parada de emergência real.
 
 Critério de conclusão: pelo menos uma ação de percepção, uma ação de mouse, uma ação de teclado, um aplicativo e a parada de emergência devem funcionar no computador alvo sem bypass da Policy Layer.
 
-## 2. Melhorar percepção e controle após o teste físico
-
-Com base no resultado real:
-
-- adicionar árvore de acessibilidade ou interface estruturada de janelas;
-- melhorar verificação de clique/digitação em vez de assumir sucesso apenas porque a chamada do sistema retornou;
-- preparar confirmação humana para ações sensíveis.
-
-Critério de conclusão: o Robô deve conseguir observar estado suficiente para verificar de forma confiável que uma ação de desktop produziu o efeito esperado.
-
 ## 3. Ativar o primeiro planner por IA
 
-Depois da validação física, escolher um provedor e conectá-lo ao contrato já existente em `src/context_anchor/planner.py`.
+Depois da validação física, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
 
 Requisitos:
 
