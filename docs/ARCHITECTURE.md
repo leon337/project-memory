@@ -4,106 +4,119 @@
 
 Para facilitar operação e aprendizado:
 
-- **Central** = nome de uso para o processo técnico `Control Plane`;
-- **Robô local** = nome de uso para o processo técnico `local agent`;
-- **Painel Web** = interface em `http://127.0.0.1:8000` usada para enviar tarefas à Central;
-- **Painel do Robô** = gerenciador local planejado para operar, configurar, diagnosticar e ensinar o funcionamento do sistema.
+- **Painel do Robô** = gerenciador local de operação, configuração, diagnóstico e aprendizado;
+- **Central** = processo técnico `Control Plane`;
+- **Robô local** = processo técnico `local agent`;
+- **Central Web antiga** = interface simples ainda servida pela Central em `127.0.0.1:8000`, mantida por compatibilidade durante a transição.
 
-Os nomes técnicos permanecem no código porque descrevem papéis arquiteturais, mas a interface humana usa os nomes intuitivos.
-
-## Estado arquitetural atual
+## Arquitetura implementada no MVP 0.3
 
 ```text
 Usuário
   ↓
-Painel Web local
-  ↓
-Central (Control Plane / FastAPI)
-  ↓
+Painel do Robô — FastAPI :8765
+  ├─ status / configuração / diagnóstico / aprendizado
+  ├─ gerenciamento local de processos
+  ├─ tarefas recentes e logs
+  └─ envio de tarefa
+          ↓
+Central — FastAPI :8000
+          ↓
 SQLite — fila, histórico e leases
-  ↓
+          ↓
 HTTP polling autenticado
-  ↓
-Robô local (local agent)
-  ↓
+          ↓
+Robô local
+          ↓
 Planner
   ├─ Determinístico ativo
-  └─ Contrato estruturado para provedor futuro
-  ↓
+  └─ Contrato estruturado para IA futura
+          ↓
 Policy Layer
-  ├─ Browser policy
-  └─ Desktop policy + feature gate local
-  ↓
+  ├─ navegador
+  └─ desktop + feature gate
+          ↓
 Executores
   ├─ Playwright / Chromium
-  └─ PyAutoGUI / Linux desktop
-  ↓
-Verificação do resultado
-  ↓
-Central
+  └─ PyAutoGUI / Linux X11
+          ↓
+Verificação
+          ↓
+Central / Painel do Robô
 ```
 
-O controle físico permanece local. A Central envia intenções/tarefas; o Robô local decide, pela Policy Layer, se a ação tipada pode ser executada.
+Painel, Central e Robô são processos separados.
 
-## Arquitetura planejada do Painel do Robô
+A separação permite que o Painel continue disponível para diagnosticar ou religar os outros dois processos.
 
-O Painel do Robô será um processo local separado da Central e do Robô.
+## 1. Painel do Robô
+
+Implementado em `src/context_anchor/dashboard.py`.
+
+Comando humano:
 
 ```text
-                  Painel do Robô
-               operação + aprendizado
-                /        |        \
-               /         |         \
-          Central      Robô      Configuração
-             |           |            |
-          tarefas     execução      capacidades
-             \           |            /
-              \          |           /
-               logs + diagnóstico + testes
+painel-robo
 ```
 
-A separação é intencional: o painel precisa continuar disponível para religar ou diagnosticar a Central e o Robô quando qualquer um deles estiver parado.
+Bind padrão:
 
-Responsabilidades planejadas:
+```text
+127.0.0.1:8765
+```
 
-- detectar se Central e Robô estão ligados;
-- iniciar, parar e reiniciar esses processos locais;
-- mostrar estado das capacidades habilitadas;
-- alterar somente configurações explicitamente suportadas;
-- executar diagnóstico;
-- apresentar logs por componente;
-- mostrar histórico e estado das tarefas;
-- oferecer testes guiados;
-- explicar comandos e resultados esperados em linguagem simples;
-- oferecer uma área de comandos de manutenção controlados para o modo de desenvolvimento.
+Responsabilidades atuais:
 
-O painel não será um terminal remoto de shell arbitrário. Comandos de manutenção executáveis pelo painel terão um catálogo explícito. Outros comandos poderão ser exibidos com explicação para execução manual.
+- mostrar estado de Central, Robô, Desktop e emergência;
+- iniciar/parar Central;
+- iniciar/parar/reiniciar Robô;
+- alterar a configuração local de Desktop;
+- executar diagnóstico de leitura;
+- mostrar tarefas recentes;
+- mostrar logs de processos iniciados pelo Painel;
+- enviar tarefas à Central usando o token local já configurado no servidor;
+- explicar comandos de desenvolvimento no Laboratório.
 
-## 1. Central
+O Painel não possui endpoint de shell arbitrário.
 
-Implementada tecnicamente em `src/context_anchor/control_plane.py`.
+O campo de tarefa envia texto ao planner do Robô. O Laboratório de comandos é uma interface separada: comandos conhecidos recebem explicações; comandos desconhecidos não são executados automaticamente.
+
+## 2. Registro e controle de processos
+
+Implementado em `src/context_anchor/process_registry.py`.
+
+Um registro de processo contém:
+
+- PID;
+- tempo de início obtido de `/proc/<pid>/stat`.
+
+Antes de enviar um sinal de encerramento, PID e tempo de início precisam coincidir. Isso reduz o risco de agir sobre outro processo caso o Linux reutilize um PID antigo.
+
+Registros atuais:
+
+- Central: `runtime/central.pid`;
+- Robô: `runtime/local_agent.pid`.
+
+A Central nova registra sua identidade quando inicia. O Robô já possuía registro por causa da parada de emergência.
+
+## 3. Central
+
+Implementada em `src/context_anchor/control_plane.py`.
 
 Responsabilidades:
 
-- servir o Painel Web;
-- autenticar o usuário;
-- autenticar o Robô local com credencial separada;
-- criar e consultar tarefas;
-- entregar tarefas ao Robô;
-- emitir lease por execução;
-- receber resultado protegido pelo token do lease.
+- autenticação separada de usuário e Robô;
+- criação e consulta de tarefas;
+- persistência;
+- entrega de tarefa ao Robô;
+- emissão de lease;
+- recepção de resultado protegido pelo lease.
 
-Por padrão escuta apenas `127.0.0.1`.
+Bind padrão: `127.0.0.1:8000`.
 
-Comando humano principal:
+Comando humano: `central`.
 
-```text
-central
-```
-
-Alias técnico preservado: `context-anchor-control`.
-
-## 2. Persistência e leases
+## 4. Persistência e leases
 
 Implementada em `src/context_anchor/store.py` com SQLite.
 
@@ -117,78 +130,63 @@ running
 succeeded | failed
 ```
 
-Se um lease expirar antes da conclusão, a tarefa pode voltar a `queued`. Depois do limite de tentativas, ela passa a `failed`.
+Tarefa abandonada pode retornar à fila após expiração do lease. Há limite de tentativas e resultado atrasado com lease antigo é rejeitado.
 
-Cada claim gera um `lease_token` novo. Um resultado só é aceito se o token ainda pertencer à execução atual, impedindo que uma execução atrasada finalize uma tarefa já retomada.
+`list_recent()` fornece ao Painel uma visão recente da fila/histórico sem alterar propriedade das tarefas.
 
-## 3. Robô local
+## 5. Robô local
 
-Implementado tecnicamente em `src/context_anchor/local_agent.py`.
+Implementado em `src/context_anchor/local_agent.py`.
 
-Fluxo atual:
+Fluxo:
 
 1. verifica parada de emergência;
-2. registra sua identidade de processo local;
+2. registra identidade do processo;
 3. autentica na Central;
-4. reivindica uma tarefa e seu lease;
-5. pede um plano ao planner ativo;
-6. passa o plano pela Policy Layer;
-7. executa a ação autorizada;
-8. verifica o resultado;
-9. devolve resultado junto ao lease da execução.
+4. busca tarefa;
+5. obtém plano;
+6. valida na Policy Layer;
+7. executa;
+8. verifica;
+9. envia resultado.
 
-Comando humano principal:
+Comando humano: `robo`.
 
-```text
-robo
-```
+## 6. Planner
 
-Alias técnico preservado: `context-anchor-agent`.
+Contrato em `src/context_anchor/planner.py`.
 
-## 4. Planner
+Atual:
 
-O contrato está em `src/context_anchor/planner.py`.
+- `DeterministicPlanner` ativo;
+- `StructuredAction` fechado para ações conhecidas;
+- `ProviderPlanner` preparado para provedor futuro.
 
-Existem hoje:
+Não há campo de shell, código livre, caminho de executável arbitrário ou credenciais no contrato.
 
-- `DeterministicPlanner`, ativo;
-- `StructuredAction`, esquema fechado para ações conhecidas;
-- `ProviderPlanner`, adaptador para um provedor futuro;
-- `StructuredPlanProvider`, protocolo de integração.
-
-O contrato não possui campo para shell, código, caminho de executável livre ou credenciais.
-
-Mesmo uma saída estruturalmente válida ainda precisa ser autorizada pela Policy Layer.
-
-## 5. Policy Layer
+## 7. Policy Layer
 
 Implementada em `src/context_anchor/policy.py`.
 
 ### Navegador
 
-- apenas HTTP/HTTPS;
-- bloqueio de localhost, `.local`, IPs privados, loopback, link-local e reservados.
+- HTTP/HTTPS;
+- localhost, `.local`, IPs privados/loopback/link-local/reservados bloqueados.
 
 ### Desktop
 
-- desktop desativado por padrão;
-- ações precisam pertencer à allowlist tipada;
-- coordenadas possuem validação;
-- texto limitado a 500 caracteres e sem quebra de linha dentro da mesma ação;
-- teclas aceitas pertencem a allowlist específica;
-- aplicativos pertencem a allowlist fixa.
+- feature gate `CONTEXT_ANCHOR_DESKTOP_ENABLED`;
+- ações tipadas;
+- coordenadas validadas;
+- texto limitado;
+- teclas permitidas por lista;
+- aplicativos por allowlist fixa.
 
-## 6. Navegador
+## 8. Navegador
 
 Implementado em `src/context_anchor/actions.py` com Playwright/Chromium.
 
-Verificação atual:
-
-- URL solicitada;
-- URL final;
-- título;
-- status HTTP;
-- `verified`.
+Verifica URL solicitada, URL final, título, status HTTP e `verified`.
 
 Preferência arquitetural:
 
@@ -199,102 +197,83 @@ API/DOM
 → visão + mouse/teclado como fallback
 ```
 
-## 7. Ações de desktop
+## 9. Desktop
 
-Backend físico em `src/context_anchor/desktop.py`.
+Backend em `src/context_anchor/desktop.py`.
 
-Capacidades atuais:
+Capacidades em código:
 
 - screenshot;
-- janela ativa via `xdotool`;
+- janela ativa por `xdotool`;
 - mover mouse;
 - clique esquerdo/direito;
 - digitar texto;
-- pressionar teclas permitidas;
+- teclas permitidas;
 - abrir aplicativos permitidos.
 
-PyAutoGUI é importado de forma lazy para que processos de servidor e CI não exijam sessão gráfica apenas para importar o pacote.
+Backend físico inicial: Linux/X11. Wayland não validado.
 
-O backend inicial considera Linux/X11. Wayland permanece não validado.
+## 10. Aplicativos
 
-## 8. Registro de aplicativos
+Ids conhecidos são mapeados para executáveis permitidos.
 
-O Robô não aceita nome de executável arbitrário.
+A abertura usa `subprocess.Popen(..., shell=False)`.
 
-O registro interno mapeia ids estáveis para executáveis conhecidos, como Firefox, Chromium, Nemo/Nautilus, Xed/Gedit, VS Code, calculadora e LibreOffice.
+O Robô não aceita caminho de executável ou linha de shell arbitrária recebida da tarefa.
 
-A abertura usa `subprocess.Popen` com `shell=False`.
+## 11. Percepção
 
-## 9. Percepção
-
-Primeiro slice implementado:
+Primeiro slice em código:
 
 - screenshot;
-- metadado de janela ativa quando `xdotool` está disponível.
+- janela ativa.
 
-Ainda faltam:
+Ainda faltam árvore de acessibilidade, percepção semântica da imagem e fusão de fontes de percepção.
 
-- árvore de acessibilidade;
-- percepção semântica da tela;
-- DOM compartilhado como contexto para planner;
-- fusão de múltiplas fontes de percepção.
-
-## 10. Parada de emergência
+## 12. Parada de emergência
 
 Implementada em `src/context_anchor/emergency_stop.py`.
 
-Mecanismos:
+- sentinel persistente;
+- PID + identidade Linux;
+- `SIGTERM` quando a identidade confere;
+- bloqueia reinício até limpeza consciente;
+- independente do planner e das credenciais do Robô.
 
-- sentinel persistente em arquivo;
-- PID do Robô acompanhado do tempo de início do processo Linux;
-- verificação contra reutilização de PID;
-- `SIGTERM` direto ao processo local quando a identidade confere;
-- Robô recusa reinício enquanto o sentinel existir;
-- configuração da parada não depende das credenciais do Robô.
+Comando humano: `parar-robo`.
 
-Comando humano principal: `parar-robo`.
+O Painel também possui controles para ativar e limpar o estado de emergência.
 
-Alias técnico preservado: `context-anchor-stop`.
+## 13. Diagnóstico
 
-## 11. Diagnóstico local
+`src/context_anchor/doctor.py` observa o ambiente sem executar ações físicas.
 
-`src/context_anchor/doctor.py` apenas observa o ambiente e informa dependências e sessão gráfica; não executa ações físicas.
+Comando humano: `diagnostico-robo`.
 
-Comando humano principal: `diagnostico-robo`.
+O mesmo coletor de diagnóstico é reutilizado pelo Painel.
 
-Alias técnico preservado: `context-anchor-doctor`.
+## 14. Configuração local
 
-## 12. Credenciais
+`.env` permanece fora do Git.
 
-Credenciais não devem aparecer:
+O Painel pode alterar apenas configurações explicitamente suportadas. No MVP 0.3, a alteração visual implementada é `CONTEXT_ANCHOR_DESKTOP_ENABLED`.
 
-- no código;
-- nos prompts;
-- nos logs;
-- no Git;
-- diretamente no modelo.
+Outras configurações deverão ser expostas individualmente, nunca por edição arbitrária de arquivo via interface.
 
-`.env` permanece fora do repositório. Usuário e Robô possuem tokens separados.
+## 15. Credenciais
 
-## 13. Central remota — planejada
+Credenciais não devem ser colocadas em código, prompts, logs ou Git.
 
-Antes de exposição à Internet ainda são necessários:
+Painel e Central continuam locais. O Painel usa internamente a credencial local configurada para enviar tarefas à Central, evitando exigir que o usuário cole o token em cada tarefa.
 
-- TLS;
-- autenticação forte;
-- pareamento de dispositivo;
-- revogação/rotação;
-- rate limiting;
-- proteção contra replay;
-- auditoria adequada;
-- confirmação humana para ações sensíveis.
+## 16. Acesso remoto — futuro
 
-## 14. Adaptadores de canais — planejados
+Antes de publicar Painel ou Central na Internet serão necessários TLS, autenticação forte, pareamento, revogação, rate limiting, proteção contra replay, auditoria e confirmação para ações sensíveis.
 
-Arquitetura-alvo:
+## 17. Canais — futuro
 
 ```text
-Web
+Web remoto
 WhatsApp
 Telegram
 Instagram
@@ -308,6 +287,6 @@ Robô local
 
 Nenhum adaptador de mensageria foi implementado ainda.
 
-## 15. Princípio local-first
+## 18. Princípio local-first
 
-Serviços externos poderão enviar objetivos e receber resultados, mas não terão acesso direto ao mouse, teclado, câmera ou aplicativos. Toda ação física deverá passar pelo Robô local, pelo feature gate e pela Policy Layer.
+O controle físico continua no Robô local. Painel, serviços externos ou canais futuros enviam intenção e recebem resultado; nenhuma camada externa acessa diretamente mouse, teclado, câmera ou aplicativos sem passar pelo Robô e pela Policy Layer.
