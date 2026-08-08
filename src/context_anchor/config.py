@@ -29,3 +29,7 @@ class LocalAgentSettings(BaseAppSettings):
     agent_token: str = Field(min_length=24)
     poll_interval_seconds: float = Field(default=2.0, ge=0.5, le=60)
     browser_headless: bool = False
+    desktop_enabled: bool = False
+    screenshot_dir: Path = Path("runtime/screenshots")
+    emergency_stop_path: Path = Path("runtime/EMERGENCY_STOP")
+    agent_pid_path: Path = Path("runtime/local_agent.pid")
