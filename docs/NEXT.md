@@ -6,12 +6,12 @@ A validação física do navegador foi concluída com sucesso para `abrir <site>
 
 Próximo fluxo, em passos pequenos:
 
-1. habilitar `CONTEXT_ANCHOR_DESKTOP_ENABLED=true` localmente e reiniciar somente o agente;
-2. testar `capturar tela` e `janela ativa`;
-3. depois testar movimento de mouse, clique, digitação, tecla e abertura de um aplicativo permitido;
-4. por fim testar `context-anchor-stop trigger` e confirmar que o agente encerra e não reinicia até `context-anchor-stop clear`.
+1. atualizar a instalação editável para disponibilizar os novos comandos `central`, `robo`, `parar-robo` e `diagnostico-robo`;
+2. habilitar `CONTEXT_ANCHOR_DESKTOP_ENABLED=true` localmente e reiniciar somente o Robô com `robo`;
+3. testar `capturar tela` e `janela ativa`, depois movimento de mouse, clique, digitação, tecla e abertura de um aplicativo permitido;
+4. por fim testar `parar-robo trigger` e confirmar que o Robô encerra e não reinicia até `parar-robo clear`.
 
-Critério de conclusão: pelo menos uma ação de percepção, uma ação de mouse, uma ação de teclado, um aplicativo e o emergency stop devem funcionar no computador alvo sem bypass da Policy Layer.
+Critério de conclusão: pelo menos uma ação de percepção, uma ação de mouse, uma ação de teclado, um aplicativo e a parada de emergência devem funcionar no computador alvo sem bypass da Policy Layer.
 
 ## 2. Melhorar percepção e controle após o teste físico
 
@@ -21,7 +21,7 @@ Com base no resultado real:
 - melhorar verificação de clique/digitação em vez de assumir sucesso apenas porque a chamada do sistema retornou;
 - preparar confirmação humana para ações sensíveis.
 
-Critério de conclusão: o agente deve conseguir observar estado suficiente para verificar de forma confiável que uma ação de desktop produziu o efeito esperado.
+Critério de conclusão: o Robô deve conseguir observar estado suficiente para verificar de forma confiável que uma ação de desktop produziu o efeito esperado.
 
 ## 3. Ativar o primeiro planner por IA
 
