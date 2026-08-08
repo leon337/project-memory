@@ -1,35 +1,34 @@
 # NEXT
 
-## 1. Implementar o primeiro Painel do Robô
+## 1. Validar o Painel do Robô no Linux real
 
-Criar um processo local independente da Central e do Robô para reduzir dependência de múltiplos terminais durante desenvolvimento e operação.
+O primeiro Painel do Robô já está implementado e passou no CI.
 
-Primeiro slice do painel:
+Próximo teste, em passos pequenos:
 
-- mostrar se Central e Robô estão ligados;
-- botões para ligar, desligar e reiniciar Central e Robô;
-- mostrar e alterar `DESKTOP_ENABLED` por controle visual;
-- mostrar estado da parada de emergência;
-- botão de diagnóstico;
-- logs básicos separados de Central e Robô;
-- área de comandos de manutenção controlados com explicação antes da execução;
-- modo de aprendizado mostrando o que cada botão/comando faz e o resultado esperado.
+1. atualizar o computador com `git pull` e `pip install -e .`;
+2. parar uma vez a Central antiga que já estava rodando antes do registro de PID novo;
+3. iniciar `painel-robo` e abrir `http://127.0.0.1:8765`;
+4. confirmar visualmente os estados de Central, Robô, Desktop e emergência;
+5. ligar/reiniciar Central e Robô pelos botões do Painel;
+6. executar o diagnóstico pelo Painel;
+7. testar o Laboratório com `git pull` e confirmar que a explicação aparece sem execução automática de shell.
 
-Critério de conclusão: o usuário deve conseguir iniciar e parar Central/Robô, habilitar o desktop, executar diagnóstico e entender visualmente o estado do sistema sem precisar administrar três terminais manualmente.
+Critério de conclusão: o usuário deve conseguir administrar o ciclo básico pelo Painel sem precisar manter três terminais para Central, Robô e configuração.
 
-## 2. Validar percepção e controle do desktop pelo Painel do Robô
+## 2. Validar percepção e controle do desktop pelo Painel
 
-Com o painel operacional, continuar a validação física já iniciada no Linux/X11.
+Com o Painel validado, continuar o teste físico no Linux/X11:
 
-Testar em sequência:
-
-- `capturar tela` e `janela ativa`;
+- `capturar tela`;
+- `janela ativa`;
 - movimento e clique do mouse;
 - digitação e teclas;
 - abertura de aplicativo permitido;
-- parada de emergência real.
+- parada de emergência real pelo Painel;
+- confirmar comportamento do `FAILSAFE`.
 
-Critério de conclusão: pelo menos uma ação de percepção, uma ação de mouse, uma ação de teclado, um aplicativo e a parada de emergência devem funcionar no computador alvo sem bypass da Policy Layer.
+Critério de conclusão: pelo menos uma ação de percepção, uma ação de mouse, uma ação de teclado, um aplicativo e a parada de emergência devem funcionar sem bypass da Policy Layer.
 
 ## 3. Ativar o primeiro planner por IA
 
@@ -37,10 +36,10 @@ Depois da validação física, escolher um provedor e conectá-lo ao contrato ex
 
 Requisitos:
 
-- saída obrigatoriamente compatível com `StructuredAction`;
+- saída compatível com `StructuredAction`;
 - nenhuma ação de shell;
 - nenhuma credencial enviada ao modelo;
-- toda saída continua passando pela Policy Layer;
-- `DeterministicPlanner` permanece disponível como fallback e para testes.
+- toda saída passa pela Policy Layer;
+- `DeterministicPlanner` permanece como fallback e para testes.
 
 Depois desse marco, o próximo bloco será acesso remoto seguro e adaptadores Telegram/WhatsApp/Instagram.
