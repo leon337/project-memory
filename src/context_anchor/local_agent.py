@@ -36,8 +36,8 @@ def run() -> None:
 
     if stop.is_triggered():
         print(
-            f"Emergency stop está ativo em {cfg.emergency_stop_path}. "
-            "Execute 'context-anchor-stop clear' localmente antes de iniciar o agente."
+            f"Parada de emergência ativa em {cfg.emergency_stop_path}. "
+            "Execute 'parar-robo clear' localmente antes de iniciar o Robô."
         )
         return
 
@@ -88,7 +88,7 @@ def run() -> None:
                         finish = client.post(f"/api/agent/tasks/{task.id}/result", json=payload)
                         finish.raise_for_status()
                     except httpx.HTTPError as exc:
-                        print(f"Falha de comunicação com o Control Plane: {exc}")
+                        print(f"Falha de comunicação com a Central: {exc}")
                         time.sleep(max(cfg.poll_interval_seconds, 3))
             except (KeyboardInterrupt, EmergencyStopTriggered):
                 pass
