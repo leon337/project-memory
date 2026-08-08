@@ -52,8 +52,11 @@ O repositório `leon337/project-memory` deixou de conter apenas documentação e
 ## Validação
 
 - O primeiro workflow de CI após a criação do pipeline concluiu com sucesso.
-- Um segundo workflow foi disparado após a inclusão do teste de integração do Control Plane e estava em execução durante esta atualização.
+- Após adicionar o teste de integração do Control Plane, o CI falhou. A falha revelou incompatibilidade na declaração da rota `/api/agent/next`, que podia retornar uma tarefa ou HTTP 204 e estava sendo interpretada pelo FastAPI como um modelo de resposta inválido.
+- A rota foi corrigida para declarar `response_model=None` e tratar explicitamente a resposta 204.
+- O workflow seguinte, no commit `25c3a0d034069dcbf332df6fe4e08794e3acb2da`, concluiu com sucesso em instalação, compilação e testes.
 - Uma tentativa de clonar o repositório dentro do ambiente de execução desta sessão falhou porque esse ambiente não conseguiu resolver `github.com`; por isso a validação automatizada foi delegada ao GitHub Actions. Isso não indica falha do código do projeto.
+- O fluxo real com Chromium visível em um desktop Linux ainda não foi executado nesta sessão e permanece como próximo teste vertical.
 
 ## Ainda não implementado
 
