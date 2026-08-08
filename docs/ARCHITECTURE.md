@@ -1,104 +1,155 @@
 # ARCHITECTURE
 
-## Visão geral
+## Estado arquitetural atual
 
-O sistema será dividido entre um agente executando no computador e uma camada remota responsável por receber comandos.
+O primeiro MVP está implementado como dois processos separados:
 
-Fluxo conceitual:
-
+```text
 Usuário
-↓
-Web / WhatsApp / Telegram / Instagram
-↓
-Control Plane
-↓
-Autenticação
-↓
-Orquestrador
-↓
+  ↓
+Painel Web local
+  ↓
+Control Plane — FastAPI
+  ↓
+SQLite — fila e histórico de tarefas
+  ↓
+HTTP polling autenticado
+  ↓
 Agente local
-↓
-Percepção → Raciocínio → Ação → Verificação
-↓
-Computador
+  ↓
+Planner determinístico
+  ↓
+Policy Layer
+  ↓
+Playwright / Chromium
+  ↓
+Verificação do resultado
+  ↓
+Control Plane
+  ↓
+Painel Web
+```
 
-## 1. Agente local
+A separação entre Control Plane e agente local já existe mesmo quando ambos rodam inicialmente na mesma máquina.
 
-Processo executado no computador controlado.
+## 1. Control Plane
 
-Responsabilidades:
+Implementado em `src/context_anchor/control_plane.py`.
 
-- observar o estado do computador;
-- capturar informações da tela;
-- identificar aplicações e interfaces;
-- controlar mouse;
-- controlar teclado;
-- abrir aplicações;
-- manipular arquivos autorizados;
-- operar navegador;
-- executar tarefas solicitadas;
-- reportar resultados ao servidor.
+Responsabilidades atuais:
 
-## 2. Perception Layer
+- servir o painel Web;
+- autenticar o usuário;
+- autenticar separadamente o agente local;
+- receber comandos;
+- criar tarefas;
+- fornecer a próxima tarefa ao agente;
+- receber o resultado;
+- permitir consulta do estado da tarefa.
 
-Responsável por transformar o estado visual do computador em informações utilizáveis pelo agente.
+Por padrão escuta apenas `127.0.0.1`.
 
-Possíveis fontes:
+## 2. Persistência
 
-- screenshots;
-- árvore de acessibilidade;
-- informações das janelas;
-- DOM do navegador quando disponível;
-- APIs específicas de aplicativos.
+Implementada em `src/context_anchor/store.py` com SQLite.
 
-A arquitetura deverá evitar depender exclusivamente de visão computacional quando uma interface estruturada estiver disponível.
+Estados atuais:
 
-## 3. Action Layer
+```text
+queued
+  ↓
+running
+  ↓
+succeeded | failed
+```
 
-Camada responsável pelas ações reais no computador.
+Cada tarefa registra:
 
-Capacidades previstas:
+- id;
+- comando;
+- estado;
+- criação e atualização;
+- agente que reivindicou a tarefa;
+- resultado estruturado;
+- erro quando houver.
 
-- mouse;
-- teclado;
-- gerenciamento de janelas;
-- abertura de aplicativos;
-- navegador;
-- arquivos;
-- execução de comandos previamente permitidos;
-- câmera quando explicitamente habilitada.
+SQLite foi escolhido para o MVP por simplicidade e porque o Control Plane atual possui um único escritor lógico.
 
-## 4. Agent Core
+## 3. Agente local
 
-Executará um ciclo orientado a objetivo:
+Implementado em `src/context_anchor/local_agent.py`.
 
-Objetivo
-→ observar
-→ planejar
-→ executar ação
-→ observar resultado
-→ verificar progresso
-→ escolher próxima ação
-→ concluir ou continuar
+O agente:
 
-O agente não deverá assumir que uma ação funcionou apenas porque tentou executá-la.
+1. autentica no Control Plane com token próprio;
+2. consulta periodicamente a próxima tarefa;
+3. transforma o comando em um plano;
+4. consulta a política;
+5. executa apenas se autorizado;
+6. verifica o resultado;
+7. devolve sucesso ou falha ao Control Plane.
 
-## 5. Browser Layer
+O agente local continua sendo o único componente autorizado a controlar recursos físicos do computador.
 
-O navegador deverá possuir integração própria.
+## 4. Planner atual
 
-Preferência arquitetural:
+Implementado em `src/context_anchor/policy.py`.
 
+O primeiro planner é determinístico e não usa modelo de IA.
+
+Comandos suportados:
+
+- `abrir <site>`;
+- `open <site>`;
+- `pesquisar <termo>`;
+- `buscar <termo>`;
+- `search <termo>`.
+
+Essa escolha valida o ciclo operacional antes de adicionar a variabilidade de um LLM.
+
+O planner futuro deverá produzir ações estruturadas no mesmo contrato, permitindo trocar o mecanismo de raciocínio sem alterar o executor.
+
+## 5. Policy Layer
+
+Também implementada em `src/context_anchor/policy.py`.
+
+A política atual:
+
+- permite apenas a ação `open_url`;
+- permite apenas HTTP e HTTPS;
+- bloqueia `localhost`;
+- bloqueia domínios `.local`;
+- bloqueia IPs privados, loopback, link-local e reservados;
+- rejeita comandos não reconhecidos.
+
+A evolução deverá adicionar categorias de risco, confirmação humana e políticas específicas por capacidade sem remover a decisão central de autorização antes da execução.
+
+## 6. Browser Layer
+
+Implementada em `src/context_anchor/actions.py` com Playwright e Chromium.
+
+O navegador é mantido aberto pelo processo do agente enquanto ele estiver em execução.
+
+A verificação atual retorna:
+
+- URL solicitada;
+- URL final;
+- título da página;
+- status HTTP quando disponível;
+- indicador `verified`.
+
+A preferência arquitetural continua sendo:
+
+```text
 API/DOM
 → automação estruturada
 → acessibilidade
 → visão + mouse/teclado como fallback
+```
 
-Isso evita usar coordenadas da tela quando uma forma mais confiável estiver disponível.
+## 7. Credenciais
 
-## 6. Credential Layer
-
-Credenciais não deverão ser colocadas:
+Credenciais não podem ser armazenadas:
 
 - no código;
 - nos prompts;
@@ -106,59 +157,72 @@ Credenciais não deverão ser colocadas:
 - no Git;
 - diretamente no modelo de IA.
 
-O agente deverá utilizar um mecanismo específico de gerenciamento de credenciais ou sessões existentes.
+O repositório contém apenas `.env.example`. O arquivo `.env` real está ignorado pelo Git.
 
-Como o repositório atualmente é público, nenhum segredo poderá ser armazenado nele.
+O MVP usa dois segredos separados:
 
-## 7. Policy Layer
+- `CONTEXT_ANCHOR_USER_TOKEN`;
+- `CONTEXT_ANCHOR_AGENT_TOKEN`.
 
-Antes de executar uma ação, o sistema deverá poder determinar:
+Nenhum mecanismo de login de terceiros é contornado. Sessões autenticadas de navegador deverão ser reutilizadas por mecanismos próprios quando essa capacidade for implementada.
 
-- se o agente possui permissão;
-- se exige confirmação humana;
-- se pode executar autonomamente;
-- se deve bloquear a operação.
+## 8. Perception Layer — planejada
 
-A arquitetura deve permitir diferentes níveis de autonomia.
+Ainda não implementada.
 
-## 8. Audit Layer
+A evolução deverá combinar, nessa ordem de preferência:
 
-Ações relevantes deverão gerar registro contendo, quando aplicável:
+- DOM quando disponível;
+- árvore de acessibilidade;
+- metadados de janelas;
+- screenshot;
+- visão computacional como fallback.
 
-- comando recebido;
-- objetivo;
-- ações executadas;
-- resultado;
-- horário;
-- canal de origem;
-- erros.
+O sistema não deverá depender exclusivamente de coordenadas da tela.
 
-## 9. Emergency Stop
+## 9. Desktop Action Layer — planejada
 
-O usuário deverá possuir uma forma independente de interromper imediatamente a execução do agente.
+Ainda não implementada.
 
-Esse mecanismo não poderá depender do próprio modelo de IA decidir parar.
+Capacidades futuras:
 
-## 10. Control Plane
+- mouse;
+- teclado;
+- gerenciamento de janelas;
+- abertura de aplicativos permitidos;
+- arquivos autorizados;
+- câmera quando explicitamente habilitada.
 
-Camada responsável pela comunicação entre o usuário e o computador.
+Essas ações deverão passar pela mesma Policy Layer antes da execução.
 
-Deverá fornecer:
+## 10. Emergency Stop — planejado
 
-- autenticação;
-- autorização;
-- gerenciamento de sessões;
-- envio de comandos;
-- acompanhamento da execução;
-- histórico;
-- cancelamento de tarefas.
+Ainda não implementado.
 
-## 11. Channel Adapters
+Deverá existir um mecanismo independente do modelo e do loop do agente para interromper imediatamente a execução local.
 
-Cada canal deverá ser desacoplado do núcleo do agente.
+## 11. Control Plane remoto — planejado
 
-Estrutura prevista:
+O painel atual é local.
 
+Antes de exposição à Internet serão necessários pelo menos:
+
+- TLS;
+- autenticação mais forte;
+- pareamento de dispositivo;
+- rotação/revogação de credenciais;
+- rate limiting;
+- proteção contra replay;
+- trilha de auditoria adequada;
+- política de confirmação para ações sensíveis.
+
+## 12. Channel Adapters — planejados
+
+WhatsApp, Telegram e Instagram permanecem desacoplados do núcleo.
+
+Arquitetura-alvo:
+
+```text
 Web Adapter
 WhatsApp Adapter
 Telegram Adapter
@@ -166,12 +230,15 @@ Instagram Adapter
         ↓
 Command Gateway
         ↓
-Agent Core
+Control Plane
+        ↓
+Agente local
+```
 
-Dessa maneira novos canais poderão ser adicionados sem alterar o mecanismo que controla o computador.
+Nenhum desses adaptadores de mensageria foi implementado ainda.
 
-## 12. Princípio local-first
+## 13. Princípio local-first
 
-O controle físico do computador deverá permanecer no agente local.
+O controle físico permanece no agente local.
 
-Serviços externos enviam intenções e recebem resultados, mas não deverão possuir controle direto dos dispositivos sem passar pelo agente local e pelas políticas de autorização.
+Serviços externos poderão enviar intenções e receber resultados, mas não terão acesso direto ao mouse, teclado, câmera ou aplicativos sem passar pelo agente local e pela política de autorização.
