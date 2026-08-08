@@ -1,39 +1,34 @@
 # NEXT
 
-## 1. Definir o MVP operacional
+## 1. Validar o teste vertical em um desktop Linux real
 
-Definir exatamente quais capacidades estarão presentes na primeira versão.
+Executar o Control Plane e o agente local no computador alvo e confirmar o ciclo completo:
 
-O primeiro MVP deverá demonstrar um ciclo completo:
+```text
+painel Web
+→ criar tarefa
+→ agente reivindica
+→ Playwright abre/pesquisa no navegador
+→ agente verifica o resultado
+→ painel recebe succeeded/failed
+```
 
-comando
-→ planejamento
-→ controle do computador
-→ verificação
-→ resposta ao usuário.
+Critério de conclusão: pelo menos um comando `abrir <site>` e um comando `pesquisar <termo>` devem concluir corretamente fora do ambiente de CI.
 
-## 2. Definir a arquitetura técnica
+## 2. Adicionar o primeiro slice de percepção e controle do desktop
 
-Escolher:
+Depois da validação do navegador, implementar ações tipadas para:
 
-- sistema operacional inicial;
-- linguagem;
-- mecanismo de automação do desktop;
-- mecanismo de automação do navegador;
-- modelo de IA;
-- comunicação entre servidor e agente local;
-- armazenamento;
-- autenticação.
+- capturar o estado visual da tela;
+- identificar a janela ativa;
+- mover/clicar o mouse;
+- digitar texto;
+- abrir um aplicativo explicitamente permitido.
 
-## 3. Definir o primeiro teste vertical
+Todas as novas ações devem passar pela Policy Layer. Também deve ser criado um emergency stop local independente do agente.
 
-Construir posteriormente uma demonstração mínima em que:
+## 3. Integrar um planner por IA com saída estruturada
 
-Usuário envia um comando pela Web
-→ agente local recebe
-→ abre uma aplicação ou navegador
-→ executa uma tarefa simples
-→ verifica se funcionou
-→ envia o resultado de volta.
+Somente depois dos dois itens anteriores, adicionar uma interface de provedor de modelo que transforme objetivos em ações tipadas já suportadas pelo executor.
 
-WhatsApp, Telegram e Instagram ficam fora desse primeiro teste e entram após o núcleo local funcionar.
+O LLM não poderá gerar shell arbitrário nem receber credenciais. O planner determinístico atual deverá permanecer disponível para testes e fallback.
