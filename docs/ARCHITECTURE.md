@@ -24,6 +24,7 @@ Robô local
 Interpretação do objetivo
   ├─ caminho local conhecido
   │    ├─ comando determinístico simples
+  │    ├─ navegação/pesquisa web determinística
   │    └─ sequência determinística composta
   └─ MultiProviderPlanner
        ├─ Cloudflare Workers AI
@@ -89,9 +90,9 @@ Responsabilidades:
 
 ## 4. Caminho local determinístico
 
-O caminho local existe para reduzir latência e consumo de quota quando a intenção já é inequívoca.
+O caminho local reduz latência e consumo de quota quando a intenção já é inequívoca.
 
-### Comandos simples
+### 4.1 Comandos simples
 
 `DeterministicPlanner` resolve comandos conhecidos sem API externa.
 
@@ -107,9 +108,9 @@ abrir o navegador brave
 → open_app(brave-browser)
 ```
 
-### Navegador + site
+### 4.2 Navegador + site
 
-Construções determinísticas do tipo `abrir navegador + acessar site` também são resolvidas localmente.
+Construções do tipo `abrir navegador + acessar site` também são resolvidas localmente.
 
 Exemplos:
 
@@ -119,22 +120,56 @@ abrir o navegador e acessar globo.com
 ```
 
 ```text
-Abra o navegador e acessa o site globo.com
-→ open_url(https://globo.com)
+Abra o navegador brave e acesse google.com
+→ open_app("brave-browser https://google.com")
 ```
 
-Quando nenhum navegador específico é nomeado, `open_url` usa o executor estruturado Playwright/Chromium.
+Quando nenhum navegador específico é nomeado, `open_url` usa Playwright/Chromium. Quando um navegador específico é nomeado, ele é preservado e recebe a URL como argumento.
 
-Se o pedido nomeia um navegador instalado, ele é preservado:
+### 4.3 Pesquisa simples
+
+Pedidos inequívocos de pesquisa também ficam no caminho local.
+
+Exemplos aceitos:
 
 ```text
-abra o navegador brave e acesse globo.com
-→ open_app("brave-browser https://globo.com")
+pesquise inteligência artificial
+agora pesquise sobre inteligência artificial
+busque FastAPI
+procure agentes de IA
 ```
 
-O backend separa executável e argumento com `shlex.split(...)` e executa com `shell=False`.
+Esses pedidos viram `open_url` para uma URL de pesquisa em DuckDuckGo e não usam provider externo.
 
-### Sequência composta conhecida
+O prefixo `agora` não cria, por si só, memória de navegador externo. Neste estágio, `agora pesquise ...` significa uma nova pesquisa web determinística no navegador estruturado.
+
+### 4.4 Navegador + mecanismo de busca + consulta
+
+Para mecanismos conhecidos, o parser pode montar diretamente a URL final da busca.
+
+Mecanismos atualmente reconhecidos:
+
+- Google;
+- DuckDuckGo;
+- Bing.
+
+Exemplo com navegador específico:
+
+```text
+Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel
+→ open_app("brave-browser https://www.google.com/search?q=o+significado+do+nome+Josiel")
+```
+
+Exemplo com navegador genérico:
+
+```text
+Abra o navegador e acesse google.com e pesquise inteligência artificial
+→ open_url("https://www.google.com/search?q=intelig%C3%AAncia+artificial")
+```
+
+O parser só usa esse atalho quando conhece a semântica de pesquisa do domínio. Sites arbitrários não recebem uma suposição genérica de endpoint de busca.
+
+### 4.5 Aplicativo + texto
 
 `plan_local_sequence(...)` reconhece o padrão:
 
@@ -153,9 +188,9 @@ Abra o editor de texto e escreva Olá mundo
 → objetivo concluído
 ```
 
-Essa sequência não chama nenhum provider externo.
+Essa sequência não chama provider externo.
 
-A lista de padrões locais deve permanecer deliberadamente pequena e só crescer para sequências realmente determinísticas. Ambiguidade, condição ou decisão continuam pertencendo ao planner por IA.
+A lista de padrões locais deve crescer somente para sequências realmente determinísticas. Ambiguidade, condição ou decisão continuam pertencendo ao planner por IA.
 
 ## 5. MultiProviderPlanner
 
@@ -248,7 +283,13 @@ Brave possui candidatos `brave-browser`, `brave-browser-stable` e `brave`.
 
 Abrir um navegador instalado é `open_app`; navegar para endereço é `open_url`.
 
-Um pedido genérico `abrir navegador e acessar <domínio>` usa `open_url`, pois a navegação já implica abrir a janela estruturada. Um navegador explicitamente nomeado é aberto como aplicativo com a URL como argumento.
+Um pedido genérico `abrir navegador e acessar <domínio>` usa `open_url`. Um navegador explicitamente nomeado é aberto como aplicativo com a URL como argumento.
+
+### Contexto entre tarefas
+
+O executor Playwright permanece vivo enquanto o processo do Robô estiver vivo, mas um navegador externo aberto por `open_app`, como Brave, não possui ainda uma sessão lógica persistida no planner.
+
+Consequentemente, um pedido posterior isolado como `agora pesquise ...` não deve ser interpretado como garantia de continuar naquele Brave específico. Se continuidade entre tarefas for necessária, será preciso persistir explicitamente o contexto de navegador/alvo ativo.
 
 ## 11. Desktop, Unicode, foco e FAILSAFE
 
@@ -286,7 +327,7 @@ Permanece independente do planner e dos providers.
 - modelo padrão `glm-4.7-flash`;
 - HTTP por `httpx`;
 - JSON estruturado;
-- testes reais podem retornar `429/1305`.
+- testes reais podem retornar `429/1305` ou resposta sem JSON válido.
 
 ### Gemini
 
@@ -328,6 +369,15 @@ Canais futuros continuam Web remoto, WhatsApp, Telegram e Instagram.
 
 ## 17. Estado de validação
 
-O teste físico `Abra o editor de texto e escreva Olá mundo` está **PASS**: Xed abriu, `Olá mundo` foi digitado corretamente e a task terminou `succeeded` com `planner=deterministic`, `rota=local-sequence`, `etapas=2` e `objetivo=concluido`.
+Estão **PASS** fisicamente:
 
-O teste físico `abrir navegador + acessar globo.com` estava **FAIL** antes do reconhecimento desse padrão. A correção passou no GitHub Actions CI run `31307288547`, mas ainda precisa ser revalidada fisicamente no Linux real.
+- `Abra o editor de texto e escreva Olá mundo`;
+- `Abra o navegador e acesse o site globo.com`;
+- `Abra o navegador brave e acesse o site google.com`.
+
+Antes da correção de pesquisa, ficaram **FAIL**:
+
+- `Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`;
+- `agora pesquise sobre inteligencia artificial`.
+
+A correção desses dois padrões passou no GitHub Actions CI run `31307745802` e aguarda revalidação física.
