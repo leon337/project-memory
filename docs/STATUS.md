@@ -91,25 +91,29 @@ A documentação oficial do Z.AI classifica o código `1305` como rate limit; po
 
 ## Correção vigente do Gemini
 
-Depois do segundo teste, a integração Gemini foi migrada para a **Interactions API** atual:
+Foi inspecionado o repositório `leon337/meu_primeiro_agente`, onde o Gemini já funciona usando o SDK oficial `google-genai`, `genai.Client(...)` e `client.models.generate_content(...)`. O projeto também usa `gemini-3.6-flash` na configuração/testes locais.
 
-- endpoint: `/v1beta/interactions`;
-- modelo padrão mantido em `gemini-3.5-flash`;
-- structured output configurado por `response_format` com `type=text`, `mime_type=application/json` e `ACTION_SCHEMA`;
-- a resposta REST é extraída do último `model_output` textual em `steps`;
-- fence de código simples em volta de JSON pode ser removida antes do parse;
-- o resultado continua obrigado a validar como `StructuredAction` antes da Policy Layer.
+Com base nessa implementação real já funcional, o adaptador Gemini do `project-memory` foi migrado de REST manual para o mesmo padrão de SDK:
 
-Essa implementação está em `src/context_anchor/providers.py`.
+- dependência `google-genai>=1.0,<2.0` adicionada ao projeto;
+- `GeminiProvider` usa `genai.Client`;
+- chamada por `client.models.generate_content(...)`;
+- modelo padrão: `gemini-3.6-flash`;
+- `GenerateContentConfig` exige `response_mime_type=application/json` e o mesmo `ACTION_SCHEMA`;
+- timeout mínimo de 10,5 s e configuração de retry transitório seguem o padrão já usado no outro projeto;
+- resposta `parsed` ou texto JSON ainda precisa validar como `StructuredAction`;
+- erro do SDK é convertido para `ProviderGenerationError` sem copiar a chave para telemetria.
 
-O commit de testes da migração (`02bb0d32f5e9987532565aa818f51f65f65244d0`) teve CI `success` no run `31299603246`.
+O SDK não dá acesso direto ao computador: a saída continua passando pelo mesmo `StructuredAction` → Policy Layer → executor.
 
-Ainda falta validar fisicamente essa nova versão com a API real.
+O commit de testes dessa migração (`1f17fce507c9be7bd5f534e32895df9d6ec40a48`) concluiu instalação, compilação e testes com `success` no CI.
+
+Ainda falta validar fisicamente essa versão com a API real no Linux alvo.
 
 ## Provedores e credenciais — estado atual
 
 - **Z.AI / `glm-4.7-flash`**: conta e API key criadas; tela real de Rate Limits mostrou `concurrency limit = 1`; chave configurada localmente no `.env`; chamadas reais atualmente podem retornar `429/1305`;
-- **Google Gemini / `gemini-3.5-flash`**: chave configurada localmente no `.env`; adaptador agora usa Interactions API;
+- **Google Gemini / `gemini-3.6-flash`**: chave configurada localmente no `.env`; adaptador vigente usa o SDK oficial `google-genai`;
 - **Cloudflare Workers AI**: token personalizado com Workers AI Read/Edit criado e guardado localmente; ainda falta `Account ID` no `.env` para ativar o adaptador;
 - **SiliconFlow**: conta e API key criadas, mas permanece opcional enquanto um modelo gratuito atual e seus limites reais não forem comprovados.
 
@@ -117,9 +121,10 @@ As credenciais permanecem fora do Git. O usuário optou por continuar os testes 
 
 ## Próximo bloqueio real
 
-O próximo bloqueio é revalidar o planner no Linux real com o novo adaptador Gemini:
+O próximo bloqueio é revalidar o planner no Linux real com o SDK oficial do Gemini:
 
 - executar `git pull --ff-only`;
+- como foi adicionada a dependência `google-genai`, executar uma vez `pip install -e .` dentro do `.venv` do `project-memory`;
 - reiniciar o Robô pelo Painel;
 - repetir `Por favor abra o editor de texto para mim`;
 - confirmar se Gemini produz uma `StructuredAction` válida e o editor abre quando Z.AI estiver limitado;
