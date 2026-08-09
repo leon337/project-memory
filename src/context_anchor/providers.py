@@ -291,7 +291,7 @@ class GeminiProvider:
         self._config = types.GenerateContentConfig(
             system_instruction=PLANNER_SYSTEM_PROMPT,
             response_mime_type="application/json",
-            response_schema=ACTION_SCHEMA,
+            response_json_schema=ACTION_SCHEMA,
             temperature=0.1,
             max_output_tokens=160,
         )
