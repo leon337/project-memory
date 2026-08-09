@@ -2,261 +2,156 @@
 
 ## D-001 — Objetivo principal
 
-O projeto terá como objetivo construir um agente capaz de funcionar como operador digital do computador do usuário.
+O projeto constrói um operador digital local capaz de receber um objetivo em linguagem natural e executar quantas etapas forem necessárias até concluí-lo.
 
-O agente deverá ser capaz de receber um objetivo e executar múltiplas ações até concluí-lo.
+O operador deve poder usar mouse, teclado, aplicativos, navegador, sites, sessões autenticadas e outras capacidades que o usuário e o sistema operacional disponibilizem.
 
-## D-002 — Controle do computador
+## D-002 — Perfil local permissivo por padrão
 
-O sistema deverá evoluir para suportar mouse, teclado, aplicativos, navegador, sites, sessões autenticadas e câmera autorizada.
+No perfil local confiável, a ausência de uma allowlist não deve bloquear uma capacidade já disponível ao usuário e ao sistema operacional.
 
-## D-003 — Operação remota
+A direção é **permitir por padrão e bloquear por exceção**. Restrições futuras entram como denylist ou regras explícitas escolhidas pelo usuário.
 
-O agente deverá poder receber comandos por Web, WhatsApp, Telegram e Instagram.
+Falha por ausência de implementação ou ausência do executável no sistema é diferente de bloqueio por política.
 
-Esses canais não precisam entrar simultaneamente no MVP.
+## D-003 — Aplicativos, executáveis e argumentos
 
-## D-004 — Autonomia
+Abrir aplicativos não exige cadastro manual prévio.
 
-O objetivo é permitir alto grau de autonomia.
+`APP_COMMANDS` e aliases conhecidos existem apenas como conveniência de resolução. O backend também pode tentar executar nomes/comandos não cadastrados.
 
-“Controle irrestrito” significa acesso às capacidades concedidas pelo usuário e pelo sistema operacional, e não bypass de autenticação ou mecanismos de segurança.
+O resolvedor atual separa argumentos com `shlex.split(...)` e usa `subprocess.Popen(..., shell=False)`. Caminhos e argumentos locais não são proibidos por uma allowlist de aplicativos.
 
-## D-005 — Credenciais
+Se o usuário quiser bloquear um aplicativo, executável, argumento ou classe de ação específica, isso deverá ser expresso posteriormente como regra de bloqueio.
 
-Senhas, tokens e outras credenciais não devem ser armazenados diretamente no código, prompts, logs ou repositório.
+## D-004 — Browser e URLs
 
-O gerenciamento de credenciais deverá permanecer separado do mecanismo de raciocínio.
+`open_url` representa navegação para uma URL e usa Playwright/Chromium.
 
-## D-006 — Controle observável
+`open_app` representa abertura de um navegador/aplicativo instalado.
 
-O agente deverá verificar resultados e manter histórico suficiente para diagnosticar falhas.
+O parser determinístico só deve tratar `abrir ...` como URL quando o alvo se parecer de fato com URL/domínio. Frases como `abrir o navegador brave` devem ir para o planner de IA.
 
-## D-007 — Primeiro alvo operacional
+No perfil local, URLs HTTP/HTTPS locais, privadas e públicas são permitidas por padrão.
 
-O primeiro alvo é desktop Linux.
+## D-005 — Loop orientado a objetivo
 
-O backend físico inicial foi desenhado para Linux/X11. Outros ambientes serão adicionados sem alterar o contrato de ações quando possível.
+Uma ação bem-sucedida não significa automaticamente que o objetivo inteiro foi concluído.
 
-## D-008 — Stack do MVP
+Pedidos de IA seguem o ciclo:
 
-O núcleo usa Python 3.11+, FastAPI e SQLite.
+```text
+objetivo
+→ próxima ação
+→ execução
+→ observação/verificação
+→ nova decisão
+→ ...
+→ finish
+```
 
-A Central e o Robô local se comunicam por HTTP polling autenticado.
+A IA escolhe uma próxima ação por vez. Ela não precisa antecipar uma lista completa de passos.
 
-## D-009 — Automação de navegador
+`finish` só pode encerrar uma tarefa depois de pelo menos uma etapa executada. Uma etapa com `verified=False` impede conclusão bem-sucedida.
 
-Playwright com Chromium é o primeiro executor de navegador.
+O loop possui limite de etapas para impedir repetição infinita; o padrão atual é 8 e pode ser configurado por `CONTEXT_ANCHOR_GOAL_MAX_STEPS`.
 
-Automação estruturada tem prioridade sobre coordenadas visuais quando DOM/API apropriada estiver disponível.
+## D-006 — Planner determinístico permanece como caminho rápido
 
-## D-010 — Planner determinístico permanece como caminho local e fallback
+Comandos inequívocos já suportados continuam sendo resolvidos localmente antes de chamar uma API externa.
 
-O `DeterministicPlanner` permanece disponível mesmo com o planner multi-provider ativo.
+Isso reduz latência e uso de quota.
 
-Pedidos que já pertencem ao vocabulário determinístico devem ser resolvidos localmente antes de chamar uma API externa. Isso reduz latência, economiza quota e mantém um caminho previsível de teste e recuperação.
+Pedidos naturais ou não reconhecidos seguem para o planner multi-provider.
 
-Pedidos que o parser determinístico não entende podem seguir para o `MultiProviderPlanner`, desde que as credenciais necessárias estejam configuradas localmente.
+## D-007 — Planner por IA é multi-provider
 
-## D-011 — Web primeiro
+O sistema não depende de um único provider.
 
-A interface Web permanece o primeiro canal funcional.
+Conjunto inicial:
 
-WhatsApp, Telegram e Instagram entram depois que o núcleo local estiver validado e o acesso remoto estiver protegido.
+- Z.AI / GLM;
+- Google Gemini;
+- Cloudflare Workers AI.
 
-## D-012 — Operação local permissiva por padrão
+O router considera tipo de tarefa, falhas recentes, cooldown, latência e limites locais de requisição.
 
-A Central continua escutando apenas localhost por padrão; publicação remota é uma etapa separada.
+Fallback de provider ocorre antes da ação física correspondente. Uma ação já executada não deve ser repetida automaticamente só porque uma chamada posterior de IA falhou.
 
-Dentro do perfil local confiável, o Robô deve partir de uma política **permitir por padrão** para capacidades que o usuário e o sistema operacional já permitem. A ausência de uma allowlist não deve, por si só, bloquear uma ação.
+## D-008 — Gemini usa o SDK oficial `google-genai`
 
-Restrições futuras devem ser expressas como bloqueios explícitos, denylist ou regras específicas definidas pelo usuário. Usuário e Robô continuam com credenciais separadas.
+Gemini usa `client.models.generate_content(...)`, modelo padrão `gemini-3.6-flash`, `response_json_schema=ACTION_SCHEMA` e `max_output_tokens=1024`.
 
-## D-013 — Shell, processos e comandos fazem parte do operador local
+Toda resposta é revalidada como `StructuredAction`.
 
-O operador local deve poder usar terminal/shell, processos, caminhos de executáveis e argumentos quando isso for necessário para cumprir um objetivo e estiver dentro das permissões do usuário e do sistema operacional.
+## D-009 — StructuredAction continua tipada
 
-Essas capacidades não serão proibidas por padrão. O que o usuário decidir não permitir deverá ser bloqueado explicitamente depois.
+A IA não controla diretamente mouse, teclado ou processos. Ela produz uma `StructuredAction`, que é convertida em `Plan` e executada pelo Robô.
 
-Expor a Central ou o Painel diretamente à Internet continua sendo uma decisão separada da capacidade local do Robô.
+Ações implementadas atualmente:
 
-## D-014 — Desktop faz parte do perfil local permissivo
+- `open_url`;
+- `capture_screen`;
+- `active_window`;
+- `move_mouse`;
+- `click_mouse`;
+- `type_text`;
+- `press_key`;
+- `open_app`;
+- `finish` interno ao loop.
 
-O controle de desktop é uma capacidade central do operador local e deve evoluir para ficar disponível por padrão no perfil local confiável.
+Uma capacidade nova precisa de executor real; não será considerada “bloqueada” apenas porque ainda não existe no código.
 
-Deve continuar existindo uma forma explícita de desabilitar desktop quando o usuário quiser operar sem mouse, teclado ou aplicativos. Até essa mudança ser implementada, a versão atual ainda depende de `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`.
+## D-010 — Foco observável antes de teclado
 
-## D-015 — Aplicativos são permitidos por padrão e bloqueados por exceção
+Abrir um aplicativo ou clicar pode estabelecer uma janela esperada.
 
-O Robô não deve exigir cadastro manual prévio de cada aplicativo para poder abri-lo.
+Antes de `type_text` ou `press_key`, se a janela ativa observável mudou, a entrada de teclado deve ser recusada para evitar digitação no local errado.
 
-Aplicativos e executáveis disponíveis à sessão do usuário devem poder ser resolvidos e usados por padrão, inclusive quando a IA os identificar por nome natural, caminho ou comando compatível com o sistema local.
+Essa regra acompanha identidade/foco de janela e não uma lista de aplicativos autorizados a receber teclado.
 
-Aplicativos, executáveis, argumentos ou classes de ação que o usuário não quiser permitir deverão entrar em denylist ou regra explícita de bloqueio.
+## D-011 — FAILSAFE físico independente
 
-A tabela fixa `APP_COMMANDS` existente é transitória e deverá ser substituída por resolução local mais ampla; ela não representa mais a política desejada do produto.
+Além do FAILSAFE do PyAutoGUI, o Robô verifica uma zona própria de 20 pixels nos quatro cantos antes de mover mouse, clicar, digitar ou pressionar tecla.
 
-## D-016 — Emergency stop independente do planner
+Se o ponteiro estiver nessa zona, a entrada física é recusada antes da execução.
 
-O emergency stop deve continuar funcionando mesmo que o planner, a comunicação remota ou as credenciais do Robô estejam com problema.
+## D-012 — Parada de emergência independente do planner
 
-A implementação local usa sentinel persistente, PID e identidade de processo Linux antes de enviar `SIGTERM`.
+A parada de emergência usa estado persistente e continua operando mesmo se planner, provider ou comunicação estiverem com problema.
 
-O sentinel precisa ser limpo conscientemente antes de o Robô voltar a executar.
+O Robô não volta a executar até liberação consciente.
 
-## D-017 — Leases para propriedade de tarefa
+## D-013 — Credenciais separadas do raciocínio
 
-Uma tarefa em execução pertence temporariamente a uma execução específica por meio de um lease e token aleatório.
+Senhas, tokens e outras credenciais não entram em código, Git, logs ou prompts.
 
-Resultados só são aceitos enquanto esse lease ainda for o proprietário atual. Tarefas abandonadas podem voltar para a fila e existe limite de tentativas para impedir loop infinito.
+As chaves dos providers permanecem em configuração local.
 
-## D-018 — Contrato estruturado serve à orquestração, não à restrição de capacidades
+## D-014 — Controle observável
 
-Os provedores de IA continuam devolvendo ações estruturadas para manter validação, observabilidade, verificação e roteamento previsíveis.
+Resultados devem ser verificáveis e correlacionáveis por tarefa.
 
-O contrato estruturado não deve funcionar como uma whitelist permanente de capacidades. Ele pode evoluir para representar capacidades amplas do operador, incluindo shell/processos, arquivos, aplicativos, navegador, mouse, teclado e outras ações necessárias.
+Painel, Central e Robô mantêm telemetria real. O sistema deve distinguir sucesso de uma etapa de conclusão do objetivo inteiro.
 
-As restrições passam a ser exceções explícitas definidas pela política local, além das permissões reais do usuário e do sistema operacional. FAILSAFE e parada de emergência permanecem independentes desse modelo de permissões.
+## D-015 — Painel como centro local de operação
 
-## D-019 — Construção também deve ensinar operação e diagnóstico
+O Painel do Robô permanece processo separado da Central e do Robô.
 
-Durante o desenvolvimento, cada etapa prática deve ser explicada em linguagem simples para que o usuário aprenda a operar, diagnosticar e recuperar o sistema sem depender permanentemente do assistente.
+Ele deve mostrar estado real, controles, diagnóstico, fila, histórico e logs, além de permitir ligar/parar/reiniciar componentes sem dependência normal de vários terminais.
 
-Ao orientar comandos ou testes, a explicação deve incluir, quando relevante:
+## D-016 — Linux/X11 permanece primeiro alvo
 
-- o que o comando faz;
-- por que ele é necessário;
-- qual resultado é esperado;
-- como reconhecer uma falha;
-- qual princípio técnico está sendo aprendido.
+O primeiro backend físico é Linux/X11 com Python 3.11+, FastAPI, SQLite, PyAutoGUI, `xdotool` quando disponível e Playwright para navegação estruturada.
 
-A prioridade durante o MVP é aprender o funcionamento real do sistema junto com a implementação, sem transformar detalhes não bloqueantes em burocracia.
+## D-017 — Local e remoto são decisões separadas
 
-## D-020 — Terminologia e comandos didáticos
+Painel e Central continuam em localhost por padrão.
 
-Na comunicação com o usuário e na interface visível, os nomes principais devem ser intuitivos.
+Permitir capacidades amplas ao operador local não significa publicar esse controle diretamente na Internet.
 
-- `Control Plane` será apresentado como **Central**.
-- `local agent` será apresentado como **Robô local** ou apenas **Robô**.
-- a interface principal será apresentada como **Painel do Robô**.
+Acesso remoto futuro exige uma camada separada de transporte/autenticação antes de Web remoto, WhatsApp, Telegram ou Instagram entrarem em produção.
 
-Os comandos principais para uso humano são:
+## D-018 — Documentação é memória do projeto
 
-- `central` — liga a Central;
-- `robo` — liga o Robô local;
-- `parar-robo` — controla a parada de emergência;
-- `diagnostico-robo` — verifica o ambiente do computador.
-
-Os comandos técnicos antigos `context-anchor-control`, `context-anchor-agent`, `context-anchor-stop` e `context-anchor-doctor` permanecem como aliases de compatibilidade para não quebrar instalações, documentação antiga ou diagnóstico de versões anteriores.
-
-Os nomes técnicos internos podem continuar existindo no código e na documentação arquitetural quando forem úteis para aprendizado, preferencialmente apresentados após o nome intuitivo, por exemplo: `Central (Control Plane)` e `Robô local (local agent)`.
-
-## D-021 — Painel do Robô como centro de operação e aprendizado
-
-O **Painel do Robô** local e independente da Central é o centro de operação e aprendizado.
-
-O painel tem duas funções simultâneas:
-
-1. operar e configurar o sistema sem depender de vários terminais;
-2. ensinar o usuário o que cada configuração, comando e processo faz.
-
-O Painel do Robô deve oferecer progressivamente:
-
-- status visual da Central, Robô, desktop e parada de emergência;
-- botões para ligar, desligar e reiniciar Central e Robô;
-- habilitação/desabilitação de capacidades como navegador, screenshot, mouse, teclado e aplicativos;
-- configurações expostas por controles visuais em vez de edição manual de `.env` quando possível;
-- diagnóstico do ambiente e dependências;
-- histórico de tarefas e resultados;
-- logs separados e identificados por componente;
-- testes guiados das capacidades do Robô;
-- área de aprendizado que explique comandos, resultado esperado e erros comuns;
-- campo para receber comandos de manutenção fornecidos durante o desenvolvimento, com visualização e explicação antes da execução.
-
-O campo de comandos do painel pode evoluir para acionar capacidades amplas do operador local, mas isso não significa publicar um endpoint de shell diretamente na Internet.
-
-O Painel do Robô permanece um processo local separado da Central para continuar disponível mesmo quando a Central ou o Robô forem desligados ou reiniciados.
-
-## D-022 — Sequências de desktop devem esperar prontidão e foco observáveis
-
-A conclusão de uma ação de interface não pode significar apenas que um comando foi enviado ao sistema operacional.
-
-Ao encadear ações como `abrir aplicativo` seguido de `digitar`, o executor deve esperar a janela ficar pronta e ganhar foco suficiente para a próxima ação. Um atraso fixo curto pode ser usado apenas como fallback de MVP, não como evidência de prontidão.
-
-A digitação deve registrar em qual janela ativa foi executada e não deve ser tratada como verificada apenas porque as teclas foram enviadas. Quando o alvo esperado puder ser conhecido, foco e resultado devem ser confirmados antes de marcar a etapa como concluída.
-
-A proteção acompanha a identidade observada da janela, não uma allowlist separada de aplicativos autorizados a receber teclado. Abrir um aplicativo ou clicar em uma janela observável pode estabelecer o foco esperado; `type_text` e `press_key` devem recusar a ação se a janela ativa mudar depois disso. A política permissiva de aplicativos de D-015 não altera esse contrato de foco.
-
-## D-023 — Conforto visual é requisito do Painel
-
-O tema visual do Painel do Robô não deve usar grandes áreas claras como padrão, pois isso foi considerado cansativo em uso real.
-
-O padrão visual do Painel será **ultra escuro**, com fundo próximo de preto, superfícies em grafite/azul muito escuro e brilho reduzido. Entre alternativas visuais aceitáveis, deve-se preferir a opção de menor luminosidade, desde que preserve leitura clara dos textos, estados, alertas e controles de segurança.
-
-A revisão visual deve melhorar conjuntamente hierarquia, contraste, tamanho e legibilidade dos textos, uso do espaço e aparência profissional. Configurações e Laboratório devem seguir o mesmo sistema visual da Visão geral, sem parecer páginas vazias ou desconectadas.
-
-A melhoria visual deve preservar destaque inequívoco para estados positivos, falhas e parada de emergência. O design só é considerado concluído depois de carregado e aprovado visualmente no computador real.
-
-## D-024 — Controles operacionais e logs devem refletir realidade observável
-
-Controles de operação não devem funcionar como botões estáticos que apenas disparam comandos. O Painel deve mostrar no próprio controle o estado atual do componente e adaptar a próxima ação disponível a esse estado.
-
-A Central deve distinguir pelo menos os estados **desligada**, **ligada e gerenciada pelo Painel** e **ligada fora do Painel**. O Robô e a parada de emergência também devem refletir seu estado real antes de oferecer ações.
-
-Uma área chamada **Logs ao vivo** ou equivalente só pode ser apresentada como tal quando exibir eventos reais produzidos pela aplicação. Painel, Central e Robô devem gravar telemetria persistente por componente, com timestamp e nível, independentemente de terem sido iniciados pelo Painel.
-
-A telemetria não deve registrar credenciais. Para reduzir exposição desnecessária, os eventos estruturados devem preferir ids de tarefa, estados, transições e tipos de erro em vez de copiar o texto bruto enviado pelo usuário.
-
-## D-025 — FAILSAFE de desktop deve ser explícito e independente do PyAutoGUI
-
-O FAILSAFE nativo do PyAutoGUI permanece habilitado como defesa adicional, mas não será considerado mecanismo de segurança suficiente por si só porque falhou no primeiro teste físico real.
-
-Antes de ações de entrada física de mouse ou teclado, o backend do Robô deve verificar diretamente a posição atual do ponteiro. Uma zona de segurança de 20 pixels nos quatro cantos da tela funciona como gesto local de interrupção.
-
-Se o ponteiro estiver nessa zona, a ação deve ser recusada antes de mover o mouse, clicar, digitar ou pressionar tecla. A falha deve subir como `DesktopFailsafeTriggered`, fazendo a tarefa terminar como `failed` e permitindo que a telemetria registre a interrupção.
-
-Esse mecanismo complementa, mas não substitui, a parada de emergência persistente. O FAILSAFE serve para interromper a próxima entrada física imediatamente; a parada de emergência continua sendo o mecanismo para encerrar e bloquear o Robô até liberação consciente.
-
-## D-026 — Planner por IA será multi-provider com roteamento inteligente e consciente de quota
-
-O planner por IA não dependerá de um único provedor. A arquitetura segue um modelo **multi-provider**, com um roteador local responsável por escolher o provedor/modelo adequado a cada chamada.
-
-O conjunto inicial escolhido é:
-
-- **Z.AI / GLM-4.7-Flash** — principal candidato para reasoning e decisões mais complexas;
-- **Cloudflare Workers AI** — principal candidato para decisões simples, frequentes e bursts, usando modelos eficientes para preservar o budget diário de neurons;
-- **Google Gemini** — provedor complementar para planejamento textual, futura multimodalidade/visão e fallback quando apropriado.
-
-A distribuição não será round-robin nem balanceamento igual. O roteador deverá considerar, no mínimo:
-
-1. capacidade exigida pela tarefa, como texto, reasoning, visão e tools;
-2. quota/budget disponível conhecido ou estimado;
-3. concorrência permitida;
-4. latência recente;
-5. erros recentes, especialmente `429`, timeout e `5xx`;
-6. estado de cooldown/circuit breaker do provedor;
-7. preferência por preservar recursos mais caros ou escassos para tarefas que realmente precisem deles.
-
-Quando um provedor estiver indisponível, limitado ou inadequado para a tarefa, o roteador poderá selecionar outro provedor compatível sem alterar o contrato interno do Robô.
-
-O roteador seleciona apenas o **planner**. Ele não pode contornar o FAILSAFE, a parada de emergência ou as verificações locais do executor. A política funcional de capacidades é permissiva por padrão conforme D-012, D-013 e D-015.
-
-Fallback de provedor deve acontecer antes da execução física ou depois de uma falha comprovadamente anterior à execução. Uma ação física já executada não deve ser repetida automaticamente apenas porque a chamada seguinte de IA falhou; verificação e idempotência continuam obrigatórias.
-
-O `DeterministicPlanner` permanece disponível como caminho local e fallback técnico.
-
-SiliconFlow continua como candidato opcional futuro, mas não entra no conjunto inicial até que os limites reais dos modelos gratuitos sejam comprovados na conta.
-
-Todas as chaves de API permanecerão somente em configuração local/variáveis de ambiente e nunca em código, Git, logs ou prompts.
-
-## D-027 — Gemini usa o SDK oficial `google-genai`
-
-A integração vigente do Gemini no planner usa o SDK oficial **`google-genai`** e `client.models.generate_content(...)`, em vez de construir manualmente o payload REST.
-
-Essa decisão foi tomada depois de comparar o `project-memory` com o repositório `leon337/meu_primeiro_agente`, onde esse padrão já está implementado e usado com `gemini-3.6-flash`.
-
-O modelo padrão do planner Gemini é `gemini-3.6-flash`. O SDK recebe `GenerateContentConfig` com instrução do sistema, `response_mime_type=application/json`, o `ACTION_SCHEMA` do projeto e `max_output_tokens=1024`.
-
-O limite de output deve acomodar pensamento interno e o JSON. O teto anterior de 160 produziu uma resposta real truncada com `FinishReason.MAX_TOKENS`; 1024 produziu JSON completo e `FinishReason.STOP`. Desabilitar thinking com `thinking_budget=0` não é usado porque o modelo vigente recusou essa configuração com `400 INVALID_ARGUMENT`.
-
-A resposta do SDK, seja por `parsed` ou texto JSON, continua obrigada a validar como `StructuredAction`. O uso do SDK não dá ao Gemini acesso direto ao sistema operacional; ele propõe ações estruturadas que podem representar capacidades amplas do operador, e o executor local continua responsável por observação, verificação, FAILSAFE, parada de emergência e limites reais do usuário/sistema operacional.
+`docs/STATUS.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` e `docs/NEXT.md` devem refletir o estado verificável e as decisões vigentes para que uma sessão nova possa reconstruir o projeto sem memória de chat.
