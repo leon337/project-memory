@@ -62,16 +62,6 @@ Resultado real:
 - log: `planner=deterministic rota=local-sequence etapas=2 objetivo=concluido`;
 - nenhum provider externo foi necessário.
 
-Esse teste valida fisicamente a digitação Unicode e a sequência:
-
-```text
-open_app(editor)
-→ verificar
-→ type_text("Olá mundo")
-→ verificar
-→ objetivo concluído
-```
-
 ## Teste físico `navegador + site` — PASS
 
 Pedido validado:
@@ -88,7 +78,7 @@ Resultado real:
 
 ## Teste físico `Brave + site` — PASS
 
-Pedido validado em forma equivalente a:
+Pedido equivalente validado:
 
 `Abra o navegador brave e acesse o site google.com`
 
@@ -101,42 +91,157 @@ Resultado real:
 
 ## Teste físico `Brave + Google + pesquisar` — PASS
 
-Após a correção do parser de pesquisa, foi validado no computador real um pedido equivalente a:
+Foi validado no computador real um pedido equivalente a:
 
 `Abra o navegador brave e acesse o site google.com e pesquise o São Lourenço da Mata`
 
-Resultado real observado:
+Resultado real:
 
-- Brave abriu/preservou o navegador solicitado;
+- Brave foi preservado;
 - a pesquisa do Google foi carregada;
 - task `succeeded`;
-- o fluxo foi resolvido localmente.
+- fluxo resolvido localmente.
 
-Outro teste anterior também abriu a pesquisa pelo significado do nome Josiel.
+Outro teste também abriu a pesquisa pelo significado do nome Josiel quando a intenção foi explicitamente formulada como pesquisa.
 
-Isso confirma fisicamente que uma sequência determinística de três partes pode ser concluída sem provider externo quando sua intenção já está mapeada localmente.
+## Baseline físico de autonomia em linguagem natural — CONCLUÍDO
 
-## Baseline de autonomia em linguagem natural — LIMITADO
+Foi executada uma bateria sem corrigir cada frase durante o teste, para medir a dependência real de sintaxe específica.
 
-Os testes físicos mais recentes também mostraram que capacidades funcionais ainda dependem demais da formulação exata do pedido.
+### 1. Inferência de aplicativo por necessidade — FAIL
 
-Exemplos observados como `failed`:
+Pedido:
 
-- `Acesse a internet em qualquer navegador e pesquise por São Lourenço da Mata`;
-- pedido em forma equivalente a `Acesse o navegador Chrome e pesquise por São Lourenço da Mata`;
-- `Abrir o aplicativo Vs code`.
+`Quero fazer uma anotação. Abra alguma coisa onde eu possa escrever`
 
-No caso de VS Code, o log registrou `FileNotFoundError` porque o resolvedor chegou ao backend com o alvo literal `vs code`, em vez de normalizar de forma geral para o executável instalado.
+Resultado:
 
-Esses FAILs não demonstram ausência das capacidades de navegador, pesquisa ou abertura de aplicativo. Eles demonstram uma lacuna de **interpretação, normalização de intenção, resolução de entidades e contexto operacional**.
+- task `failed`;
+- o sistema não conseguiu inferir de forma confiável uma capacidade de edição sem formulação explícita;
+- durante essa bateria os providers externos também estavam degradados por quota/resposta inválida.
 
-Portanto o próximo avanço não deve ser adicionar um `regex` específico para cada frase que falhar.
+Classificação principal: **interpretação de intenção + dependência de provider**.
+
+### 2. Resolução de nome de aplicativo — RESULTADO MISTO
+
+Pedido:
+
+`Abra o Visual Studio Code`
+
+Resultado:
+
+- **PASS**;
+- VS Code abriu fisicamente;
+- task `succeeded`.
+
+Pedido equivalente:
+
+`Abra o VS Code`
+
+Resultado:
+
+- **FAIL**;
+- log: `FileNotFoundError: Nenhum executável instalado foi encontrado para o aplicativo/comando 'vs code'`.
+
+Conclusão: a capacidade existe, mas a resolução de entidades/sinônimos de aplicativos ainda é inconsistente.
+
+Classificação: **resolução de aplicativo/capacidade**.
+
+### 3. Inferência de capacidade — FAIL
+
+Pedido:
+
+`Preciso fazer algumas contas.`
+
+Resultado:
+
+- task `failed`;
+- log: `FileNotFoundError: Nenhum executável instalado foi encontrado para o aplicativo/comando 'calc'`.
+
+A intenção de calculadora foi parcialmente inferida, mas o resolvedor escolheu um executável que não existe no ambiente Linux real.
+
+Classificação: **resolução de aplicativo/capacidade**.
+
+### 4. Objetivo informacional sem prescrever ferramenta — FAIL
+
+Pedido:
+
+`Quero saber o significado do nome Josiel`
+
+Resultado:
+
+- task `failed`;
+- router não conseguiu gerar plano válido;
+- Gemini retornou `429 RESOURCE_EXHAUSTED` durante a bateria.
+
+Classificação: **provider/quota**, expondo também dependência excessiva de provider para um objetivo simples.
+
+### 5. Pesquisa natural sem verbo de ferramenta — FAIL
+
+Pedido:
+
+`Descubra informações sobre São Lourenço da Mata`
+
+Resultado:
+
+- task `failed`;
+- Z.AI retornou `429/1305`;
+- Gemini retornou `429 RESOURCE_EXHAUSTED`.
+
+Classificação: **provider/quota + interpretação geral de objetivo**.
+
+### 6. Memória operacional entre tarefas — NÃO VALIDADA
+
+O teste de referência contextual não chegou a uma validação confiável porque os objetivos anteriores que deveriam estabelecer o contexto falharam.
+
+Continua sem existir memória operacional explícita para expressões como `agora`, `lá`, `nesse navegador`, `nesse site` e `depois` entre tasks independentes.
+
+Classificação: **contexto entre tarefas**.
+
+### 7. Objetivo multi-etapa com leitura de resultado — FALSO PASS
+
+Pedido:
+
+`Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
+
+O Painel marcou a task como `succeeded`, porém a observação física mostrou que:
+
+- o navegador abriu uma pesquisa no DuckDuckGo;
+- a consulta enviada ao mecanismo de busca continha praticamente o pedido inteiro, incluindo `e depois abra um editor de texto...`;
+- o Robô **não leu o primeiro resultado**;
+- o Robô **não abriu o editor**;
+- o Robô **não escreveu o título**.
+
+Portanto esse resultado é **FAIL no nível do objetivo**, apesar de `status=succeeded`.
+
+Esse é o achado mais crítico do baseline: o sistema ainda pode confundir **sucesso de uma ação intermediária** com **conclusão do objetivo completo**.
+
+Classificação: **interpretação de objetivo + percepção/observação + verificação de conclusão**.
+
+### 8. Objetivo condicional — FAIL
+
+Pedido equivalente a:
+
+`Verifique se example.com está acessível. Se estiver, abra um editor e escreva "site acessível". Se não estiver, escreva "site indisponível".`
+
+Resultado:
+
+- task `failed`;
+- não houve evidência física de observação da condição seguida da ramificação correta.
+
+Classificação: **percepção/observação + decisão condicional + replanejamento**, com dependência de provider ainda presente.
+
+## Conclusão do baseline
+
+O executor físico já consegue realizar ações úteis e sequências determinísticas conhecidas. O gargalo principal agora é o **cérebro operacional**.
+
+Não é correto continuar resolvendo autonomia por adição de frases/regex específicas.
+
+O próximo estágio precisa transformar objetivos naturais em uma representação operacional explícita, acompanhar estado e evidências entre etapas e só marcar `succeeded` quando o objetivo completo tiver critérios de conclusão satisfeitos.
 
 ## Lacuna principal para autonomia real
 
-O Robô já possui executor físico e um loop orientado a objetivo, mas ainda falta uma camada geral que transforme linguagem natural variada em intenção operacional.
-
-A autonomia desejada exige que o usuário possa expressar um objetivo como:
+A autonomia desejada exige que o usuário possa expressar algo como:
 
 ```text
 Quero saber o significado do nome Josiel.
@@ -144,27 +249,32 @@ Quero saber o significado do nome Josiel.
 
 sem precisar determinar navegador, mecanismo de busca, URL ou sequência de cliques.
 
-O sistema deve ser capaz de:
+O sistema deve operar assim:
 
 ```text
 objetivo do usuário
-→ interpretar intenção
+→ interpretar intenção e entidades
 → observar estado atual
 → escolher capacidades disponíveis
+→ decompor objetivo em subobjetivos
 → planejar próxima ação
 → executar
-→ verificar resultado
+→ coletar evidência do resultado
+→ atualizar estado operacional
+→ verificar se o objetivo completo foi satisfeito
 → replanejar se necessário
-→ concluir quando o objetivo estiver realmente atendido
+→ concluir somente quando houver evidência suficiente
 ```
 
-Para isso ainda são necessários, principalmente:
+São necessários, principalmente:
 
 1. **interpretação geral de objetivo** — sinônimos e frases naturais não podem depender de padrões exatos;
-2. **resolução de entidades/capacidades** — `VS Code`, `editor`, `navegador`, `internet`, `pesquisa` devem ser associados às capacidades reais disponíveis;
-3. **memória operacional entre tarefas** — expressões como `agora`, `nesse navegador`, `nesse site`, `depois` precisam referenciar o estado anterior;
-4. **percepção mais rica** — URL atual, conteúdo DOM/texto de página, janela ativa, árvore de acessibilidade e posteriormente percepção visual;
-5. **replanejamento por resultado** — se uma ação falha ou produz estado diferente, escolher outra estratégia em vez de depender de nova formulação humana.
+2. **resolução de entidades/capacidades** — `VS Code`, `Visual Studio Code`, `editor`, `calculadora`, `navegador`, `internet`, `pesquisa` devem convergir para capacidades reais disponíveis;
+3. **decomposição de objetivo** — distinguir pesquisa, leitura, abertura de aplicativo, escrita e condições como partes separadas do mesmo objetivo;
+4. **memória operacional entre tarefas e etapas** — expressões como `agora`, `lá`, `nesse navegador`, `nesse site`, `depois` precisam referenciar o estado correto;
+5. **percepção mais rica** — URL atual, conteúdo DOM/texto de página, janela ativa, árvore de acessibilidade e posteriormente percepção visual;
+6. **verificador de objetivo** — `succeeded` deve significar objetivo completo comprovado, não apenas uma ação executada;
+7. **replanejamento por resultado** — se uma ação falha ou produz estado diferente, escolher outra estratégia.
 
 ## Caminhos determinísticos locais vigentes
 
@@ -177,7 +287,7 @@ Continuam úteis como fast path para tarefas inequívocas:
 - abrir navegador + acessar site;
 - navegador + mecanismo de busca + consulta.
 
-Esses caminhos devem funcionar como atalhos confiáveis, não como linguagem obrigatória para o usuário.
+Esses caminhos devem permanecer como atalhos confiáveis, não como linguagem obrigatória para o usuário.
 
 ## Loop por IA
 
@@ -187,35 +297,24 @@ O loop já implementado continua sendo:
 ação → observação → nova decisão → ... → finish
 ```
 
-Ele é necessário para condição, interpretação de conteúdo, ambiguidade e replanejamento.
-
-O caminho local apenas evita chamadas de IA quando a próxima ação já é determinística.
+Mas o baseline mostrou que ainda falta um contrato explícito de **objetivo/subobjetivos/evidências/conclusão**, além de percepção suficiente para validar tarefas complexas.
 
 ## Limitações atuais do loop autônomo
-
-Mesmo com o loop implementado, autonomia sem formulação rígida ainda está limitada porque:
 
 - providers externos estão instáveis por quota/resposta inválida no ambiente real;
 - Cloudflare ainda não está ativo no router real;
 - observação semântica de páginas e desktop ainda é limitada;
 - não existe memória operacional explícita entre tarefas independentes;
-- resolução de nomes de aplicativos ainda não é geral o suficiente.
+- resolução de nomes de aplicativos ainda não é geral;
+- existe risco de falso `succeeded` quando um fast path executa apenas parte de um pedido composto.
 
 ## Validação automatizada
 
-A suíte cobre, entre outros casos:
+A suíte cobre diversos fast paths já implementados, incluindo editor + escrita, Unicode, Brave, navegador + site e pesquisa estruturada.
 
-- `Abra o editor de texto e escreva Olá mundo`;
-- Unicode no backend de desktop;
-- `abrir o navegador brave`;
-- `abrir o navegador e acessar globo.com`;
-- `Abra o navegador e acessa o site globo.com`;
-- `abra o navegador brave e acesse globo.com`;
-- `agora pesquise sobre inteligencia artificial`;
-- `Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`;
-- `Abra o navegador e acesse google.com e pesquise inteligência artificial`.
+O baseline físico mostrou que cobertura de fast path não substitui validação de objetivos naturais compostos.
 
-GitHub Actions CI run `31307745802` terminou com **success** após a correção de pesquisa.
+GitHub Actions CI run `31307745802` terminou com **success** após a correção de pesquisa anterior.
 
 ## Controles que permanecem
 
@@ -230,9 +329,11 @@ Continuam implementados:
 
 ## Ainda não validado/implementado para autonomia completa
 
-- interpretação geral de linguagem natural independente de frases pré-cadastradas;
+- camada geral de interpretação de objetivos;
+- decomposição em subobjetivos verificáveis;
 - resolução geral de aplicativos instalados e sinônimos;
 - persistência de contexto entre tarefas e navegadores;
+- verificador de conclusão do objetivo completo;
 - primeiro objetivo condicional real usando percepção + decisão + replanejamento;
 - Cloudflare ativo no router real;
 - percepção semântica de DOM/árvore de acessibilidade;
