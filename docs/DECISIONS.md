@@ -236,3 +236,11 @@ O `DeterministicPlanner` permanece disponível como fallback técnico e para tes
 SiliconFlow continua como candidato opcional futuro, mas não entra no conjunto inicial até que os limites reais dos modelos gratuitos sejam comprovados na conta.
 
 Todas as chaves de API permanecerão somente em configuração local/variáveis de ambiente e nunca em código, Git, logs ou prompts.
+
+## D-027 — Gemini usa a Interactions API para structured output
+
+A integração vigente do Gemini no planner usa a **Interactions API** (`/v1beta/interactions`) em vez do endpoint legado `generateContent`.
+
+O motivo é operacional e verificável: no teste físico, `generateContent` primeiro rejeitou o formato usado com HTTP 400 e, após uma adaptação intermediária, respondeu texto que não chegou como JSON válido ao contrato do planner. A documentação atual do Google recomenda Interactions API para os modelos Gemini atuais e define structured output por `response_format` com `type=text`, `mime_type=application/json` e o JSON Schema.
+
+O adaptador deve extrair apenas a saída textual do último `model_output`, converter o JSON e ainda validar o resultado com `StructuredAction`. A migração de endpoint não reduz nenhuma proteção local e não permite que texto livre execute ações diretamente.
