@@ -12,36 +12,34 @@
 Usuário
   ↓
 Painel do Robô — FastAPI :8765
-  ├─ estado real / configuração / diagnóstico / aprendizado
-  ├─ controles de processo orientados pelo estado atual
-  ├─ tarefas recentes
-  ├─ telemetria real de Painel / Central / Robô
-  └─ envio de tarefa
-          ↓
+  ↓
 Central — FastAPI :8000
-          ↓
+  ↓
 SQLite — fila, histórico e leases
-          ↓
+  ↓
 HTTP polling autenticado
-          ↓
+  ↓
 Robô local
-          ↓
+  ↓
 Planner
-  ├─ DeterministicPlanner ativo
-  └─ ProviderPlanner provider-agnostic
-          ↓
+  ├─ DeterministicPlanner
+  └─ MultiProviderPlanner
+       ├─ Cloudflare Workers AI
+       ├─ Z.AI / GLM
+       └─ Google Gemini
+  ↓
 StructuredAction
-          ↓
+  ↓
 Policy Layer
   ├─ navegador
   └─ desktop + feature gate
-          ↓
+  ↓
 Executores
   ├─ Playwright / Chromium
   └─ PyAutoGUI / Linux X11
-          ↓
+  ↓
 Verificação
-          ↓
+  ↓
 Central / Painel do Robô
 ```
 
@@ -49,46 +47,19 @@ Painel, Central e Robô são processos separados para que o Painel continue disp
 
 ## 1. Painel do Robô
 
-Implementado em `src/context_anchor/dashboard.py`.
+Implementado em `src/context_anchor/dashboard.py`, bind padrão `127.0.0.1:8765`.
 
-Comando humano: `painel-robo`.
-
-Bind padrão: `127.0.0.1:8765`.
-
-Responsabilidades atuais:
-
-- mostrar estado de Central, Robô, Desktop e emergência;
-- iniciar/parar Central;
-- iniciar/parar/reiniciar Robô;
-- alterar configurações locais explicitamente suportadas;
-- executar diagnóstico de leitura;
-- mostrar tarefas recentes e telemetria real;
-- enviar tarefas à Central;
-- explicar comandos de desenvolvimento no Laboratório.
-
-O Painel não possui endpoint de shell arbitrário.
+Mostra estado, controles, tarefas recentes, diagnóstico e telemetria real. Não possui endpoint de shell arbitrário.
 
 ## 2. Central
 
-Implementada em `src/context_anchor/control_plane.py`.
+Implementada em `src/context_anchor/control_plane.py`, bind padrão `127.0.0.1:8000`.
 
-Responsabilidades:
-
-- autenticação separada de usuário e Robô;
-- criação e consulta de tarefas;
-- persistência;
-- entrega de tarefa ao Robô;
-- emissão de lease;
-- recepção de resultado protegido pelo lease;
-- registro de eventos operacionais.
-
-Bind padrão: `127.0.0.1:8000`.
+Responsável por autenticação separada, persistência, fila, leases e recepção de resultados.
 
 ## 3. Persistência e leases
 
 Implementada em `src/context_anchor/store.py` com SQLite.
-
-Fluxo:
 
 ```text
 queued
@@ -98,7 +69,7 @@ running
 succeeded | failed
 ```
 
-Tarefa abandonada pode retornar à fila após expiração do lease. Resultados atrasados com lease antigo são rejeitados.
+Resultado atrasado com lease antigo é rejeitado e tarefa abandonada pode retornar à fila dentro do limite de tentativas.
 
 ## 4. Robô local
 
@@ -106,7 +77,7 @@ Implementado em `src/context_anchor/local_agent.py`.
 
 Fluxo:
 
-1. verifica parada de emergência;
+1. verifica emergência;
 2. registra identidade do processo;
 3. autentica na Central;
 4. busca tarefa;
@@ -117,142 +88,136 @@ Fluxo:
 9. envia resultado;
 10. registra telemetria.
 
-## 5. Planner
+`build_planner()` escolhe o modo conforme `CONTEXT_ANCHOR_PLANNER_MODE`.
 
-Contrato em `src/context_anchor/planner.py`.
+## 5. Planner determinístico
 
-Estado atual:
+`DeterministicPlanner` permanece em `src/context_anchor/planner.py` e continua sendo o modo padrão.
 
-- `DeterministicPlanner` é o planner ativo;
-- `StructuredAction` aceita apenas ações conhecidas;
-- `ProviderPlanner` existe para integração externa;
-- nenhum provedor externo está ativo ainda.
+Mesmo quando o modo multi-provider estiver ativo, o roteador tenta primeiro o planner determinístico. Se o pedido já pertence ao vocabulário conhecido, nenhuma API externa é chamada.
 
-A arquitetura permanece **provider-agnostic**, mas a direção definida para IA é agora **multi-provider com roteamento inteligente e quota-aware**.
+Isso preserva compatibilidade, reduz latência e economiza quota.
 
-Arquitetura alvo:
+## 6. MultiProviderPlanner
+
+Implementado em `src/context_anchor/planner.py`.
+
+A primeira versão classifica pedidos de texto em duas rotas:
+
+- `fast` — pedidos simples;
+- `reasoning` — pedidos mais longos ou com marcadores de análise, condição, comparação e decisão.
+
+Ordem inicial:
 
 ```text
-pedido do usuário
-      ↓
-ProviderPlanner
-      ↓
-AI Router / Quota Manager
-  ├─ classifica capacidade exigida
-  ├─ observa quota/budget conhecido
-  ├─ respeita concorrência
-  ├─ mede latência
-  ├─ acompanha 429 / timeout / 5xx
-  └─ aplica cooldown / circuit breaker
-      ↓
-┌─────────────────────────────────────┐
-│ Z.AI / GLM-4.7-Flash               │ → reasoning / decisões complexas
-│ Cloudflare Workers AI              │ → fast planner / burst eficiente
-│ Google Gemini                      │ → multimodalidade / visão / fallback
-└─────────────────────────────────────┘
-      ↓
-adaptador do provedor escolhido
-      ↓
-resposta normalizada
-      ↓
-StructuredAction
-      ↓
-Policy Layer
-      ↓
-executor permitido
+fast:
+Cloudflare → Z.AI → Gemini
+
+reasoning:
+Z.AI → Gemini → Cloudflare
 ```
 
-O roteador não usa round-robin simples. A seleção é feita por adequação à tarefa e estado operacional do provedor.
+O roteador mantém por provedor:
 
-### 5.1 Papéis iniciais
+- sucessos;
+- falhas;
+- falhas consecutivas;
+- última latência observada;
+- `cooldown_until`;
+- timestamps locais de requests para aplicar um teto RPM quando configurado.
 
-**Z.AI / GLM-4.7-Flash**
+Uma falha de rede, 429, resposta inválida ou `StructuredAction` inválida ocorre antes de a execução física receber um `Plan`; por isso outro provedor pode ser tentado nessa etapa sem repetir clique, digitação ou outra ação já executada.
 
-- alvo principal para reasoning e decisões complexas;
-- preço zero atual segundo a pesquisa/documentação auditada;
-- suporta reasoning, tools e structured output;
-- a conta real validada mostrou `concurrency limit = 1` para `GLM-4.7-Flash`, portanto o roteador deve serializar ou respeitar esse teto.
+O roteador não é round-robin.
 
-**Cloudflare Workers AI**
+## 7. Adaptadores de IA
 
-- alvo para decisões simples, frequentes e bursts;
-- o rate limit default de Text Generation é alto, mas existe também budget diário em neurons;
-- modelos menores/eficientes devem ser preferidos para chamadas simples para não desperdiçar o budget com reasoning pesado;
-- Cloudflare AI Gateway pode futuramente ser usado como camada adicional de fallback/routing, mas não é obrigatório para o primeiro router local.
+Implementados em `src/context_anchor/providers.py` usando `httpx`, que já fazia parte das dependências do projeto.
 
-**Google Gemini**
+### 7.1 Z.AI
 
-- alvo complementar para multimodalidade, visão e capacidades próprias do ecossistema;
-- também funciona como fallback compatível quando a tarefa não exigir um recurso exclusivo de outro provedor;
-- limites reais são por projeto/modelo e devem ser lidos e contabilizados conforme o projeto configurado.
+- endpoint geral de chat completions;
+- modelo padrão: `glm-4.7-flash`;
+- autenticação Bearer;
+- `response_format={"type":"json_object"}`;
+- resposta convertida e validada como `StructuredAction`.
 
-### 5.2 Estado por provedor
+### 7.2 Cloudflare Workers AI
 
-O roteador deverá manter, quando possível:
+- REST API de Workers AI por `Account ID`;
+- modelo padrão do fast planner: `@cf/meta/llama-3.1-8b-instruct-fast`;
+- autenticação Bearer por token Workers AI;
+- usa `response_format` com JSON Schema do contrato de ação;
+- RPM local configurável, inicialmente 300.
 
-- `request_headroom`;
-- `token_headroom`;
-- `daily_headroom` ou budget equivalente;
-- `concurrency_available`;
-- latência recente;
-- taxa recente de erros;
-- `cooldown_until` após rate limit/falhas transitórias;
-- capabilities do modelo: texto, reasoning, tools, structured output, vision.
+### 7.3 Gemini
 
-Quando o provedor não expuser headers ou endpoint de quota suficiente, o projeto manterá contadores locais conservadores e reagirá a `429`/erros retornados pela própria API.
+- REST `generateContent`;
+- modelo padrão: `gemini-3.5-flash`;
+- autenticação por `x-goog-api-key`;
+- usa structured response format com o mesmo JSON Schema;
+- RPM local configurável, inicialmente 20.
 
-### 5.3 Fallback e idempotência
+O adaptador Gemini desta etapa é textual. Visão/multimodalidade ainda não foi ligada ao router.
 
-Fallback de provedor acontece na camada de planejamento.
+## 8. Contrato StructuredAction
 
-Se uma chamada ao modelo falhar antes de produzir uma ação executável, outro provedor compatível pode ser tentado.
+A IA só pode propor uma das ações conhecidas:
 
-Uma ação física já executada não deve ser repetida automaticamente apenas porque uma etapa posterior do planner falhou. O estado deve ser verificado antes de nova execução.
+- `open_url`;
+- `capture_screen`;
+- `active_window`;
+- `move_mouse`;
+- `click_mouse`;
+- `type_text`;
+- `press_key`;
+- `open_app`.
 
-Trocar de provedor nunca altera ou ignora:
+Campos extras são recusados. Não existe ação de shell, código livre, caminho arbitrário de executável ou credencial.
 
-- `StructuredAction`;
-- Policy Layer;
-- FAILSAFE;
-- parada de emergência;
-- verificação de resultado;
-- regras de idempotência.
+Uma ação estruturalmente válida ainda precisa passar pela Policy Layer.
 
-O `DeterministicPlanner` permanece como fallback técnico e para testes.
+## 9. Configuração do planner
 
-SiliconFlow permanece compatível com a estratégia provider-agnostic e pode ser adicionado depois como novo adaptador se seus limites gratuitos reais forem comprovados.
+`LocalAgentSettings` aceita:
 
-## 6. Credenciais de provedores
+```text
+CONTEXT_ANCHOR_PLANNER_MODE
+CONTEXT_ANCHOR_PLANNER_TIMEOUT_SECONDS
+CONTEXT_ANCHOR_PLANNER_COOLDOWN_SECONDS
 
-Chaves de API não entram em código, Git, logs ou prompts.
+CONTEXT_ANCHOR_ZAI_API_KEY
+CONTEXT_ANCHOR_ZAI_MODEL
 
-Cada adaptador consome sua própria chave somente por variável de ambiente/configuração local.
+CONTEXT_ANCHOR_CLOUDFLARE_API_TOKEN
+CONTEXT_ANCHOR_CLOUDFLARE_ACCOUNT_ID
+CONTEXT_ANCHOR_CLOUDFLARE_MODEL
+CONTEXT_ANCHOR_CLOUDFLARE_RPM_LIMIT
 
-Contas e chaves já foram criadas externamente para SiliconFlow e Z.AI. Gemini já está disponível ao usuário. Cloudflare Workers AI ainda precisa ter sua credencial local preparada para o projeto.
+CONTEXT_ANCHOR_GEMINI_API_KEY
+CONTEXT_ANCHOR_GEMINI_MODEL
+CONTEXT_ANCHOR_GEMINI_RPM_LIMIT
+```
 
-Nenhuma dessas credenciais está integrada ao código neste momento.
+O modo `multi` usa somente provedores com configuração suficiente. Assim, o router pode ser validado primeiro com Z.AI/Gemini e receber Cloudflare depois que o Account ID estiver configurado.
 
-## 7. Policy Layer
+## 10. Credenciais
+
+Credenciais nunca entram em código, Git, logs ou prompts.
+
+`.env.example` contém apenas nomes de variáveis e valores vazios para segredos.
+
+O Robô registra nomes de provedores e rotas, não os tokens.
+
+## 11. Policy Layer
 
 Implementada em `src/context_anchor/policy.py`.
 
-Toda ação produzida por planner determinístico ou por IA futura passa pela mesma camada de política.
+Toda ação, independentemente de qual planner/provedor a gerou, passa pela mesma política.
 
-### Navegador
+Navegação bloqueia destinos locais/privados. Desktop permanece atrás de feature gate e allowlists de ação, coordenada, tecla e aplicativo.
 
-- apenas HTTP/HTTPS;
-- localhost, `.local`, IPs privados, loopback, link-local e reservados permanecem bloqueados.
-
-### Desktop
-
-- feature gate `CONTEXT_ANCHOR_DESKTOP_ENABLED`;
-- ações tipadas;
-- coordenadas validadas;
-- texto limitado;
-- teclas permitidas por lista;
-- aplicativos por allowlist fixa.
-
-## 8. Navegador
+## 12. Navegador
 
 Implementado em `src/context_anchor/actions.py` com Playwright/Chromium.
 
@@ -265,55 +230,19 @@ API/DOM
 → visão + mouse/teclado como fallback
 ```
 
-## 9. Desktop
+## 13. Desktop e FAILSAFE
 
 Backend em `src/context_anchor/desktop.py`.
 
-Capacidades atuais:
+Além de `pyautogui.FAILSAFE = True`, uma zona própria de 20 pixels nos quatro cantos interrompe entradas físicas antes de mover, clicar, digitar ou pressionar tecla.
 
-- screenshot;
-- janela ativa via `xdotool`;
-- mover mouse;
-- clique esquerdo/direito;
-- digitar texto;
-- teclas permitidas;
-- abrir aplicativos permitidos.
+## 14. Parada de emergência
 
-Backend físico inicial: Linux/X11.
+Implementada em `src/context_anchor/emergency_stop.py` com sentinel persistente, PID + identidade Linux e bloqueio de reinício até liberação consciente.
 
-### FAILSAFE explícito
+Permanece independente do planner e dos provedores de IA.
 
-Além de `pyautogui.FAILSAFE = True`, o backend verifica a posição atual do ponteiro antes de qualquer entrada física.
-
-Uma margem de 20 pixels nos quatro cantos funciona como zona de interrupção. Se o ponteiro estiver nessa zona, a ação gera `DesktopFailsafeTriggered` antes de mover, clicar ou digitar.
-
-## 10. Aplicativos
-
-Ids conhecidos são mapeados para executáveis permitidos e abertos com `shell=False`.
-
-O Robô não aceita linha de shell arbitrária recebida da tarefa.
-
-## 11. Percepção
-
-Primeiro slice implementado:
-
-- screenshot;
-- janela ativa.
-
-Ainda faltam árvore de acessibilidade, percepção semântica da imagem e fusão de fontes de percepção.
-
-## 12. Parada de emergência
-
-Implementada em `src/context_anchor/emergency_stop.py`.
-
-- sentinel persistente;
-- PID + identidade Linux;
-- encerramento independente do planner;
-- bloqueio de reinício até liberação consciente.
-
-## 13. Diagnóstico e telemetria
-
-Diagnóstico em `src/context_anchor/doctor.py`.
+## 15. Telemetria
 
 Telemetria estruturada em `src/context_anchor/runtime_log.py`:
 
@@ -321,19 +250,19 @@ Telemetria estruturada em `src/context_anchor/runtime_log.py`:
 - `runtime/logs/central.log`;
 - `runtime/logs/robot.log`.
 
-Credenciais não são registradas.
+Resultados de tarefas planejadas por IA podem incluir nome do provedor, rota e nomes de provedores que falharam, sem segredos.
 
-## 14. Gerenciamento de processos
+## 16. Percepção
 
-Implementado em `src/context_anchor/process_registry.py`.
+Primeiro slice implementado: screenshot e janela ativa.
 
-Registros guardam PID e tempo de início para evitar agir sobre PID reutilizado. Processos Linux em estado `Z` são tratados como desligados.
+Ainda faltam árvore de acessibilidade, percepção semântica de imagem e integração multimodal ao router.
 
-## 15. Acesso remoto — futuro
+## 17. Acesso remoto — futuro
 
 Antes de publicar Painel ou Central na Internet serão necessários TLS, autenticação forte, pareamento, revogação, rate limiting, proteção contra replay, auditoria e confirmação para ações sensíveis.
 
-## 16. Canais — futuro
+## 18. Canais — futuro
 
 ```text
 Web remoto
@@ -348,8 +277,6 @@ Central
 Robô local
 ```
 
-Nenhum adaptador de mensageria foi implementado ainda.
+## 19. Princípio local-first
 
-## 17. Princípio local-first
-
-O controle físico permanece no Robô local. Painel, serviços externos e canais futuros enviam intenção e recebem resultado; nenhuma camada externa acessa diretamente mouse, teclado, câmera ou aplicativos sem passar pelo Robô e pela Policy Layer.
+O controle físico permanece no Robô local. Nenhum provedor de IA acessa diretamente mouse, teclado, câmera ou aplicativos; ele apenas propõe uma `StructuredAction`, que continua subordinada à Policy Layer e às proteções locais.
