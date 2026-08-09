@@ -194,3 +194,13 @@ A Central deve distinguir pelo menos os estados **desligada**, **ligada e gerenc
 Uma área chamada **Logs ao vivo** ou equivalente só pode ser apresentada como tal quando exibir eventos reais produzidos pela aplicação. Painel, Central e Robô devem gravar telemetria persistente por componente, com timestamp e nível, independentemente de terem sido iniciados pelo Painel.
 
 A telemetria não deve registrar credenciais. Para reduzir exposição desnecessária, os eventos estruturados devem preferir ids de tarefa, estados, transições e tipos de erro em vez de copiar o texto bruto enviado pelo usuário.
+
+## D-025 — FAILSAFE de desktop deve ser explícito e independente do PyAutoGUI
+
+O FAILSAFE nativo do PyAutoGUI permanece habilitado como defesa adicional, mas não será considerado mecanismo de segurança suficiente por si só porque falhou no primeiro teste físico real.
+
+Antes de ações de entrada física de mouse ou teclado, o backend do Robô deve verificar diretamente a posição atual do ponteiro. Uma zona de segurança de 20 pixels nos quatro cantos da tela funciona como gesto local de interrupção.
+
+Se o ponteiro estiver nessa zona, a ação deve ser recusada antes de mover o mouse, clicar, digitar ou pressionar tecla. A falha deve subir como `DesktopFailsafeTriggered`, fazendo a tarefa terminar como `failed` e permitindo que a telemetria registre a interrupção.
+
+Esse mecanismo complementa, mas não substitui, a parada de emergência persistente. O FAILSAFE serve para interromper a próxima entrada física imediatamente; a parada de emergência continua sendo o mecanismo para encerrar e bloquear o Robô até liberação consciente.
