@@ -95,6 +95,8 @@ Ações tipadas atuais:
 
 Aplicativos são iniciados com `shell=False`; nomes remotos não viram comandos arbitrários.
 
+A dependência `Pillow` foi adicionada explicitamente ao `pyproject.toml` porque `pyscreeze` importa `PIL` para screenshots e a instalação anterior não trouxe esse módulo para a `.venv` do computador alvo.
+
 ## Parada de emergência
 
 Implementada em `src/context_anchor/emergency_stop.py`.
@@ -108,6 +110,8 @@ Implementada em `src/context_anchor/emergency_stop.py`.
 ## Diagnóstico
 
 `diagnostico-robo` e o Painel verificam Python, sistema, sessão gráfica, `DISPLAY`/Wayland, PyAutoGUI, `xdotool`, `scrot` e aplicativos permitidos.
+
+O diagnóstico agora também informa se `Pillow (PIL)` e `pyscreeze` estão instalados, porque ambos participam do caminho de screenshot via PyAutoGUI.
 
 ## Planner
 
@@ -123,7 +127,8 @@ Implementada em `src/context_anchor/emergency_stop.py`.
 - GitHub Actions instala dependências, compila e executa `pytest`;
 - CI do commit `3bffd1bf8bca5093d399ce2f98b26a27eceadc48`, contendo o Painel, endpoints tipados e testes do laboratório, concluiu com sucesso;
 - testes verificam a ausência de endpoint genérico `/api/shell`;
-- testes anteriores de Central, desktop, emergency stop, planner, política e leases continuam no pipeline.
+- testes anteriores de Central, desktop, emergency stop, planner, política e leases continuam no pipeline;
+- foi adicionado teste para os novos campos de diagnóstico de `Pillow` e `pyscreeze`.
 
 ## Validação física — Linux real
 
@@ -144,16 +149,19 @@ Já confirmado no computador alvo:
 - foi criado localmente um atalho `.desktop` em `/home/leo/Área de trabalho/Painel do Robo.desktop` e ele inicia o Painel;
 - o botão **Reiniciar Robô** foi acionado fisicamente pelo Painel;
 - a interface mostrou `Robô ligado.` e o servidor registrou `POST /api/robot/restart` com HTTP `200 OK`;
-- após esse reinício, uma nova tarefa `capturar tela` foi enviada pelo Painel, entrou como `queued`, foi reivindicada pelo Robô e terminou como `failed` na tentativa 1.
+- após esse reinício, uma nova tarefa `capturar tela` foi enviada pelo Painel, entrou como `queued`, foi reivindicada pelo Robô e terminou como `failed` na tentativa 1;
+- a leitura direta da última tarefa no SQLite mostrou `PyAutoGUIException: PyAutoGUI was unable to import pyscreeze`;
+- o teste direto `python -c "import pyscreeze"` revelou a causa raiz: `ModuleNotFoundError: No module named 'PIL'`;
+- `pyscreeze` estava instalado, mas `Pillow`, que fornece `PIL`, não estava presente na `.venv`.
 
-Falhas observadas e ainda não resolvidas:
+Falhas observadas:
 
-- a captura real de screenshot continua falhando mesmo após o Robô ser reiniciado com o Painel mostrando Desktop habilitado; a causa técnica exata ainda não foi coletada;
+- a captura de screenshot falhou por ausência de `Pillow/PIL` na instalação local; o repositório já foi corrigido para declarar `pillow>=10.4,<13`, mas a correção ainda precisa ser puxada/instalada no computador alvo e retestada;
 - `abrir google.com e pesquisar inteligencia artificial` foi interpretado pelo planner determinístico como uma única URL inválida; isso confirma o limite atual de uma ação por comando, não uma falha de rede.
 
 Ainda precisam ser validados fisicamente pelo Painel:
 
-- diagnosticar e corrigir a falha atual de screenshot;
+- atualizar a instalação local com a nova dependência Pillow e repetir `capturar tela`;
 - leitura da janela ativa;
 - mouse;
 - teclado;
