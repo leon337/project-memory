@@ -27,6 +27,21 @@ def test_deterministic_open_handles_polite_application_request() -> None:
     assert plan.target == "brave-browser"
 
 
+def test_generic_browser_and_site_phrase_routes_directly_to_url() -> None:
+    plan = plan_command("abrir o navegador e acessar globo.com")
+    assert plan == Plan("open_url", "https://globo.com")
+
+
+def test_browser_navigation_accepts_natural_variant_with_site_word() -> None:
+    plan = plan_command("Abra o navegador e acessa o site globo.com")
+    assert plan == Plan("open_url", "https://globo.com")
+
+
+def test_named_browser_navigation_preserves_requested_browser() -> None:
+    plan = plan_command("abra o navegador brave e acesse globo.com")
+    assert plan == Plan("open_app", "brave-browser https://globo.com")
+
+
 def test_local_sequence_preserves_exact_unicode_text() -> None:
     plans = plan_local_sequence("Abra o editor de texto e escreva Olá mundo")
     assert plans == (
