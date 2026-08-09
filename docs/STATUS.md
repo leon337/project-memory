@@ -2,265 +2,228 @@
 
 ## Objetivo atual
 
-Construir um operador digital local capaz de usar navegador e desktop dentro das permissões concedidas pelo usuário e pelo sistema operacional, evoluindo para planejamento por IA, autonomia multietapa e acesso remoto seguro.
+Construir um operador digital local capaz de receber objetivos em linguagem natural, usar as capacidades que o usuário e o sistema operacional permitem e continuar executando etapas até concluir o objetivo.
 
 ## Estado verificável agora
 
-O branch `main` contém o **MVP 0.3** com três processos separados:
+O `main` contém o MVP 0.3 com três processos separados:
 
-- **Painel do Robô** — interface local de operação, configuração, diagnóstico e aprendizado em `127.0.0.1:8765`;
-- **Central** — recebe, persiste e distribui tarefas em `127.0.0.1:8000`;
-- **Robô local** — consulta a fila, valida ações e executa capacidades permitidas no computador.
+- **Painel do Robô** — `127.0.0.1:8765`;
+- **Central** — `127.0.0.1:8000`;
+- **Robô local** — polling autenticado, planner, execução e telemetria.
 
-O fluxo físico principal do MVP 0.3 foi validado no Linux/X11 real.
+Painel, Central e Robô continuam locais por padrão. Publicação remota ainda não foi implementada.
 
-## Validação operacional concluída
+## Capacidades já validadas fisicamente
 
-Foram validados fisicamente no computador alvo:
+No Linux/X11 real já foram validados:
 
-- Central iniciada, parada e reconhecida corretamente pelo Painel;
-- Robô iniciado, parado e reiniciado pelo Painel;
-- ciclo **Parar Robô → Desligado → Ligar Robô → Ligado**;
-- parada de emergência em dois ciclos reais, com bloqueio persistente e liberação consciente;
-- FAILSAFE explícito em dois cantos da tela, gerando `DesktopFailsafeTriggered` antes da entrada física;
-- screenshot, mouse, clique, Xed, digitação e tecla Enter;
-- proteção de foco para sequências abrir aplicativo → digitar;
-- navegador com Playwright/Chromium;
-- diagnóstico de Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
+- ligar, parar e reiniciar Central e Robô pelo Painel;
+- parada de emergência persistente e liberação consciente;
+- FAILSAFE explícito nos cantos da tela;
+- screenshot;
+- movimento e clique de mouse;
+- abertura de aplicativos;
+- digitação e tecla Enter;
+- proteção de foco entre ações de teclado;
+- navegação por Playwright/Chromium;
 - telemetria real de Painel, Central e Robô;
-- Laboratório para comando conhecido e desconhecido sem execução de shell arbitrário.
+- planner multi-provider com fallback Z.AI → Gemini;
+- primeira ação planejada por IA real e executada fisicamente: Gemini abriu Xed e a tarefa terminou `succeeded` com janela verificada.
 
-## Segurança física e operacional
+## Planner multi-provider
 
-O backend de desktop em `src/context_anchor/desktop.py` mantém `pyautogui.FAILSAFE = True` e também uma proteção própria: antes de mover, clicar, digitar ou pressionar tecla, verifica se o ponteiro está dentro de uma zona de 20 pixels em qualquer canto da tela. Nesse caso a ação é recusada com `DesktopFailsafeTriggered`.
+O modo `multi` está implementado com:
 
-A parada de emergência em `src/context_anchor/emergency_stop.py` é independente do planner, usa estado persistente e impede reinício até liberação consciente.
+- Z.AI / GLM;
+- Google Gemini pelo SDK oficial `google-genai`;
+- Cloudflare Workers AI preparado, mas ainda sem `Account ID` configurado no ambiente real.
 
-Central, Painel e Robô continuam locais por padrão e não devem ser expostos diretamente à Internet nesta versão.
+O Gemini vigente usa `gemini-3.6-flash`, `response_json_schema` e `max_output_tokens=1024`.
 
-## Planner e roteador multi-provider
+Nos testes reais, Z.AI pode responder `HTTP 429 / 1305`; o router faz fallback antes de qualquer execução física.
 
-Foi implementada no `main` a primeira versão do modo **multi-provider**:
+## Testes físicos adicionais de 2026-08-09
 
-- `MultiProviderPlanner` em `src/context_anchor/planner.py`;
-- adaptadores em `src/context_anchor/providers.py` para **Z.AI**, **Cloudflare Workers AI** e **Gemini**;
-- `local_agent.py` constrói dinamicamente o roteador usando somente provedores configurados no `.env`;
-- comandos que o planner determinístico já entende continuam sendo resolvidos localmente antes da IA, sem consumir quota externa;
-- pedidos simples priorizam Cloudflare → Z.AI → Gemini quando disponíveis;
-- pedidos com marcadores de análise/condição priorizam Z.AI → Gemini → Cloudflare;
-- falha de um provedor pode acionar outro antes da execução física;
-- toda saída continua validada como `StructuredAction` e depois passa pela Policy Layer.
+Depois da primeira aceitação IA → editor, foram feitos novos testes de linguagem natural:
 
-## Testes reais do planner multi-provider
+### Calculadora
 
-Em 2026-08-09 foi ativado `CONTEXT_ANCHOR_PLANNER_MODE=multi` no Linux real com provedores **Z.AI + Gemini** configurados localmente.
+Pedido equivalente a:
 
-Pedido usado nos testes:
+`Eu preciso fazer algumas contas, abra a calculadora para mim`
 
-`Por favor abra o editor de texto para mim`
+Resultado físico:
 
-### Teste 1
+- calculadora abriu;
+- tarefa `succeeded`;
+- logs registraram `planner=gemini` e `rota=fast`.
 
-- Robô iniciou em `planner=multi` com `providers=zai,gemini`;
-- Z.AI respondeu `HTTP 429`;
-- o roteador tentou Gemini;
-- Gemini respondeu `HTTP 400` com o formato REST então usado;
-- tarefa terminou `failed`;
-- nenhuma ação física foi executada.
+### Navegador
 
-Esse teste comprovou que o fallback acontece antes da execução física.
+Pedido equivalente a:
 
-### Teste 2
+`Quero navegar na internet, abra o navegador para mim`
 
-Após melhorar o diagnóstico HTTP:
+Resultado físico:
 
-- Z.AI respondeu `HTTP 429: 1305: The service may be temporarily overloaded, please try again later`;
-- Gemini respondeu HTTP com sucesso, porém o texto retornado não chegou como JSON válido;
-- erro `gemini: resposta não contém JSON válido`;
+- Firefox abriu;
+- tarefa `succeeded`;
+- logs registraram `planner=gemini` e `rota=fast`.
+
+### Photoshop — falha da política antiga
+
+Pedido:
+
+`Abra o Photoshop para mim`
+
+Resultado físico antes da inversão de política:
+
 - tarefa `failed`;
-- nenhuma ação física executada.
+- `PermissionError: Aplicativo fora da allowlist local.`
 
-O código `1305` do Z.AI é tratado como limitação/indisponibilidade transitória.
+Esse resultado ajudou a confirmar que a allowlist fixa contrariava a direção desejada do produto.
 
-### Migração para o SDK oficial do Gemini
+### Variação natural do editor — falha da política antiga
 
-Foi inspecionado o repositório `leon337/meu_primeiro_agente`, onde o Gemini já funciona via:
+Pedido:
 
-- `google-genai`;
-- `genai.Client(...)`;
-- `client.models.generate_content(...)`;
-- modelo `gemini-3.6-flash`.
+`Preciso escrever uma anotação, poderia abrir um editor de texto?`
 
-O `project-memory` foi migrado para o mesmo padrão. A dependência `google-genai>=1.0,<2.0` foi adicionada, o modelo padrão passou a `gemini-3.6-flash` e os testes automatizados da migração passaram no CI.
+Resultado observado antes da inversão de política:
 
-### Teste 3 — SDK oficial no Linux real
+- tarefa `failed` com `PermissionError: Aplicativo fora da allowlist local.`
 
-O usuário atualizou a cópia local, instalou a nova dependência e repetiu o pedido real.
+### Objetivo composto — falso sucesso no nível do objetivo
 
-Resultado observado no Painel:
+Pedido:
 
-- Robô iniciou em `planner=multi` com `providers=zai,gemini`;
-- Z.AI continuou indisponível/limitado e o roteador fez fallback;
-- Gemini foi chamado pelo SDK oficial;
-- Gemini devolveu `400 INVALID_ARGUMENT`;
-- a mensagem do servidor apontou `Unknown name "additional_properties" at 'generation_config.response_schema'`;
-- a tarefa terminou `failed`;
-- nenhuma ação física foi executada.
+`Abra o editor de texto e escreva Olá mundo`
 
-O problema foi localizado no adaptador: `ACTION_SCHEMA`, que é JSON Schema padrão e contém `additionalProperties`, estava sendo passado por `response_schema`. Segundo a documentação do SDK, JSON Schema padrão deve ser enviado por `response_json_schema`.
+Resultado físico:
 
-## Correção vigente do Gemini
+- Xed abriu;
+- o texto **não foi digitado**;
+- mesmo assim a tarefa apareceu como `succeeded`.
 
-O `GeminiProvider` agora usa:
+A causa foi confirmada no código: `execute_command()` encerrava a tarefa depois de uma única `StructuredAction`. Portanto o sucesso da ação `open_app` estava sendo confundido com conclusão do objetivo inteiro.
 
-- SDK oficial `google-genai`;
-- `client.models.generate_content(...)`;
-- modelo padrão `gemini-3.6-flash`;
-- `response_mime_type="application/json"`;
-- `response_json_schema=ACTION_SCHEMA`;
-- `max_output_tokens=1024` para acomodar os tokens de pensamento do modelo antes do JSON curto;
-- validação final obrigatória com `StructuredAction`;
-- normalização segura de erros sem registrar a chave.
+### Brave — duas falhas diferentes
 
-O teste automatizado agora também confirma que `response_schema` fica vazio e que `response_json_schema` preserva `additionalProperties=False`.
+Testes com pedidos para abrir Brave mostraram:
 
-O commit de teste dessa correção é `6efd18d55454749d75833db00948b8728115e146`; as etapas Install, Compile e Test do CI passaram com `success` no run `31300271373`.
+1. uma frase começando exatamente por `abrir ` foi capturada pelo parser determinístico como se o restante fosse URL, produzindo navegação inválida semelhante a `%20navegador%20brave` em Chromium/Chrome for Testing;
+2. uma formulação mais natural chegou ao planner de IA, mas ainda encontrou a política antiga de aplicativos.
 
-### Teste 4 — ação estruturada chegou à Policy Layer
+Esses testes provaram que era necessário separar melhor **URL** de **aplicativo** e remover a autorização baseada em cadastro fixo.
 
-Os logs locais e o SQLite registram um teste físico posterior, também em 2026-08-09, com o pedido:
+## Mudança de política — implementada no código, validação física pendente
 
-`Por favor abra o editor de texto para mim`
+A direção vigente agora é **permissiva por padrão no perfil local confiável**.
 
-Resultado verificável da tarefa `86e814f9-3870-4573-9ba4-19942beddb95`:
+Implementado no `main`:
 
-- o pedido não pertence ao vocabulário do planner determinístico;
-- ao menos um dos provedores externos configurados gerou uma `StructuredAction` válida com ação `open_app`, pois a execução chegou ao ramo específico de aplicativos da Policy Layer;
-- a Policy Layer recusou o plano com `PermissionError: Aplicativo fora da allowlist local.`;
-- `executor.execute()` não foi chamado e nenhuma ação física ocorreu;
-- a tarefa terminou `failed` na primeira tentativa;
-- o provider e o `target` exatos não foram persistidos nessa falha, porque os metadados do planner só são anexados ao resultado depois da Policy Layer e da execução.
+- `open_app` não exige mais que o aplicativo pertença a `SUPPORTED_APP_IDS` para ser autorizado pela Policy Layer;
+- URLs HTTP/HTTPS locais, privadas ou públicas não são mais bloqueadas apenas por serem locais/privadas;
+- nomes de tecla imprimíveis não dependem mais de uma allowlist fechada;
+- aliases conhecidos continuam existindo apenas como conveniência;
+- `desktop.py` tenta resolver também executáveis/comandos que não estejam em `APP_COMMANDS`;
+- argumentos são preservados com `shlex.split(...)` e execução por `subprocess.Popen(..., shell=False)`;
+- Brave recebeu aliases de conveniência para `brave-browser`, `brave-browser-stable` ou `brave` quando instalados;
+- caminho determinístico `abrir ...` só assume `open_url` quando o alvo realmente se parece com URL/domínio; frases como `abrir o navegador brave` passam para o planner de IA.
 
-Portanto, esse teste comprova participação de IA real e avanço além dos erros anteriores de HTTP/schema, mas não permite atribuir o plano especificamente a Z.AI ou Gemini e não satisfaz o teste de aceitação físico.
+A tabela `APP_COMMANDS` permanece no código somente como resolvedor de aliases/candidatos conhecidos, não como fronteira de autorização.
 
-### Correção local da fronteira `open_app`
+## Loop orientado a objetivo — implementado no código, validação física pendente
 
-A investigação do `HEAD a127e9f` e os testes físicos posteriores mostraram que:
-
-- `editor` já apontava somente para executáveis fixos permitidos, `xed` ou `gedit`;
-- a tabela de aliases reconhecia `text editor`, mas não `editor de texto`, `text_editor`, `xed`, `gedit` ou o target real `notepad` devolvido pelo Gemini;
-- `plan_from_structured()` preservava o texto não-canônico devolvido pela IA até a Policy Layer.
-
-A correção consolidada:
-
-- normaliza esses aliases seguros, inclusive `notepad`, para o ID canônico `editor` quando uma `StructuredAction` vira `Plan`;
-- mantém caminhos, argumentos, `bash` e qualquer alvo desconhecido fora da allowlist;
-- não altera StructuredAction, Policy Layer, feature gate, FAILSAFE, parada de emergência ou `shell=False`.
-
-Validação automatizada desta correção:
-
-- RED inicial: cinco aliases seguros falharam antes da implementação pelo motivo esperado;
-- RED físico adicional: `notepad` permaneceu não-canônico até ser incluído explicitamente na tabela fechada;
-- GREEN focal: `10 passed`, incluindo `notepad.exe`, caminhos, argumentos e `bash` ainda bloqueados;
-- RED Gemini: o teste comprovou que o limite antigo de 160 tokens era inferior ao mínimo definido para a resposta;
-- suíte completa atual: `82 passed`, com uma advertência preexistente de depreciação do TestClient;
-- compilação e `git diff --check`: sucesso.
-
-### Teste 5 — target real `notepad`
-
-Depois de iniciar Painel, Central e Robô e reiniciar o Robô para carregar o working tree, a tarefa `99619231-fa42-42ff-a8b4-9aa2b0eae28a` repetiu o pedido exato e terminou `failed` na Policy Layer com aplicativo fora da allowlist.
-
-Como falhas de política ainda não preservam provider/target, foi executada somente a etapa de planejamento em processo isolado, sem executor físico. Resultado:
-
-- Z.AI falhou e o router fez fallback;
-- Gemini gerou `{"action":"open_app","target":"notepad"}`;
-- `notepad` não era um alias local e reproduzia exatamente a recusa;
-- a tabela fechada passou a mapear `notepad → editor`, sem aceitar `notepad.exe`, caminho ou argumentos.
-
-### Teste 6 — truncamento do Gemini
-
-Após a correção do alias, a tarefa `07399df6-c668-4c2a-bfb8-49e64746cfa5` terminou `failed` antes da Policy Layer:
-
-- Z.AI respondeu `HTTP 429 / 1305`;
-- Gemini terminou com resposta não-JSON.
-
-Uma chamada isolada com a mesma configuração mostrou texto parcial `Here is the` e `FinishReason.MAX_TOKENS`. O limite antigo de 160 tokens era consumido pelo pensamento do modelo antes de o JSON terminar. `thinking_budget=0` foi testado e recusado pelo modelo com `400 INVALID_ARGUMENT`, portanto não foi adotado.
-
-Com `max_output_tokens=1024`, a mesma chamada retornou JSON completo, `FinishReason.STOP`, 104 tokens de pensamento e 11 tokens de resposta. O adaptador foi corrigido somente nesse limite; schema, temperatura e validação permaneceram iguais.
-
-### Teste 7 — aceitação física concluída
-
-Em 2026-08-09, a tarefa `20aafaf2-4721-4349-9f78-05076f81ede6` executou exatamente:
-
-`Por favor abra o editor de texto para mim`
-
-Resultado persistido e verificado:
-
-- `planner_provider=gemini`;
-- `planner_route=fast`;
-- `planner_fallbacks=[zai]`;
-- `action=open_app` e `app=editor`;
-- Policy Layer: `Aplicativo permitido pela allowlist local.`;
-- executável fixo `/usr/bin/xed`, PID `207332`;
-- nova janela `Unsaved Document 1`, id `69206821`;
-- `window_changed=true` e `verified=true`;
-- tarefa finalizada `succeeded` na primeira tentativa, sem erro.
-
-O processo `/usr/bin/xed` e a janela foram conferidos independentemente após a tarefa. Os logs do Painel, Central e Robô registram, respectivamente, criação, entrega, execução por Gemini/rota fast, envio do resultado e estado final `succeeded`.
-
-### Revisão cirúrgica do guard de teclado
-
-Durante a consolidação, o `main` remoto continha o commit `d5cb7dda06cb4f37ad21b39368e83ca168c3a861`, que adicionava uma autorização de teclado exclusiva para janelas abertas como `editor`. Essa restrição não derivava de D-015, D-022 ou D-025 e contrariava o contrato anterior em que um clique observável confirma o novo foco.
-
-Uma worktree isolada no próprio `d5cb7dda` reproduziu a regressão antes da correção: `tests/test_desktop_focus.py` terminou com `5 failed, 1 passed`, incluindo os dois novos casos que exercitam clique → digitação e aplicativo permitido não-editor → teclado.
-
-A revisão preservou:
-
-- aliases seguros de editor, inclusive `editor de texto`, `text editor`, `text_editor`, `xed`, `gedit` e `notepad`;
-- allowlist fixa de `open_app`, `shell=False`, Policy Layer e feature gate;
-- espera de prontidão, janela esperada e recusa quando o foco muda;
-- FAILSAFE explícito e parada de emergência.
-
-Foram removidos `KEYBOARD_INPUT_APP_IDS`, os estados `_keyboard_authorized_*`, o gate de janela “segura” exclusiva do editor, a limitação que impedia clique de confirmar novo foco e o campo `keyboard_authorized` do resultado de `open_app`. A exigência incidental de `xdotool` introduzida no mesmo guard também foi retirada, restaurando o fallback anterior; a observação por `xdotool` continua sendo usada quando disponível.
-
-## Provedores e credenciais — estado atual
-
-- **Z.AI / `glm-4.7-flash`**: conta e API key configuradas localmente; tela real de Rate Limits mostrou `concurrency limit = 1`; chamadas reais podem retornar `429/1305`;
-- **Google Gemini / `gemini-3.6-flash`**: chave configurada localmente; adaptador usa SDK oficial, `response_json_schema` e limite de output 1024 validado em chamada e execução reais;
-- **Cloudflare Workers AI**: token personalizado Workers AI Read/Edit criado e guardado localmente; ainda falta `Account ID` no `.env` para ativar o adaptador;
-- **SiliconFlow**: conta e API key criadas, mas permanece opcional enquanto um modelo gratuito atual e seus limites reais não forem comprovados.
-
-As credenciais permanecem fora do Git. O usuário optou por continuar os testes com as chaves atuais.
-
-## Marco físico atual
-
-O objetivo desta sessão foi concluído fisicamente. Existe evidência do fluxo completo:
+Foi implementada a primeira versão do ciclo multietapa para pedidos planejados por IA:
 
 ```text
-pedido natural
-→ planner multi
-→ fallback Z.AI para Gemini
-→ StructuredAction open_app
-→ target canônico editor
-→ Policy Layer aprova
-→ /usr/bin/xed abre
-→ janela real verificada
-→ tarefa succeeded
-→ logs correlacionados por task id
+objetivo original
+→ planner escolhe próxima ação
+→ Policy Layer
+→ executor
+→ observação compacta do resultado
+→ planner recebe objetivo + histórico
+→ próxima ação
+→ ...
+→ action=finish
+→ task succeeded
 ```
+
+Detalhes atuais:
+
+- `StructuredAction` ganhou a ação interna `finish`;
+- o provider continua escolhendo **uma próxima ação por vez**, em vez de gerar uma lista inteira antecipadamente;
+- depois de cada ação verificada, o Robô devolve ao planner um histórico compacto da etapa;
+- `finish` só encerra a task depois de pelo menos uma etapa executada;
+- se uma etapa retornar `verified=False`, o objetivo falha e não pode virar falso `succeeded`;
+- o loop tem limite configurável `CONTEXT_ANCHOR_GOAL_MAX_STEPS`, padrão 8;
+- o resultado final preserva lista de etapas e trace de providers/rotas/fallbacks;
+- o caminho determinístico simples continua sendo uma execução única para preservar quota e compatibilidade.
+
+O teste automatizado cobre explicitamente:
+
+`open_app(editor) → type_text("Olá mundo") → finish`.
+
+Também há testes para limite de etapas e recusa de falso sucesso quando a etapa não é verificada.
+
+## Validação automatizada
+
+No `main`, foram adicionados testes para:
+
+- política local permissiva;
+- `abrir o navegador brave` não ser tratado como URL pelo parser determinístico;
+- aplicativo não cadastrado ser autorizado pela Policy Layer;
+- resolução de executável não cadastrado;
+- preservação de argumentos com `shell=False`;
+- loop `open_app → type_text → finish`;
+- limite de etapas;
+- etapa não verificada impedir conclusão falsa.
+
+GitHub Actions CI run `31305151754` concluiu com **success** nas etapas Install, Compile e Test.
+
+## Estado de segurança/controle que permanece
+
+Mesmo com a política local permissiva, continuam implementados:
+
+- parada de emergência persistente;
+- FAILSAFE físico próprio nos quatro cantos;
+- verificação de foco antes de teclado quando há janela esperada observável;
+- execução de processos com `shell=False` no resolvedor atual;
+- credenciais fora de código, Git, logs e prompts;
+- Painel e Central em localhost por padrão.
+
+Esses itens não funcionam como allowlist de aplicativos; são mecanismos operacionais independentes.
+
+## Próxima validação física obrigatória
+
+A nova implementação **ainda não foi validada no computador real**.
+
+O primeiro teste deve repetir exatamente:
+
+`Abra o editor de texto e escreva Olá mundo`
+
+Critério de sucesso:
+
+1. abrir Xed/Gedit;
+2. manter o foco correto;
+3. digitar `Olá mundo`;
+4. planner retornar `finish` depois das etapas;
+5. task terminar `succeeded` somente depois da conclusão integral.
+
+Depois deve ser repetido o teste do Brave para confirmar que ele abre como aplicativo e não como URL.
 
 ## Ainda não implementado ou não validado
 
-- persistência de provider, rota, fallback, ação e target canônico também em falhas de política;
-- Cloudflare ativo no router real;
-- quota manager completo com TPD/budget diário e telemetria detalhada por provedor;
-- visão/multimodalidade ligada ao router;
-- loop autônomo multietapa orientado a objetivo;
+- validação física do novo loop multietapa;
+- validação física da política permissiva e do resolvedor genérico de aplicativos;
+- percepção semântica de conteúdo de janela/screenshot;
 - árvore de acessibilidade;
-- percepção semântica de screenshots;
-- controle genérico de arquivos;
+- multimodalidade ligada ao router;
+- provider/rota/target persistidos também quando uma etapa falha antes de produzir resultado final;
+- Cloudflare ativo no router real;
+- quota manager completo por provider;
 - câmera;
-- confirmação humana completa para ações sensíveis;
-- publicação segura do Painel/Central para acesso remoto;
-- WhatsApp, Telegram e Instagram;
-- seletor claro/escuro e preferências visuais persistentes.
+- publicação remota segura;
+- WhatsApp, Telegram e Instagram.
