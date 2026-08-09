@@ -44,7 +44,7 @@ Commits principais desta revisão:
 - `f885579181f3406e8719c816b243a049bdb1876c` — implementação do redesign ultra escuro;
 - `1433a6884472da04ae6e88395e31028baffd7cb7` — atualização dos testes do dashboard.
 
-O CI da revisão ultra escura concluiu com **success**. A nova revisão **ainda não foi puxada nem validada visualmente no computador alvo**.
+O CI da revisão ultra escura concluiu com **success**. A nova revisão já foi baixada no computador alvo por `git pull`; falta reiniciar o processo do Painel para carregar o novo HTML/CSS e então validar visualmente as três telas.
 
 ## Gerenciamento de processos
 
@@ -113,7 +113,8 @@ Confirmado no computador alvo:
 - encadeamento `abrir aplicativo editor` → `digitar teste do robo` validado após correção de foco;
 - tecla **Enter** validada em sequência com duas linhas distintas no Xed;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
-- primeira versão do dark mode foi carregada no computador e avaliada nas telas Visão geral, Configurações e Laboratório, levando à decisão de uma segunda revisão mais escura e mais refinada.
+- primeira versão do dark mode foi carregada no computador e avaliada nas telas Visão geral, Configurações e Laboratório, levando à decisão de uma segunda revisão mais escura e mais refinada;
+- segunda revisão ultra escura baixada com sucesso no computador alvo por `git pull`, atualizando o código local até `e3e093a`.
 
 ## Falhas já diagnosticadas
 
@@ -121,11 +122,11 @@ Confirmado no computador alvo:
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
-- tema claro original causava desconforto visual; primeira revisão dark melhorou luminosidade, mas ainda foi considerada insuficiente em hierarquia, legibilidade e uso do espaço; segunda revisão ultra escura está implementada e aguarda validação física.
+- tema claro original causava desconforto visual; primeira revisão dark melhorou luminosidade, mas ainda foi considerada insuficiente em hierarquia, legibilidade e uso do espaço; segunda revisão ultra escura está implementada, já foi baixada e aguarda carregamento/validação física.
 
 ## Ainda precisa de validação física
 
-- puxar a segunda revisão ultra escura e validar Visão geral, Configurações e Laboratório;
+- reiniciar o Painel para carregar a segunda revisão ultra escura e validar Visão geral, Configurações e Laboratório;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
