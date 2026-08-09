@@ -40,7 +40,7 @@ def test_structured_plan_accepts_known_action() -> None:
     "alias",
     ["editor de texto", "text editor", "text_editor", "xed", "gedit", "notepad"],
 )
-def test_structured_open_app_normalizes_safe_editor_alias_before_policy(alias: str) -> None:
+def test_structured_open_app_normalizes_editor_alias(alias: str) -> None:
     plan = plan_from_structured({"action": "open_app", "target": alias})
 
     assert plan.target == "editor"
@@ -49,17 +49,21 @@ def test_structured_open_app_normalizes_safe_editor_alias_before_policy(alias: s
 
 @pytest.mark.parametrize(
     "target",
-    ["/usr/bin/xed", "xed --new-window", "notepad.exe", "bash"],
+    ["brave-browser", "/usr/bin/xed", "xed --new-window", "bash"],
 )
-def test_structured_open_app_keeps_arbitrary_targets_blocked(target: str) -> None:
+def test_structured_open_app_is_not_blocked_by_registration(target: str) -> None:
     plan = plan_from_structured({"action": "open_app", "target": target})
+    assert evaluate_plan(plan, desktop_enabled=True).allowed is True
 
-    assert evaluate_plan(plan, desktop_enabled=True).allowed is False
+
+def test_structured_finish_action_is_valid() -> None:
+    plan = plan_from_structured({"action": "finish", "target": "objetivo integralmente concluído"})
+    assert plan.action == "finish"
 
 
-def test_structured_plan_rejects_shell_action() -> None:
+def test_structured_plan_rejects_unknown_action_type() -> None:
     with pytest.raises(ValidationError):
-        plan_from_structured({"action": "shell", "target": "rm -rf /"})
+        plan_from_structured({"action": "acao_inexistente", "target": "qualquer coisa"})
 
 
 def test_structured_plan_rejects_extra_tool_fields() -> None:
@@ -68,7 +72,7 @@ def test_structured_plan_rejects_extra_tool_fields() -> None:
             {
                 "action": "open_url",
                 "target": "https://example.com",
-                "command": "curl example.com",
+                "command": "campo extra",
             }
         )
 
@@ -98,6 +102,20 @@ def test_multi_provider_keeps_known_commands_local_without_api_call() -> None:
     assert plan.action == "open_url"
     assert router.last_provider == "deterministic"
     assert cloudflare.calls == []
+
+
+def test_multi_provider_routes_non_url_open_phrase_to_ai() -> None:
+    gemini = FakeProvider({"action": "open_app", "target": "brave"})
+    router = MultiProviderPlanner(
+        [ProviderCandidate("gemini", gemini, frozenset({"fast", "reasoning"}), 20)]
+    )
+
+    plan = router.plan("abrir o navegador brave")
+
+    assert plan.action == "open_app"
+    assert plan.target == "brave-browser"
+    assert router.last_provider == "gemini"
+    assert gemini.calls == ["abrir o navegador brave"]
 
 
 def test_multi_provider_routes_simple_natural_language_to_cloudflare_first() -> None:
@@ -157,7 +175,7 @@ def test_multi_provider_falls_back_before_execution_when_first_provider_fails() 
 
 
 def test_multi_provider_falls_back_on_invalid_structured_action() -> None:
-    cloudflare = FakeProvider({"action": "shell", "target": "echo nope"})
+    cloudflare = FakeProvider({"action": "acao_inexistente", "target": "nope"})
     gemini = FakeProvider({"action": "open_url", "target": "https://example.com"})
     router = MultiProviderPlanner(
         [
