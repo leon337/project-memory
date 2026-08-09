@@ -1,16 +1,14 @@
 # NEXT
 
-## 1. Validar o novo dark mode do Painel
+## 1. Concluir a validação do novo dark mode do Painel
 
-A primeira revisão visual já está implementada no `main` e usa tema escuro como padrão para reduzir brilho e fadiga visual.
+A primeira revisão visual já está implementada no `main`, foi puxada para o computador alvo e a **Visão geral** já carregou corretamente pelo atalho do desktop.
 
 Próximos passos, em ordem:
 
-1. atualizar o computador com `git pull`;
-2. reiniciar apenas o processo do **Painel do Robô** para ele carregar o novo HTML/CSS;
-3. abrir novamente `http://127.0.0.1:8765`;
-4. validar visualmente Visão geral, Configurações e Laboratório;
-5. confirmar conforto, contraste, legibilidade de textos, estados e botões de segurança.
+1. abrir **Configurações** e verificar se todos os cartões, botões, textos e diagnóstico continuam legíveis no tema escuro;
+2. abrir **Laboratório** e verificar campos, botões, explicações e contraste;
+3. confirmar com o usuário se o novo tema está confortável para uso prolongado ou se precisa de ajustes adicionais.
 
 Critério de conclusão: o usuário deve considerar o novo tema confortável para uso prolongado e nenhum controle funcional pode ter sido prejudicado pela mudança visual.
 
