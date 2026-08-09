@@ -24,6 +24,7 @@ ACTION_SCHEMA: dict[str, Any] = {
                 "type_text",
                 "press_key",
                 "open_app",
+                "finish",
             ],
         },
         "target": {"type": "string"},
@@ -32,13 +33,16 @@ ACTION_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-PLANNER_SYSTEM_PROMPT = """Você é o planner de um robô local.
-Converta o pedido do usuário em EXATAMENTE UMA ação estruturada conhecida.
-Não gere shell, código, caminhos de executável, credenciais ou ferramentas livres.
-Ações permitidas: open_url, capture_screen, active_window, move_mouse, click_mouse,
-type_text, press_key e open_app.
-O campo target deve conter apenas o alvo necessário para a ação.
-A resposta será validada novamente pela aplicação e pela Policy Layer antes de qualquer execução.
+PLANNER_SYSTEM_PROMPT = """Você é o planner de um robô local orientado a objetivo.
+Escolha EXATAMENTE UMA próxima ação estruturada por resposta.
+O pedido pode exigir várias etapas. Depois de cada etapa você poderá receber um histórico com o resultado observado e deverá decidir a próxima ação.
+Use `finish` SOMENTE quando o objetivo original estiver integralmente concluído segundo o histórico verificado. Nunca use `finish` apenas porque uma etapa intermediária teve sucesso.
+Ações implementadas: open_url, capture_screen, active_window, move_mouse, click_mouse,
+type_text, press_key, open_app e finish.
+Para `open_app`, use no target o nome curto do aplicativo/executável ou o comando local necessário. O perfil local é permissivo por padrão; a aplicação e o sistema operacional ainda validarão/executarão a ação.
+Para `type_text`, target é exatamente o texto a digitar. Para `press_key`, target é a tecla.
+O campo target deve conter apenas o alvo necessário para a ação. Em `finish`, target deve resumir brevemente por que o objetivo está concluído.
+A resposta será validada novamente pela aplicação antes de qualquer execução.
 """
 
 
@@ -85,11 +89,6 @@ def _retry_after_seconds(response: httpx.Response) -> float | None:
 
 
 def _safe_http_error_detail(response: httpx.Response) -> str | None:
-    """Extract only compact provider error code/status/message for diagnostics.
-
-    Request headers, API keys and request bodies are never copied into telemetry.
-    """
-
     try:
         payload = response.json()
     except ValueError:
@@ -199,7 +198,7 @@ class ZAIProvider:
                     {"role": "user", "content": objective},
                 ],
                 "response_format": {"type": "json_object"},
-                "max_tokens": 160,
+                "max_tokens": 220,
                 "temperature": 0.1,
             },
             timeout_seconds=self.timeout_seconds,
@@ -244,7 +243,7 @@ class CloudflareWorkersAIProvider:
                     "type": "json_schema",
                     "json_schema": ACTION_SCHEMA,
                 },
-                "max_tokens": 160,
+                "max_tokens": 220,
                 "temperature": 0.1,
             },
             timeout_seconds=self.timeout_seconds,
