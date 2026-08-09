@@ -1,18 +1,22 @@
 # NEXT
 
-## 1. Revalidar o planner multi-provider no Linux real
+## 1. Revalidar o planner multi-provider com Gemini Interactions
 
-O primeiro teste real já aconteceu com Z.AI + Gemini e comprovou o fallback, mas terminou `failed` porque Z.AI respondeu `429` e Gemini respondeu `400`.
+Dois testes reais com Z.AI + Gemini já ocorreram. O roteador fez fallback corretamente antes da execução física, mas ainda não houve uma `StructuredAction` bem-sucedida por API real.
 
-O adaptador Gemini foi corrigido no `main` e o diagnóstico de erros HTTP foi ampliado. O CI da correção passou.
+Estado atual:
+
+- Z.AI está retornando `HTTP 429 / código 1305`, classificado pelo próprio provedor como rate limit/indisponibilidade transitória;
+- o adaptador Gemini foi migrado para a **Interactions API** atual;
+- os testes automatizados dessa migração passaram no CI.
 
 Próximos passos:
 
 1. executar `git pull --ff-only` na cópia local;
 2. reiniciar o Robô pelo Painel;
 3. repetir exatamente `Por favor abra o editor de texto para mim`;
-4. observar se Gemini agora gera uma `StructuredAction` válida e o editor abre;
-5. se Z.AI continuar em `429`, registrar a nova mensagem específica exibida no log.
+4. confirmar se, após eventual `429` do Z.AI, Gemini gera `open_app → editor` e o Xed abre;
+5. verificar nos logs `planner_provider`, `planner_route` e provedores que falharam.
 
 Critério de conclusão: pelo menos um provedor real deve gerar uma única `StructuredAction`, a ação deve passar pela Policy Layer e ser executada pelo caminho físico já validado.
 
