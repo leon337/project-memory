@@ -177,8 +177,10 @@ A digitação deve registrar em qual janela ativa foi executada e não deve ser 
 
 ## D-023 — Conforto visual é requisito do Painel
 
-O tema visual atual do Painel do Robô, com grandes áreas claras, foi considerado cansativo para uso prolongado e não deve ser tratado como design final.
+O tema visual do Painel do Robô não deve usar grandes áreas claras como padrão, pois isso foi considerado cansativo em uso real.
 
-Antes de considerar o Painel concluído para uso diário, o design deverá ser revisado para reduzir brilho e fadiga visual, melhorar hierarquia e contraste e oferecer uma aparência de baixa luminosidade, como tema escuro ou solução equivalente.
+O padrão visual do Painel será **ultra escuro**, com fundo próximo de preto, superfícies em grafite/azul muito escuro e brilho reduzido. Entre alternativas visuais aceitáveis, deve-se preferir a opção de menor luminosidade, desde que preserve leitura clara dos textos, estados, alertas e controles de segurança.
 
-A melhoria visual deve preservar legibilidade dos estados, botões de segurança e mensagens de erro. O resultado final do design precisa ser validado visualmente pelo usuário no computador real.
+A revisão visual deve melhorar conjuntamente hierarquia, contraste, tamanho e legibilidade dos textos, uso do espaço e aparência profissional. Configurações e Laboratório devem seguir o mesmo sistema visual da Visão geral, sem parecer páginas vazias ou desconectadas.
+
+A melhoria visual deve preservar destaque inequívoco para estados positivos, falhas e parada de emergência. O design só é considerado concluído depois de carregado e aprovado visualmente no computador real.
