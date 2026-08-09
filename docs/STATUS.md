@@ -88,7 +88,8 @@ Confirmado no computador alvo:
 - capacidade física de digitação validada: o Xed recebeu o texto `teste do robo`;
 - o encadeamento direto `abrir aplicativo editor` → `digitar teste do robo` foi repetido após a correção de foco, sem movimento do mouse nem clique intermediário, e funcionou corretamente;
 - as duas tarefas do reteste foram registradas como **`succeeded`**, com o texto aparecendo no Xed;
-- a tecla permitida **Enter** foi validada fisicamente em sequência: `abrir aplicativo editor` → `digitar linha um` → `tecla enter` → `digitar linha dois`, resultando em duas linhas distintas no Xed.
+- a tecla permitida **Enter** foi validada fisicamente em sequência: `abrir aplicativo editor` → `digitar linha um` → `tecla enter` → `digitar linha dois`, resultando em duas linhas distintas no Xed;
+- o botão **Diagnóstico** do Painel foi validado no computador real e mostrou **OK** para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop.
 
 ## Falhas já diagnosticadas
 
@@ -108,7 +109,6 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
