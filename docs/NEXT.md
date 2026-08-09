@@ -1,44 +1,36 @@
 # NEXT
 
-## 1. Executar a bateria física integrada A–E
+## 1. Corrigir os três FAILs físicos confirmados
 
-Usar `docs/CODEX_GOAL_RUNTIME_MISSION.md` como contrato.
+Usar a bateria de 2026-08-09 registrada em `docs/STATUS.md` como reprodução obrigatória.
 
-Executar pelo fluxo real Painel → Central → Robô os 10 testes obrigatórios, incluindo:
+Corrigir, sem criar falso `succeeded`:
 
-- editor + `Olá mundo`;
-- navegação e busca;
-- VS Code;
-- necessidade vaga de cálculo;
-- necessidade vaga de anotação;
-- significado de Josiel;
-- pesquisa → primeiro resultado → editor → escrita comprovada;
-- condicional de `example.com`;
-- contexto entre tasks com `lá`.
+- condicional `example.com`: o branch acessível é escolhido, mas `site acessível` não é escrito/readback corretamente e `text_present` fica pendente;
+- busca informacional de São Lourenço da Mata: a página real abre com resultados, mas a percepção estruturada do DuckDuckGo falha com `não produziu resultados estruturados verificáveis`;
+- contexto `lá`: quando não existe `LOCATION` válido, não substituir por `SUBJECT` arbitrário; falhar fechado ou resolver apenas com artefato semanticamente compatível.
 
-Critério: cada PASS precisa de estado final observado/evidência do Goal Runtime, não apenas ausência de exceção.
+Critério: repetir os testes 6, 7 e 8 pelo fluxo Painel → Central → Robô e obter estado final correto comprovado por evidências.
 
-## 2. Corrigir qualquer FAIL real e fechar validação técnica
+## 2. Completar a bateria física obrigatória e regressões
 
-Para cada falha física, classificar a causa (interpretação, capability, provider, percepção, execução, evidência, contexto, lease ou progresso), corrigir e repetir o teste afetado.
+Após os três reparos:
 
-Depois rodar:
+- repetir os PASS já obtidos para garantir ausência de regressão;
+- executar os casos restantes de `docs/CODEX_GOAL_RUNTIME_MISSION.md` que ainda não foram comprovados nesta bateria, incluindo navegação/browser específico e necessidade vaga de anotação, se aplicável;
+- confirmar que nenhum caminho marca `succeeded` com critério obrigatório pendente;
+- validar contexto entre tasks apenas depois de uma task anterior realmente `succeeded` e publicar o artefato correto.
 
-- suíte completa;
+## 3. Fechar tecnicamente e promover para `main`
+
+Quando toda a bateria obrigatória estiver PASS:
+
+- rodar suíte completa;
 - compilação/check equivalente;
 - `git diff --check`;
-- revisão do diff;
-- CI da versão candidata quando houver push apropriado.
-
-Não mergear enquanto existir FAIL obrigatório ou falso `succeeded` conhecido.
-
-## 3. Fechar a missão e promover para `main`
-
-Quando todos os critérios passarem:
-
-- atualizar `STATUS.md`, `ARCHITECTURE.md`, `DECISIONS.md` e este `NEXT.md` para o estado final;
-- garantir que apenas código/testes/docs da missão entrem;
-- commit/push final;
-- merge/promover para `main`;
-- confirmar SHA remoto e CI;
-- registrar qualquer limitação real restante.
+- revisão do diff e arquivos não relacionados;
+- CI da versão candidata;
+- atualizar `STATUS.md`, `ARCHITECTURE.md`, `DECISIONS.md` e este `NEXT.md`;
+- commit/push final da branch;
+- promover/mergear para `main` somente sem FAIL obrigatório conhecido;
+- confirmar SHA remoto e CI final.
