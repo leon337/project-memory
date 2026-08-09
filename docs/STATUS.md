@@ -134,11 +134,22 @@ Portanto, o Laboratório mantém o requisito de **não ser um shell remoto arbit
 
 ## Planner
 
-O `DeterministicPlanner` continua ativo.
+O `DeterministicPlanner` continua ativo e é o único planner executando tarefas neste momento.
 
-Existe contrato provider-agnostic em `src/context_anchor/planner.py` e saída estruturada `StructuredAction`, mas **nenhum provedor de IA real está conectado ainda**.
+Existe contrato provider-agnostic em `src/context_anchor/planner.py` e saída estruturada `StructuredAction`.
 
-Este é o próximo marco de implementação.
+A escolha vigente para a primeira integração real de IA é **Cerebras** com o modelo **`gpt-oss-120b`**, registrada em `DECISIONS.md` como D-026.
+
+Estado atual da integração:
+
+- provedor/modelo escolhidos;
+- chave de API ainda não configurada no projeto;
+- Cerebras ainda não está conectado ao código;
+- nenhuma tarefa real está sendo planejada por IA ainda;
+- Google/Gemini permanece disponível fora dessa integração e poderá ser considerado como fallback futuro;
+- o contrato continua provider-agnostic para permitir troca de provedor sem alterar a Policy Layer ou os executores.
+
+Uma pesquisa paralela por provedores gratuitos com limites maiores pode levar a uma revisão explícita da escolha, mas até nova decisão registrada o alvo vigente é Cerebras + `gpt-oss-120b`.
 
 ## Validação física consolidada — Linux real
 
@@ -170,7 +181,8 @@ Confirmado no computador alvo:
 
 ## Ainda não implementado
 
-- planner conectado a IA real;
+- integração de Cerebras/`gpt-oss-120b` ao planner;
+- fallback multi-provider;
 - loop autônomo multietapa orientado a objetivo;
 - árvore de acessibilidade;
 - percepção semântica de screenshots;
