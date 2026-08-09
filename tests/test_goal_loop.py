@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from context_anchor.capabilities import ResolvedCapability
+from context_anchor.goal_execution import GoalExecutionFailed
 from context_anchor.local_agent import execute_command
 from context_anchor.planner import DeterministicPlanner
 from context_anchor.policy import Plan
@@ -33,11 +35,14 @@ class FakeExecutor:
     def __init__(self, *, fail_verification_on: str | None = None) -> None:
         self.executed: list[Plan] = []
         self.fail_verification_on = fail_verification_on
+        self.active_app: str | None = None
+        self.active_text = ""
 
     def execute(self, plan: Plan) -> dict:
         self.executed.append(plan)
         verified = plan.action != self.fail_verification_on
         if plan.action == "open_app":
+            self.active_app = "editor"
             return {
                 "action": "open_app",
                 "app": plan.target,
@@ -48,6 +53,7 @@ class FakeExecutor:
                 "verified": verified,
             }
         if plan.action == "type_text":
+            self.active_text += plan.target
             return {
                 "action": "type_text",
                 "characters": len(plan.target),
@@ -57,8 +63,51 @@ class FakeExecutor:
             }
         return {"action": plan.action, "verified": verified}
 
+    def observe_application(
+        self,
+        app_id: str,
+        *,
+        pid: int | None = None,
+        expected_argument: str | None = None,
+    ) -> dict:
+        verified = self.active_app is not None and self.fail_verification_on != "open_app"
+        return {
+            "action": "observe_application",
+            "app": self.active_app,
+            "identity_observed": verified,
+            "class_identity_observed": verified,
+            "process_identity_observed": verified,
+            "argument_observed": expected_argument is not None,
+            "window_id": "200" if verified else None,
+            "window_title": "Documento não-salvo 1" if verified else None,
+            "window_class": "xed.Xed" if verified else None,
+            "verified": verified,
+        }
 
-def test_ai_goal_loop_continues_until_finish() -> None:
+    def read_active_text(self, *, max_chars: int = 4096) -> dict:
+        verified = self.fail_verification_on != "type_text"
+        return {
+            "action": "read_active_text",
+            "text": self.active_text[:max_chars],
+            "characters": len(self.active_text),
+            "source": "fake-independent-readback",
+            "clipboard_restored": True,
+            "verified": verified,
+        }
+
+
+class FakeCapabilityResolver:
+    def resolve(self, capability: str, hint: str | None = None) -> ResolvedCapability:
+        return ResolvedCapability(
+            capability=capability,
+            app_id="editor",
+            display_name="Fake Editor",
+            executable="/usr/bin/xed",
+            source="test",
+        )
+
+
+def test_legacy_ai_action_loop_cannot_define_its_own_goal_contract() -> None:
     planner = ScriptedPlanner(
         [
             Plan("open_app", "editor"),
@@ -69,25 +118,17 @@ def test_ai_goal_loop_continues_until_finish() -> None:
     executor = FakeExecutor()
     objective = "Analise o objetivo e use o editor conforme necessário"
 
-    result = execute_command(
-        executor,
-        objective,
-        planner=planner,
-        max_goal_steps=5,
-    )
+    with pytest.raises(GoalExecutionFailed, match="decomposição estruturada"):
+        execute_command(
+            executor,
+            objective,
+            planner=planner,
+            max_goal_steps=5,
+            capability_resolver=FakeCapabilityResolver(),
+        )
 
-    assert [plan.action for plan in executor.executed] == ["open_app", "type_text"]
-    assert result["goal_completed"] is True
-    assert result["verified"] is True
-    assert len(result["steps"]) == 2
-    assert result["steps"][0]["action"] == "open_app"
-    assert result["steps"][1]["action"] == "type_text"
-    assert result["planner_provider"] == "gemini"
-    assert len(planner.calls) == 3
-    assert planner.calls[0] == objective
-    assert "OBJETIVO ORIGINAL" in planner.calls[1]
-    assert "open_app" in planner.calls[1]
-    assert "type_text" in planner.calls[2]
+    assert executor.executed == []
+    assert planner.calls == []
 
 
 def test_known_compound_goal_runs_without_provider_calls() -> None:
@@ -99,17 +140,18 @@ def test_known_compound_goal_runs_without_provider_calls() -> None:
         "Abra o editor de texto e escreva Olá mundo",
         planner=planner,
         max_goal_steps=5,
+        capability_resolver=FakeCapabilityResolver(),
     )
 
     assert planner.calls == []
     assert executor.executed == [
-        Plan("open_app", "editor"),
+        Plan("open_app", "/usr/bin/xed"),
         Plan("type_text", "Olá mundo"),
     ]
     assert result["goal_completed"] is True
     assert result["verified"] is True
     assert result["planner_provider"] == "deterministic"
-    assert result["planner_route"] == "local-sequence"
+    assert result["planner_route"] == "goal-runtime"
     assert len(result["steps"]) == 2
 
 
@@ -122,16 +164,17 @@ def test_ai_goal_loop_refuses_false_success_when_step_is_not_verified() -> None:
     )
     executor = FakeExecutor(fail_verification_on="open_app")
 
-    with pytest.raises(RuntimeError, match="não foi verificada"):
+    with pytest.raises(GoalExecutionFailed, match="decomposição estruturada"):
         execute_command(
             executor,
             "Analise e abra o editor se necessário",
             planner=planner,
             max_goal_steps=5,
+            capability_resolver=FakeCapabilityResolver(),
         )
 
-    assert len(executor.executed) == 1
-    assert len(planner.calls) == 1
+    assert executor.executed == []
+    assert planner.calls == []
 
 
 def test_ai_goal_loop_stops_when_step_limit_is_exhausted() -> None:
@@ -143,15 +186,17 @@ def test_ai_goal_loop_stops_when_step_limit_is_exhausted() -> None:
     )
     executor = FakeExecutor()
 
-    with pytest.raises(RuntimeError, match="limite de 1 etapas"):
+    with pytest.raises(GoalExecutionFailed, match="step budget exhausted"):
         execute_command(
             executor,
-            "Faça várias coisas",
+            "Abra o editor de texto e escreva ainda falta",
             planner=planner,
             max_goal_steps=1,
+            capability_resolver=FakeCapabilityResolver(),
         )
 
     assert [plan.action for plan in executor.executed] == ["open_app"]
+    assert planner.calls == []
 
 
 def test_deterministic_command_keeps_single_step_behavior() -> None:

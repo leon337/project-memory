@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from .redaction import redact_payload, redact_text
+
 
 def utc_now_dt() -> datetime:
     return datetime.now(timezone.utc)
@@ -220,10 +222,17 @@ class TaskStore:
         ok: bool,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        now: datetime | None = None,
     ) -> dict[str, Any] | None:
-        now = utc_text()
+        now_text = utc_text(now)
         status = "succeeded" if ok else "failed"
-        result_json = json.dumps(result, ensure_ascii=False) if result is not None else None
+        public_result = redact_payload(result) if result is not None else None
+        public_error = redact_text(error) if error is not None else None
+        result_json = (
+            json.dumps(public_result, ensure_ascii=False)
+            if public_result is not None
+            else None
+        )
         with self._connect() as conn:
             updated = conn.execute(
                 """
@@ -234,17 +243,80 @@ class TaskStore:
                     lease_token = NULL,
                     lease_expires_at = NULL,
                     updated_at = ?
-                WHERE id = ? AND status = 'running' AND lease_token = ?
+                WHERE id = ?
+                  AND status = 'running'
+                  AND lease_token = ?
+                  AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at > ?
                 """,
-                (status, result_json, error, now, task_id, lease_token),
+                (
+                    status,
+                    result_json,
+                    public_error,
+                    now_text,
+                    task_id,
+                    lease_token,
+                    now_text,
+                ),
             )
             if updated.rowcount != 1:
                 return None
         return self.get_task(task_id)
 
+    def renew_lease(
+        self,
+        task_id: str,
+        *,
+        lease_token: str,
+        lease_seconds: int = 120,
+        now: datetime | None = None,
+    ) -> dict[str, Any] | None:
+        """Atomically extend a live lease owned by the supplied token.
+
+        An expired lease is never revived.  This is important because another
+        agent may recover and claim the task as soon as its prior lease expires.
+        """
+
+        if lease_seconds < 1:
+            raise ValueError("lease_seconds deve ser positivo.")
+        now_dt = now or utc_now_dt()
+        now_text = utc_text(now_dt)
+        lease_expires = utc_text(now_dt + timedelta(seconds=lease_seconds))
+
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            updated = conn.execute(
+                """
+                UPDATE tasks
+                SET lease_expires_at = ?, updated_at = ?
+                WHERE id = ?
+                  AND status = 'running'
+                  AND lease_token = ?
+                  AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at > ?
+                """,
+                (lease_expires, now_text, task_id, lease_token, now_text),
+            )
+            if updated.rowcount != 1:
+                conn.rollback()
+                return None
+            row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            conn.commit()
+            return self._row_to_dict(row) if row else None
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     @staticmethod
     def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
-        result = json.loads(row["result_json"]) if row["result_json"] else None
+        result = (
+            redact_payload(json.loads(row["result_json"]))
+            if row["result_json"]
+            else None
+        )
         return {
             "id": row["id"],
             "command": row["command"],
@@ -253,7 +325,7 @@ class TaskStore:
             "updated_at": row["updated_at"],
             "agent_id": row["agent_id"],
             "result": result,
-            "error": row["error"],
+            "error": redact_text(row["error"]) if row["error"] else None,
             "lease_token": row["lease_token"],
             "lease_expires_at": row["lease_expires_at"],
             "attempts": row["attempts"],

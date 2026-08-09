@@ -31,6 +31,28 @@ class FakeDesktop:
     def open_application(self, app_id: str) -> dict:
         return {"action": "open_app", "app": app_id, "pid": 123, "verified": True}
 
+    def read_active_text(self, *, max_chars: int = 4096) -> dict:
+        return {
+            "action": "read_active_text",
+            "text": "hello"[:max_chars],
+            "verified": True,
+        }
+
+    def observe_application(
+        self,
+        app_id: str,
+        *,
+        pid: int | None = None,
+        expected_argument: str | None = None,
+    ) -> dict:
+        return {
+            "action": "observe_application",
+            "app": app_id,
+            "pid": pid,
+            "argument_observed": expected_argument is not None,
+            "verified": True,
+        }
+
 
 def test_executor_runs_typed_desktop_actions(tmp_path: Path) -> None:
     executor = ActionExecutor(
@@ -46,6 +68,8 @@ def test_executor_runs_typed_desktop_actions(tmp_path: Path) -> None:
     assert executor.execute(Plan("type_text", "hello"))["characters"] == 5
     assert executor.execute(Plan("press_key", "enter"))["key"] == "enter"
     assert executor.execute(Plan("open_app", "firefox"))["app"] == "firefox"
+    assert executor.read_active_text()["text"] == "hello"
+    assert executor.observe_application("firefox", pid=123)["verified"] is True
 
 
 def test_executor_refuses_desktop_when_disabled() -> None:

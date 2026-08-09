@@ -1,48 +1,35 @@
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 
 import httpx
 
 from .actions import ActionExecutor
+from .capabilities import CapabilityResolver
 from .config import DashboardSettings, LocalAgentSettings
+from .desktop import DesktopFailsafeTriggered
 from .emergency_stop import EmergencyStop, EmergencyStopTriggered
+from .goal_execution import GoalExecutionFailed, execute_goal
+from .goal_interpreter import SemanticGoalInterpreter
+from .lease import (
+    DeferredSessionContext,
+    LeaseGuardedExecutor,
+    LeaseHeartbeat,
+    LeaseOwnershipLost,
+    is_safety_interrupt,
+)
 from .planner import (
     DeterministicPlanner,
     MultiProviderPlanner,
     Planner,
     ProviderCandidate,
 )
-from .policy import Plan, evaluate_plan, plan_local_sequence
 from .providers import CloudflareWorkersAIProvider, GeminiProvider, ZAIProvider
+from .redaction import redact_exception
 from .runtime_log import write_runtime_log
 from .schemas import AgentTask
-
-
-_OBSERVATION_KEYS = (
-    "action",
-    "app",
-    "executable",
-    "argv",
-    "pid",
-    "window_changed",
-    "window_id",
-    "window_title",
-    "verified",
-    "characters",
-    "input_method",
-    "key",
-    "x",
-    "y",
-    "requested_url",
-    "final_url",
-    "title",
-    "http_status",
-    "width",
-    "height",
-)
+from .session_context import SessionContext
 
 
 def build_planner(cfg: LocalAgentSettings) -> Planner:
@@ -105,216 +92,65 @@ def build_planner(cfg: LocalAgentSettings) -> Planner:
     )
 
 
-def _planner_snapshot(planner: Planner) -> dict[str, Any]:
-    errors = getattr(planner, "last_errors", None) or {}
-    return {
-        "provider": getattr(planner, "last_provider", None),
-        "route": getattr(planner, "last_route", None),
-        "fallbacks": sorted(str(name) for name in errors),
-    }
-
-
-def _compact_observation(result: dict[str, Any]) -> dict[str, Any]:
-    compact: dict[str, Any] = {}
-    for key in _OBSERVATION_KEYS:
-        if key not in result:
-            continue
-        value = result[key]
-        if isinstance(value, str):
-            compact[key] = value[:240]
-        elif isinstance(value, (bool, int, float)) or value is None:
-            compact[key] = value
-        elif isinstance(value, list):
-            compact[key] = [str(item)[:120] for item in value[:12]]
-    return compact
-
-
-def _goal_followup_prompt(objective: str, steps: list[dict[str, Any]]) -> str:
-    history = [
-        {
-            "step": step["step"],
-            "action": step["action"],
-            "target": step["target"],
-            "verified": step["verified"],
-            "observation": step["observation"],
-        }
-        for step in steps
-    ]
-    return (
-        "OBJETIVO ORIGINAL:\n"
-        f"{objective}\n\n"
-        "HISTÓRICO DE ETAPAS JÁ EXECUTADAS E OBSERVADAS:\n"
-        f"{json.dumps(history, ensure_ascii=False)}\n\n"
-        "Decida somente a PRÓXIMA ação necessária. "
-        "Não repita uma etapa já verificada sem necessidade. "
-        "Se ainda faltar qualquer parte do objetivo original, continue executando. "
-        "Use action=finish somente quando o objetivo estiver integralmente concluído."
-    )
-
-
-def _execute_one(executor: ActionExecutor, plan: Plan) -> dict[str, Any]:
-    decision = evaluate_plan(plan, desktop_enabled=executor.desktop_enabled)
-    if not decision.allowed:
-        raise PermissionError(decision.reason)
-    result = executor.execute(plan)
-    result["policy_reason"] = decision.reason
-    return result
-
-
-def _execute_local_sequence(
-    executor: ActionExecutor,
-    plans: tuple[Plan, ...],
-) -> dict[str, Any]:
-    steps: list[dict[str, Any]] = []
-    planner_trace: list[dict[str, Any]] = []
-
-    for index, plan in enumerate(plans, start=1):
-        result = _execute_one(executor, plan)
-        verified = result.get("verified")
-        steps.append(
-            {
-                "step": index,
-                "action": plan.action,
-                "target": plan.target,
-                "verified": verified,
-                "observation": _compact_observation(result),
-            }
-        )
-        planner_trace.append(
-            {
-                "decision": index,
-                "provider": "deterministic",
-                "route": "local-sequence",
-                "fallbacks": [],
-                "action": plan.action,
-                "target": plan.target,
-            }
-        )
-        if verified is False:
-            raise RuntimeError(
-                f"A etapa local {index} ({plan.action}) não foi verificada; o objetivo não será marcado como concluído."
-            )
-
-    return {
-        "action": "goal",
-        "goal_completed": True,
-        "completion": "Sequência local conhecida concluída.",
-        "steps": steps,
-        "verified": all(step["verified"] is not False for step in steps),
-        "planner_provider": "deterministic",
-        "planner_route": "local-sequence",
-        "planner_fallbacks": [],
-        "planner_trace": planner_trace,
-    }
-
-
-def _execute_goal_loop(
-    executor: ActionExecutor,
-    objective: str,
-    planner: Planner,
-    first_plan: Plan,
-    *,
-    max_goal_steps: int,
-) -> dict[str, Any]:
-    plan = first_plan
-    steps: list[dict[str, Any]] = []
-    planner_trace: list[dict[str, Any]] = []
-    all_fallbacks: set[str] = set()
-
-    while True:
-        snapshot = _planner_snapshot(planner)
-        all_fallbacks.update(snapshot["fallbacks"])
-        planner_trace.append(
-            {
-                "decision": len(planner_trace) + 1,
-                "provider": snapshot["provider"],
-                "route": snapshot["route"],
-                "fallbacks": snapshot["fallbacks"],
-                "action": plan.action,
-                "target": plan.target,
-            }
-        )
-
-        if plan.action == "finish":
-            if not steps:
-                raise RuntimeError("O planner tentou concluir o objetivo sem executar nenhuma etapa verificável.")
-            return {
-                "action": "goal",
-                "goal_completed": True,
-                "completion": plan.target,
-                "steps": steps,
-                "verified": all(step["verified"] is not False for step in steps),
-                "planner_provider": snapshot["provider"],
-                "planner_route": snapshot["route"],
-                "planner_fallbacks": sorted(all_fallbacks),
-                "planner_trace": planner_trace,
-            }
-
-        if len(steps) >= max_goal_steps:
-            raise RuntimeError(
-                f"Objetivo não concluído após o limite de {max_goal_steps} etapas físicas."
-            )
-
-        result = _execute_one(executor, plan)
-        verified = result.get("verified")
-        steps.append(
-            {
-                "step": len(steps) + 1,
-                "action": plan.action,
-                "target": plan.target,
-                "verified": verified,
-                "observation": _compact_observation(result),
-            }
-        )
-
-        if verified is False:
-            raise RuntimeError(
-                f"A etapa {len(steps)} ({plan.action}) não foi verificada; o objetivo não será marcado como concluído."
-            )
-
-        followup = _goal_followup_prompt(objective, steps)
-        plan = planner.plan(followup)
-
-        if len(steps) >= max_goal_steps and plan.action != "finish":
-            raise RuntimeError(
-                f"Objetivo não concluído após o limite de {max_goal_steps} etapas físicas."
-            )
-
-
 def execute_command(
     executor: ActionExecutor,
     command: str,
     *,
     planner: Planner | None = None,
     max_goal_steps: int = 8,
+    task_id: str | None = None,
+    session_context: SessionContext | DeferredSessionContext | None = None,
+    capability_resolver: CapabilityResolver | None = None,
+    interpreter: SemanticGoalInterpreter | None = None,
 ) -> dict[str, Any]:
-    local_sequence = plan_local_sequence(command)
-    if local_sequence:
-        return _execute_local_sequence(executor, local_sequence)
+    return execute_goal(
+        executor,
+        command,
+        planner=planner,
+        max_goal_steps=max_goal_steps,
+        task_id=task_id,
+        session_context=session_context,
+        capability_resolver=capability_resolver,
+        interpreter=interpreter,
+    )
 
-    active_planner = planner or DeterministicPlanner()
-    plan = active_planner.plan(command)
 
-    provider_names = getattr(active_planner, "provider_names", ())
-    first_provider = getattr(active_planner, "last_provider", None)
-    if provider_names and first_provider != "deterministic":
-        return _execute_goal_loop(
-            executor,
-            command,
-            active_planner,
-            plan,
-            max_goal_steps=max_goal_steps,
-        )
+def _submit_task_result(
+    client: httpx.Client,
+    task_id: str,
+    payload: dict[str, Any],
+    deferred_context: DeferredSessionContext,
+) -> dict[str, Any]:
+    """Submit the result and publish context only after Central acknowledges it."""
 
-    result = _execute_one(executor, plan)
-    snapshot = _planner_snapshot(active_planner)
-    if snapshot["provider"]:
-        result["planner_provider"] = snapshot["provider"]
-    if snapshot["route"]:
-        result["planner_route"] = snapshot["route"]
-    if snapshot["fallbacks"]:
-        result["planner_fallbacks"] = snapshot["fallbacks"]
-    return result
+    try:
+        finish = client.post(f"/api/agent/tasks/{task_id}/result", json=payload)
+        finish.raise_for_status()
+        finish_payload = finish.json()
+    except Exception:
+        deferred_context.discard()
+        raise
+    if payload["ok"] is True and finish_payload.get("status") == "succeeded":
+        deferred_context.commit()
+    else:
+        deferred_context.discard()
+    return finish_payload
+
+
+def _submit_task_result_preserving_safety(
+    client: httpx.Client,
+    task_id: str,
+    payload: dict[str, Any],
+    deferred_context: DeferredSessionContext,
+    safety_interrupt: Exception | None,
+) -> dict[str, Any]:
+    """Never let a result transport error replace an active safety interrupt."""
+
+    try:
+        return _submit_task_result(client, task_id, payload, deferred_context)
+    finally:
+        if safety_interrupt is not None:
+            raise safety_interrupt
 
 
 def run() -> None:
@@ -342,6 +178,7 @@ def run() -> None:
         emergency_stop=stop,
     )
     planner = build_planner(cfg)
+    session_context = SessionContext(cfg.session_context_path)
 
     planner_names = getattr(planner, "provider_names", ())
     planner_detail = (
@@ -366,61 +203,150 @@ def run() -> None:
                             task = AgentTask.model_validate(response.json())
                             log(f"Tarefa recebida id={task.id}")
 
+                            deferred_context = DeferredSessionContext(session_context)
+                            safety_interrupt: Exception | None = None
                             try:
-                                result = execute_command(
-                                    executor,
-                                    task.command,
-                                    planner=planner,
-                                    max_goal_steps=cfg.goal_max_steps,
-                                )
-                                payload = {
-                                    "lease_token": task.lease_token,
-                                    "ok": True,
-                                    "result": result,
-                                }
-                                provider = result.get("planner_provider")
-                                route = result.get("planner_route")
-                                planner_suffix = (
-                                    f" planner={provider} rota={route}" if provider else ""
-                                )
-                                goal_suffix = (
-                                    f" etapas={len(result.get('steps', []))} objetivo=concluido"
-                                    if result.get("goal_completed")
-                                    else ""
-                                )
-                                log(
-                                    f"Tarefa executada id={task.id} resultado=sucesso{planner_suffix}{goal_suffix}"
-                                )
-                            except EmergencyStopTriggered as exc:
-                                payload = {
-                                    "lease_token": task.lease_token,
-                                    "ok": False,
-                                    "error": f"EmergencyStopTriggered: {exc}",
-                                }
-                                log(f"Tarefa interrompida id={task.id} por parada de emergência", level="WARN")
-                                finish = client.post(f"/api/agent/tasks/{task.id}/result", json=payload)
-                                finish.raise_for_status()
-                                raise
-                            except Exception as exc:
-                                payload = {
-                                    "lease_token": task.lease_token,
-                                    "ok": False,
-                                    "error": f"{type(exc).__name__}: {exc}",
-                                }
-                                log(
-                                    f"Tarefa falhou id={task.id} erro={type(exc).__name__}: {exc}",
-                                    level="ERROR",
-                                )
+                                with LeaseHeartbeat(
+                                    base_url=cfg.control_plane_url,
+                                    headers=headers,
+                                    task_id=task.id,
+                                    lease_token=task.lease_token,
+                                    lease_seconds=task.lease_seconds,
+                                ) as lease:
+                                    leased_executor = LeaseGuardedExecutor(executor, lease)
+                                    try:
+                                        result = execute_command(
+                                            leased_executor,
+                                            task.command,
+                                            planner=planner,
+                                            max_goal_steps=cfg.goal_max_steps,
+                                            task_id=task.id,
+                                            session_context=deferred_context,
+                                        )
+                                        if result.get("status") != "succeeded" or not result.get(
+                                            "goal_completed"
+                                        ):
+                                            raise RuntimeError(
+                                                "Goal Runtime retornou sem verdict succeeded comprovado."
+                                            )
+                                        payload = {
+                                            "lease_token": task.lease_token,
+                                            "ok": True,
+                                            "result": result,
+                                        }
+                                        provider = result.get("planner_provider")
+                                        route = result.get("planner_route")
+                                        planner_suffix = (
+                                            f" planner={provider} rota={route}" if provider else ""
+                                        )
+                                        goal_suffix = (
+                                            f" etapas={len(result.get('steps', []))} objetivo=concluido"
+                                            if result.get("goal_completed")
+                                            else ""
+                                        )
+                                        log(
+                                            f"Tarefa executada id={task.id} "
+                                            f"resultado=sucesso{planner_suffix}{goal_suffix}"
+                                        )
+                                    except GoalExecutionFailed as exc:
+                                        safe_error = redact_exception(exc)
+                                        payload = {
+                                            "lease_token": task.lease_token,
+                                            "ok": False,
+                                            "result": exc.result,
+                                            "error": safe_error,
+                                        }
+                                        metrics = exc.result.get("metrics", {})
+                                        log(
+                                            f"Tarefa incompleta id={task.id} "
+                                            f"status={metrics.get('status', 'failed')} "
+                                            f"etapas={metrics.get('steps', 0)} motivo={safe_error}",
+                                            level="ERROR",
+                                        )
+                                    except LeaseOwnershipLost:
+                                        raise
+                                    except (
+                                        EmergencyStopTriggered,
+                                        DesktopFailsafeTriggered,
+                                    ) as exc:
+                                        safe_error = redact_exception(exc)
+                                        payload = {
+                                            "lease_token": task.lease_token,
+                                            "ok": False,
+                                            "error": safe_error,
+                                        }
+                                        safety_interrupt = exc
+                                        log(
+                                            f"Tarefa interrompida id={task.id} por controle de segurança "
+                                            f"tipo={type(exc).__name__}",
+                                            level="WARN",
+                                        )
+                                    except Exception as exc:
+                                        safe_error = redact_exception(exc)
+                                        payload = {
+                                            "lease_token": task.lease_token,
+                                            "ok": False,
+                                            "error": safe_error,
+                                        }
+                                        if is_safety_interrupt(exc):
+                                            safety_interrupt = exc
+                                            log(
+                                                f"Tarefa interrompida id={task.id} "
+                                                "por controle de segurança "
+                                                f"tipo={type(exc).__name__}",
+                                                level="WARN",
+                                            )
+                                        else:
+                                            log(
+                                                f"Tarefa falhou id={task.id} "
+                                                f"erro={safe_error}",
+                                                level="ERROR",
+                                            )
 
-                            finish = client.post(f"/api/agent/tasks/{task.id}/result", json=payload)
-                            finish.raise_for_status()
-                            log(f"Resultado enviado id={task.id} status={finish.json().get('status', 'desconhecido')}")
+                                    # A final result can only be sent after one last
+                                    # ownership check.  The result endpoint performs
+                                    # the definitive atomic token/expiry validation.
+                                    lease.assert_owned()
+                            except LeaseOwnershipLost as exc:
+                                deferred_context.discard()
+                                if safety_interrupt is not None:
+                                    raise safety_interrupt from exc
+                                safe_error = redact_exception(exc)
+                                log(
+                                    f"Tarefa abortada id={task.id}: posse do lease perdida "
+                                    f"({safe_error})",
+                                    level="WARN",
+                                )
+                                continue
+
+                            finish_payload = _submit_task_result_preserving_safety(
+                                client,
+                                task.id,
+                                payload,
+                                deferred_context,
+                                safety_interrupt,
+                            )
+                            log(
+                                f"Resultado enviado id={task.id} "
+                                f"status={finish_payload.get('status', 'desconhecido')}"
+                            )
                         except httpx.HTTPError as exc:
-                            log(f"Falha de comunicação com a Central: {exc}", level="WARN")
-                            print(f"Falha de comunicação com a Central: {exc}")
+                            safe_error = redact_exception(exc)
+                            log(
+                                f"Falha de comunicação com a Central: {safe_error}",
+                                level="WARN",
+                            )
+                            print(f"Falha de comunicação com a Central: {safe_error}")
                             time.sleep(max(cfg.poll_interval_seconds, 3))
-                except (KeyboardInterrupt, EmergencyStopTriggered):
+                except (
+                    KeyboardInterrupt,
+                    EmergencyStopTriggered,
+                    DesktopFailsafeTriggered,
+                ):
                     pass
+                except Exception as exc:
+                    if not is_safety_interrupt(exc):
+                        raise
     finally:
         executor.close()
         log("Robô encerrado")

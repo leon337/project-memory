@@ -45,6 +45,63 @@ def test_wrong_lease_cannot_complete_task(tmp_path: Path) -> None:
     assert store.get_task(created["id"])["status"] == "running"
 
 
+def test_live_lease_can_be_renewed_only_by_its_owner(tmp_path: Path) -> None:
+    store = TaskStore(tmp_path / "tasks.db")
+    created = store.create_task("abrir example.com")
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    claimed = store.claim_next("agent-a", lease_seconds=30, now=start)
+    assert claimed is not None
+
+    refused = store.renew_lease(
+        created["id"],
+        lease_token="lease-invalido",
+        lease_seconds=30,
+        now=start + timedelta(seconds=10),
+    )
+    assert refused is None
+    assert store.get_task(created["id"])["lease_expires_at"] == claimed["lease_expires_at"]
+
+    renewed = store.renew_lease(
+        created["id"],
+        lease_token=claimed["lease_token"],
+        lease_seconds=30,
+        now=start + timedelta(seconds=10),
+    )
+    assert renewed is not None
+    assert renewed["lease_expires_at"] == (
+        start + timedelta(seconds=40)
+    ).isoformat()
+
+
+def test_expired_lease_cannot_be_revived_or_complete(tmp_path: Path) -> None:
+    store = TaskStore(tmp_path / "tasks.db")
+    created = store.create_task("abrir example.com")
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    claimed = store.claim_next("agent-a", lease_seconds=30, now=start)
+    assert claimed is not None
+    expired_at = start + timedelta(seconds=31)
+
+    assert (
+        store.renew_lease(
+            created["id"],
+            lease_token=claimed["lease_token"],
+            lease_seconds=30,
+            now=expired_at,
+        )
+        is None
+    )
+    assert (
+        store.complete_task(
+            created["id"],
+            lease_token=claimed["lease_token"],
+            ok=True,
+            now=expired_at,
+        )
+        is None
+    )
+    assert store.get_task(created["id"])["status"] == "running"
+
+
 def test_expired_lease_is_requeued_and_reclaimed(tmp_path: Path) -> None:
     store = TaskStore(tmp_path / "tasks.db")
     created = store.create_task("abrir example.com")

@@ -80,6 +80,21 @@ def test_type_text_refuses_when_focus_moved_to_another_window(monkeypatch) -> No
     assert gui.writes == []
 
 
+def test_type_text_fails_closed_when_expected_window_becomes_unobservable(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: None)
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+
+    with pytest.raises(RuntimeError, match="deixou de ser observável"):
+        backend.type_text("teste")
+
+    assert gui.writes == []
+
+
 def test_type_text_records_confirmed_window(monkeypatch) -> None:
     backend = PyAutoGuiDesktopBackend()
     gui = FakeGui()
@@ -97,6 +112,23 @@ def test_type_text_records_confirmed_window(monkeypatch) -> None:
     assert result["window_id"] == "200"
     assert result["window_title"] == "Documento não-salvo 1"
     assert result["verified"] is True
+
+
+def test_type_text_revalidates_focus_between_chunks(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+    active_windows = iter(("200", "200", "300"))
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: next(active_windows))
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+
+    with pytest.raises(RuntimeError, match="foco mudou"):
+        backend.type_text("a" * 64)
+
+    assert gui.writes == [("a" * 32, 0.01)]
 
 
 def test_type_text_preserves_unicode_with_linux_codepoint_input(monkeypatch) -> None:
@@ -158,7 +190,7 @@ def test_non_editor_app_with_confirmed_focus_can_receive_keyboard(monkeypatch) -
     backend = PyAutoGuiDesktopBackend(app_ready_timeout_seconds=0.1)
     gui = FakeGui()
     backend._gui = gui
-    active_windows = iter(("100", "500", "500"))
+    active_windows = iter(("100", "500", "500", "500"))
 
     monkeypatch.setattr(
         desktop_module.shutil,
@@ -187,3 +219,142 @@ def test_non_editor_app_with_confirmed_focus_can_receive_keyboard(monkeypatch) -
     assert gui.presses == ["enter"]
     assert typed["window_id"] == "500"
     assert pressed["window_id"] == "500"
+
+
+def test_read_active_text_uses_atspi_without_touching_clipboard(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Documento não-salvo 1")
+    monkeypatch.setattr(
+        desktop_module.subprocess,
+        "run",
+        lambda *args, **kwargs: type(
+            "Completed",
+            (),
+            {
+                "returncode": 0,
+                "stdout": '{"text":"Olá mundo","app":"xed","frame":"Documento não-salvo 1"}\n',
+            },
+        )(),
+    )
+
+    result = backend.read_active_text()
+
+    assert gui.hotkeys == []
+    assert gui.presses == []
+    assert result["text"] == "Olá mundo"
+    assert result["source"] == "at-spi"
+    assert result["clipboard_untouched"] is True
+    assert result["verified"] is True
+
+
+def test_read_active_text_fails_closed_without_focused_accessible_text(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(
+        desktop_module.subprocess,
+        "run",
+        lambda *args, **kwargs: type(
+            "Completed", (), {"returncode": 0, "stdout": "null\n"}
+        )(),
+    )
+
+    result = backend.read_active_text()
+
+    assert result["verified"] is False
+    assert result["text"] is None
+    assert gui.hotkeys == []
+
+
+def test_read_active_text_rejects_focus_change_during_observation(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    backend._expected_window_id = "200"
+    windows = iter(("200", "300"))
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: next(windows))
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(
+        desktop_module.subprocess,
+        "run",
+        lambda *args, **kwargs: type(
+            "Completed",
+            (),
+            {"returncode": 0, "stdout": '{"text":"novo texto","app":"xed","frame":"Editor"}\n'},
+        )(),
+    )
+
+    result = backend.read_active_text()
+
+    assert result["verified"] is False
+    assert result["observed_window_id"] == "300"
+
+
+def test_observe_application_uses_independent_window_identity(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "700")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Untitled Document 1 - Xed")
+    monkeypatch.setattr(backend, "_window_class", lambda window_id=None: "Xed")
+
+    result = backend.observe_application("editor")
+
+    assert result["source"] == "x11-proc"
+    assert result["identity_observed"] is True
+    assert result["verified"] is True
+
+
+def test_observe_application_rejects_unrelated_active_window(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "701")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Painel do Robô")
+    monkeypatch.setattr(backend, "_window_class", lambda window_id=None: "Firefox")
+
+    result = backend.observe_application("calculadora")
+
+    assert result["identity_observed"] is False
+    assert result["verified"] is False
+
+
+@pytest.mark.parametrize("spoofed_class", ["Decoder", "code-helper-evil"])
+def test_observe_application_uses_exact_window_class_tokens(
+    monkeypatch,
+    spoofed_class: str,
+) -> None:
+    backend = PyAutoGuiDesktopBackend()
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "702")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Visual Studio Code")
+    monkeypatch.setattr(backend, "_window_class", lambda window_id=None: spoofed_class)
+
+    result = backend.observe_application("vscode")
+
+    assert result["title_identity_observed"] is True
+    assert result["class_identity_observed"] is False
+    assert result["verified"] is False
+
+
+def test_observe_application_accepts_exact_xdg_startup_wm_class(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "703")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Text Editor")
+    monkeypatch.setattr(
+        backend,
+        "_window_class",
+        lambda window_id=None: "org.gnome.TextEditor org.gnome.TextEditor",
+    )
+
+    result = backend.observe_application("org.gnome.TextEditor")
+
+    assert result["class_identity_observed"] is True
+    assert result["verified"] is True

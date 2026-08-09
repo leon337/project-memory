@@ -10,7 +10,14 @@ from fastapi.responses import HTMLResponse
 from .config import ControlPlaneSettings, DashboardSettings
 from .process_registry import registered_process
 from .runtime_log import write_runtime_log
-from .schemas import AgentResult, AgentTask, TaskCreate, TaskView
+from .schemas import (
+    AgentLeaseRenewal,
+    AgentLeaseView,
+    AgentResult,
+    AgentTask,
+    TaskCreate,
+    TaskView,
+)
 from .store import TaskStore
 
 INDEX_HTML = """<!doctype html>
@@ -143,7 +150,31 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
             id=task["id"],
             command=task["command"],
             lease_token=task["lease_token"],
+            lease_expires_at=task["lease_expires_at"],
+            lease_seconds=cfg.task_lease_seconds,
         )
+
+    @app.post(
+        "/api/agent/tasks/{task_id}/lease",
+        response_model=AgentLeaseView,
+        dependencies=[Depends(require_agent)],
+    )
+    def renew_task_lease(task_id: str, payload: AgentLeaseRenewal) -> dict:
+        updated = store.renew_lease(
+            task_id,
+            lease_token=payload.lease_token,
+            lease_seconds=cfg.task_lease_seconds,
+        )
+        if updated is None:
+            log(f"Renovação recusada id={task_id}: lease inválido ou expirado", level="WARN")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Lease da tarefa expirou ou não pertence mais a esta execução.",
+            )
+        return {
+            "id": updated["id"],
+            "lease_expires_at": updated["lease_expires_at"],
+        }
 
     @app.post("/api/agent/tasks/{task_id}/result", response_model=TaskView, dependencies=[Depends(require_agent)])
     def finish_task(task_id: str, payload: AgentResult) -> dict:

@@ -1,11 +1,76 @@
 from __future__ import annotations
 
+import json
+import re
 import shlex
 import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
+
+
+_ATSPI_READ_SCRIPT = r"""
+import json
+import sys
+import pyatspi
+
+expected_title = sys.argv[1].casefold().strip()
+focused = []
+editable = []
+
+def has_state(obj, state):
+    try:
+        return obj.getState().contains(state)
+    except Exception:
+        return False
+
+def walk(obj, app_name, frame_name, depth=0):
+    if depth > 24:
+        return
+    try:
+        current_frame = frame_name
+        if obj.getRoleName() in {"frame", "window", "dialog"}:
+            current_frame = obj.name or frame_name
+        if has_state(obj, pyatspi.STATE_EDITABLE):
+            try:
+                text = obj.queryText()
+                value = text.getText(0, text.characterCount)
+                item = {
+                    "text": value,
+                    "role": obj.getRoleName(),
+                    "name": obj.name or "",
+                    "app": app_name,
+                    "frame": current_frame or "",
+                    "focused": has_state(obj, pyatspi.STATE_FOCUSED),
+                }
+                editable.append(item)
+                if item["focused"]:
+                    focused.append(item)
+            except Exception:
+                pass
+        for child in obj:
+            walk(child, app_name, current_frame, depth + 1)
+    except Exception:
+        return
+
+for desktop_index in range(pyatspi.Registry.getDesktopCount()):
+    desktop = pyatspi.Registry.getDesktop(desktop_index)
+    for app in desktop:
+        try:
+            app_name = app.name or ""
+            for child in app:
+                active = has_state(child, pyatspi.STATE_ACTIVE) or has_state(child, pyatspi.STATE_FOCUSED)
+                title = (child.name or "").casefold()
+                title_matches = not expected_title or title in expected_title or expected_title in title
+                if active and title_matches:
+                    walk(child, app_name, child.name or "")
+        except Exception:
+            continue
+
+candidates = focused or editable
+print(json.dumps(candidates[0] if candidates else None, ensure_ascii=False))
+"""
 
 
 # Known aliases remain as convenience, not as an authorization boundary.
@@ -117,6 +182,16 @@ class DesktopBackend(Protocol):
 
     def open_application(self, app_id: str) -> dict[str, Any]: ...
 
+    def read_active_text(self, *, max_chars: int = 4096) -> dict[str, Any]: ...
+
+    def observe_application(
+        self,
+        app_id: str,
+        *,
+        pid: int | None = None,
+        expected_argument: str | None = None,
+    ) -> dict[str, Any]: ...
+
 
 class PyAutoGuiDesktopBackend:
     """Desktop Linux backend.
@@ -129,8 +204,9 @@ class PyAutoGuiDesktopBackend:
         self,
         *,
         pause_seconds: float = 0.05,
-        app_ready_timeout_seconds: float = 3.0,
+        app_ready_timeout_seconds: float = 6.0,
         failsafe_margin_pixels: int = 20,
+        input_guard: Callable[[], None] | None = None,
     ) -> None:
         if failsafe_margin_pixels < 1:
             raise ValueError("failsafe_margin_pixels deve ser pelo menos 1.")
@@ -140,6 +216,10 @@ class PyAutoGuiDesktopBackend:
         self._gui: Any | None = None
         self._expected_window_id: str | None = None
         self._focus_guard_error: str | None = None
+        self._input_guard = input_guard
+
+    def set_input_guard(self, guard: Callable[[], None] | None) -> None:
+        self._input_guard = guard
 
     def _pyautogui(self) -> Any:
         if self._gui is None:
@@ -211,6 +291,27 @@ class PyAutoGuiDesktopBackend:
         value = completed.stdout.strip() if completed.returncode == 0 else ""
         return value or None
 
+    def _window_class(self, window_id: str | None = None) -> str | None:
+        xprop = shutil.which("xprop")
+        active_id = window_id or self._active_window_id()
+        if not xprop or not active_id:
+            return None
+        completed = subprocess.run(
+            [xprop, "-id", active_id, "WM_CLASS"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if completed.returncode != 0:
+            return None
+        values = [
+            item
+            for item in re.findall(r'"([^"]+)"', completed.stdout)
+            if item.strip()
+        ]
+        return " ".join(values) or None
+
     def _wait_for_active_window_change(self, previous_window_id: str | None) -> dict[str, Any]:
         if not self._xdotool_path() or previous_window_id is None:
             time.sleep(min(self.app_ready_timeout_seconds, 0.8))
@@ -245,15 +346,60 @@ class PyAutoGuiDesktopBackend:
             raise RuntimeError(self._focus_guard_error)
 
         current = self._active_window_id()
-        if self._expected_window_id and current and current != self._expected_window_id:
-            raise RuntimeError(
-                "O foco mudou para outra janela desde a última ação preparada. "
-                "O Robô recusou enviar teclado para evitar digitar no lugar errado."
-            )
+        if self._expected_window_id:
+            if self._xdotool_path() and current is None:
+                raise RuntimeError(
+                    "A janela ativa deixou de ser observável. O Robô recusou "
+                    "enviar teclado para não falhar aberto na proteção de foco."
+                )
+            if current and current != self._expected_window_id:
+                raise RuntimeError(
+                    "O foco mudou para outra janela desde a última ação preparada. "
+                    "O Robô recusou enviar teclado para evitar digitar no lugar errado."
+                )
         return current, self._window_title(current)
 
     @staticmethod
-    def _type_text_with_unicode(gui: Any, text: str) -> str:
+    def _xclip_path() -> str | None:
+        return shutil.which("xclip")
+
+    def _read_clipboard(self) -> str | None:
+        xclip = self._xclip_path()
+        if not xclip:
+            return None
+        completed = subprocess.run(
+            [xclip, "-selection", "clipboard", "-out"],
+            check=False,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=2,
+        )
+        if completed.returncode != 0:
+            return None
+        return completed.stdout
+
+    def _write_clipboard(self, value: str) -> bool:
+        xclip = self._xclip_path()
+        if not xclip:
+            return False
+        completed = subprocess.run(
+            [xclip, "-selection", "clipboard", "-in"],
+            input=value,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return completed.returncode == 0
+
+    @staticmethod
+    def _type_text_with_unicode(
+        gui: Any,
+        text: str,
+        *,
+        before_input: Callable[[], None] | None = None,
+    ) -> str:
         """Type printable text while preserving Unicode on Linux/X11.
 
         PyAutoGUI's write() handles ordinary keyboard characters well but can
@@ -266,9 +412,12 @@ class PyAutoGuiDesktopBackend:
         used_unicode = False
 
         def flush_ascii() -> None:
-            if ascii_buffer:
-                gui.write("".join(ascii_buffer), interval=0.01)
-                ascii_buffer.clear()
+            while ascii_buffer:
+                chunk = "".join(ascii_buffer[:32])
+                del ascii_buffer[:32]
+                if before_input is not None:
+                    before_input()
+                gui.write(chunk, interval=0.01)
 
         for char in text:
             if ord(char) < 128:
@@ -276,8 +425,14 @@ class PyAutoGuiDesktopBackend:
                 continue
 
             flush_ascii()
+            if before_input is not None:
+                before_input()
             gui.hotkey("ctrl", "shift", "u")
+            if before_input is not None:
+                before_input()
             gui.write(f"{ord(char):x}", interval=0.01)
+            if before_input is not None:
+                before_input()
             gui.press("enter")
             used_unicode = True
 
@@ -345,7 +500,18 @@ class PyAutoGuiDesktopBackend:
         gui = self._pyautogui()
         self._assert_pointer_outside_failsafe_zone(gui)
         window_id, window_title = self._focused_window_for_input()
-        input_method = self._type_text_with_unicode(gui, text)
+
+        def guard_each_chunk() -> None:
+            if self._input_guard is not None:
+                self._input_guard()
+            self._assert_pointer_outside_failsafe_zone(gui)
+            self._focused_window_for_input()
+
+        input_method = self._type_text_with_unicode(
+            gui,
+            text,
+            before_input=guard_each_chunk,
+        )
         return {
             "action": "type_text",
             "characters": len(text),
@@ -366,6 +532,187 @@ class PyAutoGuiDesktopBackend:
             "window_id": window_id,
             "window_title": window_title,
             "verified": window_id is not None if self._xdotool_path() else True,
+        }
+
+    def read_active_text(self, *, max_chars: int = 4096) -> dict[str, Any]:
+        """Read the active editable surface without treating typing as proof.
+
+        AT-SPI exposes the focused editable object's text without selecting
+        content, sending keys or touching the user's clipboard.  The system
+        Python is used because Linux desktop accessibility bindings are supplied
+        by the OS rather than the project's isolated virtual environment.
+        """
+
+        if max_chars < 1:
+            raise ValueError("max_chars deve ser positivo.")
+
+        window_id, window_title = self._focused_window_for_input()
+        system_python = Path("/usr/bin/python3")
+        if not system_python.is_file():
+            return {
+                "action": "read_active_text",
+                "window_id": window_id,
+                "window_title": window_title,
+                "text": None,
+                "characters": 0,
+                "source": "at-spi",
+                "clipboard_untouched": True,
+                "verified": False,
+                "error": "Python do sistema indisponível para leitura AT-SPI",
+            }
+
+        try:
+            completed = subprocess.run(
+                [str(system_python), "-c", _ATSPI_READ_SCRIPT, window_title or ""],
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=8,
+            )
+            lines = [line for line in completed.stdout.splitlines() if line.strip()]
+            observed = json.loads(lines[-1]) if completed.returncode == 0 and lines else None
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            return {
+                "action": "read_active_text",
+                "window_id": window_id,
+                "window_title": window_title,
+                "text": None,
+                "characters": 0,
+                "source": "at-spi",
+                "clipboard_untouched": True,
+                "verified": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+
+        current_window_id = self._active_window_id()
+        same_focus = (
+            True
+            if not self._xdotool_path()
+            else bool(window_id and current_window_id == window_id)
+        )
+        text_value = observed.get("text") if isinstance(observed, dict) else None
+        verified = isinstance(text_value, str) and same_focus
+
+        return {
+            "action": "read_active_text",
+            "window_id": window_id,
+            "window_title": window_title,
+            "observed_window_id": current_window_id,
+            "text": text_value[:max_chars] if isinstance(text_value, str) else None,
+            "characters": len(text_value) if isinstance(text_value, str) else 0,
+            "truncated": bool(isinstance(text_value, str) and len(text_value) > max_chars),
+            "source": "at-spi",
+            "observation_method": "accessibility-text-interface",
+            "accessibility_app": observed.get("app") if isinstance(observed, dict) else None,
+            "accessibility_frame": observed.get("frame") if isinstance(observed, dict) else None,
+            "clipboard_untouched": True,
+            "clipboard_restored": True,
+            "verified": verified,
+            "error": None if verified else "nenhum texto editável focado foi observado via AT-SPI",
+        }
+
+    def observe_application(
+        self,
+        app_id: str,
+        *,
+        pid: int | None = None,
+        expected_argument: str | None = None,
+    ) -> dict[str, Any]:
+        """Independently observe a launched application through X11 and /proc."""
+
+        window_id = self._active_window_id()
+        window_title = self._window_title(window_id)
+        window_class = self._window_class(window_id)
+        process_alive = False
+        process_executable: str | None = None
+        argument_observed: bool | None = None
+
+        if isinstance(pid, int) and pid > 0:
+            process_dir = Path("/proc") / str(pid)
+            process_alive = process_dir.exists()
+            if process_alive:
+                try:
+                    process_executable = str((process_dir / "exe").resolve(strict=True))
+                except OSError:
+                    process_executable = None
+                if expected_argument is not None:
+                    try:
+                        raw_cmdline = (process_dir / "cmdline").read_bytes()
+                        argv = [
+                            item.decode("utf-8", errors="replace")
+                            for item in raw_cmdline.split(b"\0")
+                            if item
+                        ]
+                    except OSError:
+                        argv = []
+                    argument_observed = expected_argument in argv
+
+        canonical = canonical_app_id(app_id.split(maxsplit=1)[0])
+        identity_hints: dict[str, tuple[str, ...]] = {
+            "editor": ("xed", "gedit", "text editor", "editor"),
+            "vscode": ("visual studio code", "code", "vscode"),
+            "calculadora": ("calculator", "calculadora", "mate-calc", "kcalc"),
+            "brave-browser": ("brave",),
+            "firefox": ("firefox",),
+            "chromium": ("chromium", "chrome"),
+        }
+        hints = identity_hints.get(canonical, (canonical,))
+        exact_identities: dict[str, tuple[str, ...]] = {
+            "editor": ("xed", "gedit", "pluma", "mousepad"),
+            "vscode": ("code", "code-oss", "vscode"),
+            "calculadora": (
+                "calculator",
+                "gnome-calculator",
+                "mate-calc",
+                "kcalc",
+            ),
+            "brave-browser": ("brave", "brave-browser", "brave-browser-stable"),
+            "firefox": ("firefox",),
+            "chromium": (
+                "chrome",
+                "chromium",
+                "google-chrome",
+                "google-chrome-stable",
+            ),
+        }
+        expected_identities = set(exact_identities.get(canonical, (canonical,)))
+        raw_class = (window_class or "").casefold()
+        class_tokens = set(
+            re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)*", raw_class)
+        )
+        # Preserve complete StartupWMClass/desktop-id atoms (including dots)
+        # while also supporting conventional two-token WM_CLASS values.
+        class_tokens.update(
+            item.strip('"\' ,')
+            for item in raw_class.split()
+            if item.strip('"\' ,')
+        )
+        process_name = Path(process_executable).name.casefold() if process_executable else ""
+        title_identity = (window_title or "").casefold()
+        class_observed = bool(class_tokens.intersection(expected_identities))
+        process_observed = process_name in expected_identities
+        title_observed = any(hint and hint in title_identity for hint in hints)
+        # Completion requires the active X11 window itself to identify the app.
+        # A target process plus an unrelated active window must never be merged
+        # into one synthetic observation, and page/window titles are spoofable.
+        identity_observed = bool(window_id and class_observed)
+
+        return {
+            "action": "observe_application",
+            "app": canonical,
+            "window_id": window_id,
+            "window_title": window_title,
+            "window_class": window_class,
+            "process_alive": process_alive,
+            "process_executable": process_executable,
+            "argument_observed": argument_observed,
+            "identity_observed": identity_observed,
+            "class_identity_observed": class_observed,
+            "process_identity_observed": process_observed,
+            "title_identity_observed": title_observed,
+            "source": "x11-proc",
+            "verified": identity_observed,
         }
 
     def open_application(self, app_id: str) -> dict[str, Any]:

@@ -42,6 +42,7 @@ class LocalAgentSettings(DesktopSettings):
     agent_token: str = Field(min_length=24)
     poll_interval_seconds: float = Field(default=2.0, ge=0.5, le=60)
     browser_headless: bool = False
+    session_context_path: Path = Path("runtime/session_context.json")
 
     # Planner. Deterministic remains the local fast path; natural language may use providers.
     planner_mode: Literal["deterministic", "multi"] = "deterministic"

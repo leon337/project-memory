@@ -29,6 +29,17 @@ class AgentTask(BaseModel):
     id: str
     command: str
     lease_token: str = Field(min_length=20)
+    lease_expires_at: datetime
+    lease_seconds: int = Field(ge=1, le=3600)
+
+
+class AgentLeaseRenewal(BaseModel):
+    lease_token: str = Field(min_length=20)
+
+
+class AgentLeaseView(BaseModel):
+    id: str
+    lease_expires_at: datetime
 
 
 class AgentResult(BaseModel):

@@ -8,7 +8,13 @@ import httpx
 from google import genai
 from google.genai import types
 
-from .planner import ProviderGenerationError, StructuredAction
+from .planner import (
+    ProviderGenerationError,
+    StructuredAction,
+    StructuredGoalDecomposition,
+    decomposition_from_structured,
+)
+from .lease import is_safety_interrupt
 
 ACTION_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -33,6 +39,11 @@ ACTION_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
+# Generated from the same strict Pydantic contract that performs local
+# validation. Providers may use this to improve conformance, but the schema is
+# never trusted as the sole safety boundary.
+GOAL_DECOMPOSITION_SCHEMA: dict[str, Any] = StructuredGoalDecomposition.model_json_schema()
+
 PLANNER_SYSTEM_PROMPT = """Você é o planner de um robô local orientado a objetivo.
 Escolha EXATAMENTE UMA próxima ação estruturada por resposta.
 O pedido pode exigir várias etapas. Depois de cada etapa você poderá receber um histórico com o resultado observado e deverá decidir a próxima ação.
@@ -43,6 +54,34 @@ Para `open_app`, use no target o nome curto do aplicativo/executável ou o coman
 Para `type_text`, target é exatamente o texto a digitar. Para `press_key`, target é a tecla.
 O campo target deve conter apenas o alvo necessário para a ação. Em `finish`, target deve resumir brevemente por que o objetivo está concluído.
 A resposta será validada novamente pela aplicação antes de qualquer execução.
+"""
+
+GOAL_DECOMPOSITION_SYSTEM_PROMPT = """Você é o decompositor de objetivos de um robô local.
+Produza UM documento JSON completo que defina o contrato inteiro ANTES de qualquer ação física.
+Copie o objetivo do usuário exatamente para `objective`; não o resuma, não o enfraqueça e não acrescente condições.
+
+O documento deve declarar, de forma coerente e fechada: capabilities, critérios obrigatórios observáveis, subgoals e todos os steps planejados. Nenhum step pode criar critérios depois de ser executado. Não produza `finish`, comandos de shell, executáveis ou nomes de aplicativos inventados.
+
+Operações permitidas:
+- open_capability: pede uma capability ao resolver local; target deve ser null;
+- navigate: navega para uma URL HTTP/HTTPS explícita;
+- write_text: escreve texto literal ou um artifact inteiro no formato {{artifact_id}};
+- observe_active_window: observa a janela ativa; target deve ser null;
+- capture_screen: captura a tela; target deve ser null.
+
+Observáveis permitidos por operação:
+- open_capability -> desktop.application (observation);
+- navigate -> browser.url, browser.title, browser.text ou browser.search_results (observation);
+- write_text -> desktop.text (readback);
+- observe_active_window -> desktop.active_window (observation);
+- capture_screen -> filesystem.exists (observation).
+
+Todo critério é required=true e deve pertencer a exatamente um subgoal e a exatamente um step capaz de observar seu efeito. Receipts de execução e afirmações do próprio modelo nunca são evidência. `truthy` não recebe expected_value; `equals` e `contains` recebem expected_value. Todo write_text deve ter readback desktop.text com equals do target.
+
+Use ids curtos, minúsculos e estáveis. Dependências só podem apontar para itens anteriores na lista. Um artifact consumido deve ter produtor anterior, declarado em produces, e o consumidor deve depender explicitamente daquele step. Não repita o mesmo efeito físico.
+Artifacts produzíveis são limitados: navigate pode produzir first_result_title, first_result_url, browser_url, browser_title ou browser_text; open_capability pode produzir application_id/application_name; write_text pode produzir written_text; capture_screen pode produzir screenshot_path. observe_active_window não produz artifact.
+
+A aplicação validará novamente todo o documento e reaplicará a Policy Layer ao materializar cada step. Se você não conseguir formar um contrato completo e observável com este vocabulário, não improvise uma ação livre: a resposta será recusada de modo seguro.
 """
 
 
@@ -74,8 +113,39 @@ def _validated_mapping(value: Any, provider: str) -> Mapping[str, Any]:
     try:
         parsed = StructuredAction.model_validate(dict(value))
     except Exception as exc:
+        if is_safety_interrupt(exc):
+            raise
         raise ProviderGenerationError(provider, "resposta não respeita StructuredAction") from exc
     return parsed.model_dump()
+
+
+def _validated_goal_decomposition_mapping(
+    value: Any,
+    provider: str,
+    objective: str,
+) -> Mapping[str, Any]:
+    if isinstance(value, str):
+        value = _decode_json_text(value, provider)
+
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
+
+    if not isinstance(value, Mapping):
+        raise ProviderGenerationError(provider, "decomposição não é um objeto JSON")
+
+    try:
+        parsed = decomposition_from_structured(
+            dict(value),
+            expected_objective=objective,
+        )
+    except Exception as exc:
+        if is_safety_interrupt(exc):
+            raise
+        raise ProviderGenerationError(
+            provider,
+            "resposta não respeita StructuredGoalDecomposition",
+        ) from exc
+    return parsed.model_dump(mode="json")
 
 
 def _retry_after_seconds(response: httpx.Response) -> float | None:
@@ -209,6 +279,33 @@ class ZAIProvider:
             raise ProviderGenerationError(self.name, "estrutura de resposta inesperada") from exc
         return _validated_mapping(content, self.name)
 
+    def generate_goal_decomposition(self, objective: str) -> Mapping[str, Any]:
+        payload = _post_json(
+            self.name,
+            f"{self.base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept-Language": "en-US,en",
+            },
+            body={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": GOAL_DECOMPOSITION_SYSTEM_PROMPT},
+                    {"role": "user", "content": objective},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_tokens": 2400,
+                "temperature": 0.0,
+            },
+            timeout_seconds=self.timeout_seconds,
+        )
+        try:
+            content = payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderGenerationError(self.name, "estrutura de resposta inesperada") from exc
+        return _validated_goal_decomposition_mapping(content, self.name, objective)
+
 
 class CloudflareWorkersAIProvider:
     name = "cloudflare"
@@ -256,6 +353,40 @@ class CloudflareWorkersAIProvider:
             raise ProviderGenerationError(self.name, "estrutura de resposta inesperada") from exc
         return _validated_mapping(response_value, self.name)
 
+    def generate_goal_decomposition(self, objective: str) -> Mapping[str, Any]:
+        payload = _post_json(
+            self.name,
+            f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/run/{self.model}",
+            headers={
+                "Authorization": f"Bearer {self.api_token}",
+                "Content-Type": "application/json",
+            },
+            body={
+                "messages": [
+                    {"role": "system", "content": GOAL_DECOMPOSITION_SYSTEM_PROMPT},
+                    {"role": "user", "content": objective},
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": GOAL_DECOMPOSITION_SCHEMA,
+                },
+                "max_tokens": 2400,
+                "temperature": 0.0,
+            },
+            timeout_seconds=self.timeout_seconds,
+        )
+        if payload.get("success") is False:
+            raise ProviderGenerationError(self.name, "Cloudflare retornou success=false")
+        try:
+            response_value = payload["result"]["response"]
+        except (KeyError, TypeError) as exc:
+            raise ProviderGenerationError(self.name, "estrutura de resposta inesperada") from exc
+        return _validated_goal_decomposition_mapping(
+            response_value,
+            self.name,
+            objective,
+        )
+
 
 class GeminiProvider:
     name = "gemini"
@@ -294,6 +425,13 @@ class GeminiProvider:
             temperature=0.1,
             max_output_tokens=1024,
         )
+        self._goal_decomposition_config = types.GenerateContentConfig(
+            system_instruction=GOAL_DECOMPOSITION_SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_json_schema=GOAL_DECOMPOSITION_SCHEMA,
+            temperature=0.0,
+            max_output_tokens=4096,
+        )
 
     def generate_plan(self, objective: str) -> Mapping[str, Any]:
         try:
@@ -303,6 +441,8 @@ class GeminiProvider:
                 config=self._config,
             )
         except Exception as exc:
+            if is_safety_interrupt(exc):
+                raise
             status_code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
             if not isinstance(status_code, int):
                 status_code = None
@@ -320,3 +460,34 @@ class GeminiProvider:
         if not isinstance(text, str) or not text.strip():
             raise ProviderGenerationError(self.name, "SDK Gemini não retornou conteúdo estruturado")
         return _validated_mapping(text, self.name)
+
+    def generate_goal_decomposition(self, objective: str) -> Mapping[str, Any]:
+        try:
+            response = self._client.models.generate_content(
+                model=self.model,
+                contents=objective,
+                config=self._goal_decomposition_config,
+            )
+        except Exception as exc:
+            if is_safety_interrupt(exc):
+                raise
+            status_code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if not isinstance(status_code, int):
+                status_code = None
+            raise ProviderGenerationError(
+                self.name,
+                _safe_sdk_error_detail(exc, self.api_key),
+                status_code=status_code,
+            ) from exc
+
+        parsed = getattr(response, "parsed", None)
+        if parsed is not None:
+            return _validated_goal_decomposition_mapping(parsed, self.name, objective)
+
+        text = getattr(response, "text", None)
+        if not isinstance(text, str) or not text.strip():
+            raise ProviderGenerationError(
+                self.name,
+                "SDK Gemini não retornou decomposição estruturada",
+            )
+        return _validated_goal_decomposition_mapping(text, self.name, objective)
