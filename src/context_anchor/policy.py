@@ -58,6 +58,47 @@ def _strip_polite_suffix(value: str) -> str:
     return result
 
 
+def _normalize_url_target(value: str) -> str:
+    target = _strip_polite_suffix(value)
+    target = re.sub(r"^(?:o\s+)?site\s+", "", target, flags=re.IGNORECASE).strip()
+    if not target:
+        raise ValueError("Informe o endereço a acessar.")
+    if not _looks_like_url_target(target):
+        raise ValueError("O destino informado não parece uma URL ou domínio válido.")
+    if "://" not in target:
+        target = f"https://{target}"
+    return target
+
+
+def _browser_navigation_plan(command: str) -> Plan | None:
+    """Resolve browser + site phrases without spending provider quota.
+
+    Generic browser requests use the structured Playwright browser. If a concrete
+    browser name is supplied, the local application is launched with the URL as
+    an argument so requests such as "abra o navegador brave e acesse globo.com"
+    still use that browser.
+    """
+
+    match = re.fullmatch(
+        r"(?:por\s+favor\s+)?(?:abra|abre|abrir|open)\s+"
+        r"(?:o\s+)?(?:navegador|browser)"
+        r"(?:\s+([A-Za-z0-9._-]+))?\s+e\s+"
+        r"(?:acesse|acessa|acessar|visite|visitar|entre\s+em|va\s+para|vá\s+para|ir\s+para)\s+"
+        r"(.+)",
+        command.strip(),
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    browser_name = match.group(1)
+    url = _normalize_url_target(match.group(2))
+    if browser_name:
+        app = canonical_app_id(browser_name)
+        return Plan("open_app", f"{app} {url}")
+    return Plan("open_url", url)
+
+
 def plan_local_sequence(command: str) -> tuple[Plan, ...] | None:
     """Recognize small compound goals that do not need an external model.
 
@@ -134,6 +175,10 @@ def plan_command(command: str) -> Plan:
             if not query:
                 raise ValueError("A pesquisa precisa de um termo.")
             return Plan("open_url", f"https://duckduckgo.com/?q={quote_plus(query)}")
+
+    browser_navigation = _browser_navigation_plan(text)
+    if browser_navigation:
+        return browser_navigation
 
     for prefix in ("abrir ", "abra ", "abre ", "open "):
         if lowered.startswith(prefix):
