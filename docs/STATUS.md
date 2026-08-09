@@ -44,7 +44,7 @@ Commits principais desta revisão:
 - `f885579181f3406e8719c816b243a049bdb1876c` — implementação do redesign ultra escuro;
 - `1433a6884472da04ae6e88395e31028baffd7cb7` — atualização dos testes do dashboard.
 
-O CI da revisão ultra escura foi iniciado e ainda estava em execução na última verificação. A nova revisão **ainda não foi puxada nem validada visualmente no computador alvo**.
+O CI da revisão ultra escura concluiu com **success**. A nova revisão **ainda não foi puxada nem validada visualmente no computador alvo**.
 
 ## Gerenciamento de processos
 
