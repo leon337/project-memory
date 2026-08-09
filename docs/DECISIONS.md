@@ -204,3 +204,22 @@ Antes de ações de entrada física de mouse ou teclado, o backend do Robô deve
 Se o ponteiro estiver nessa zona, a ação deve ser recusada antes de mover o mouse, clicar, digitar ou pressionar tecla. A falha deve subir como `DesktopFailsafeTriggered`, fazendo a tarefa terminar como `failed` e permitindo que a telemetria registre a interrupção.
 
 Esse mecanismo complementa, mas não substitui, a parada de emergência persistente. O FAILSAFE serve para interromper a próxima entrada física imediatamente; a parada de emergência continua sendo o mecanismo para encerrar e bloquear o Robô até liberação consciente.
+
+## D-026 — Primeiro provedor de IA: Cerebras com `gpt-oss-120b`
+
+Depois da conclusão da validação operacional do MVP 0.3, o primeiro provedor escolhido para integrar ao planner é **Cerebras**, usando inicialmente o modelo **`gpt-oss-120b`**.
+
+A escolha é do primeiro alvo de integração, não um acoplamento permanente da arquitetura. O contrato do planner continua provider-agnostic para permitir substituição do provedor sem reconstruir o caminho de execução do Robô.
+
+A integração deve preservar obrigatoriamente:
+
+- saída convertida para `StructuredAction` conhecida pelo sistema;
+- nenhuma execução de shell gerada pelo modelo;
+- passagem obrigatória pela Policy Layer;
+- FAILSAFE e parada de emergência independentes da IA;
+- `DeterministicPlanner` disponível como fallback e para testes;
+- chave da API somente em configuração local/variável de ambiente, nunca em código, Git, logs ou prompt enviado ao modelo.
+
+O Google/Gemini já disponível não será removido e poderá ser usado futuramente como fallback, mas nenhum fallback multi-provider está implementado neste momento.
+
+Uma pesquisa paralela por provedores gratuitos com limites maiores pode levar a uma nova decisão antes ou depois da primeira integração. Se isso acontecer, esta decisão deverá ser explicitamente substituída em `DECISIONS.md`; até lá, Cerebras + `gpt-oss-120b` é a escolha vigente.
