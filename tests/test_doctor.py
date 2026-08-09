@@ -8,4 +8,6 @@ def test_doctor_collects_environment_without_agent_credentials() -> None:
     assert "desktop" in diagnostics
     assert "applications" in diagnostics
     assert diagnostics["desktop"]["pyautogui_installed"] in {True, False}
+    assert diagnostics["desktop"]["pillow_installed"] in {True, False}
+    assert diagnostics["desktop"]["pyscreeze_installed"] in {True, False}
     assert "firefox" in diagnostics["applications"]
