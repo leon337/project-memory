@@ -104,7 +104,7 @@ def test_multi_provider_keeps_known_commands_local_without_api_call() -> None:
     assert cloudflare.calls == []
 
 
-def test_multi_provider_routes_non_url_open_phrase_to_ai() -> None:
+def test_multi_provider_keeps_brave_open_local_without_api_call() -> None:
     gemini = FakeProvider({"action": "open_app", "target": "brave"})
     router = MultiProviderPlanner(
         [ProviderCandidate("gemini", gemini, frozenset({"fast", "reasoning"}), 20)]
@@ -114,8 +114,8 @@ def test_multi_provider_routes_non_url_open_phrase_to_ai() -> None:
 
     assert plan.action == "open_app"
     assert plan.target == "brave-browser"
-    assert router.last_provider == "gemini"
-    assert gemini.calls == ["abrir o navegador brave"]
+    assert router.last_provider == "deterministic"
+    assert gemini.calls == []
 
 
 def test_multi_provider_routes_simple_natural_language_to_cloudflare_first() -> None:
