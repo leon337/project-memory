@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import ipaddress
 import re
 from dataclasses import dataclass
 from urllib.parse import quote_plus, urlparse
 
-from .desktop import SUPPORTED_APP_IDS, canonical_app_id
+from .desktop import canonical_app_id
 
 
 @dataclass(frozen=True)
@@ -32,24 +31,19 @@ DESKTOP_ACTIONS = frozenset(
     }
 )
 
-ALLOWED_KEYS = frozenset(
-    {
-        "enter",
-        "tab",
-        "esc",
-        "escape",
-        "up",
-        "down",
-        "left",
-        "right",
-        "home",
-        "end",
-        "pageup",
-        "pagedown",
-        "backspace",
-        "space",
-    }
-)
+
+def _looks_like_url_target(target: str) -> bool:
+    value = target.strip()
+    if not value or any(char.isspace() for char in value):
+        return False
+    if "://" in value:
+        return True
+    return bool(
+        re.fullmatch(
+            r"(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?::\d+)?(?:/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?",
+            value,
+        )
+    )
 
 
 def plan_command(command: str) -> Plan:
@@ -105,44 +99,40 @@ def plan_command(command: str) -> Plan:
             target = text[len(prefix):].strip()
             if not target:
                 raise ValueError("Informe o endereço a abrir.")
+            if not _looks_like_url_target(target):
+                raise ValueError(
+                    "O alvo não parece uma URL. O planner de IA deve decidir se é aplicativo ou outra ação."
+                )
             if "://" not in target:
                 target = f"https://{target}"
             return Plan("open_url", target)
 
     raise ValueError(
-        "Comando ainda não suportado. Use navegador ou uma ação de desktop explicitamente permitida."
+        "Comando ainda não suportado pelo caminho determinístico; encaminhe ao planner de IA."
     )
 
 
 def _evaluate_url(target: str) -> PolicyDecision:
     parsed = urlparse(target)
     if parsed.scheme not in {"http", "https"}:
-        return PolicyDecision(False, "Somente URLs HTTP/HTTPS são permitidas.")
+        return PolicyDecision(False, "Somente URLs HTTP/HTTPS são suportadas por open_url.")
 
-    hostname = (parsed.hostname or "").casefold()
+    hostname = parsed.hostname or ""
     if not hostname:
         return PolicyDecision(False, "URL sem hostname válido.")
 
-    if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
-        return PolicyDecision(False, "Endereços locais estão bloqueados no MVP remoto.")
-
-    try:
-        ip = ipaddress.ip_address(hostname)
-    except ValueError:
-        ip = None
-
-    if ip and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved):
-        return PolicyDecision(False, "Endereços IP privados ou locais estão bloqueados.")
-
-    return PolicyDecision(True, "Navegação permitida pela política.")
+    return PolicyDecision(True, "Navegação permitida no perfil local permissivo.")
 
 
 def evaluate_plan(plan: Plan, *, desktop_enabled: bool = False) -> PolicyDecision:
     if plan.action == "open_url":
         return _evaluate_url(plan.target)
 
+    if plan.action == "finish":
+        return PolicyDecision(True, "Finalização interna do objetivo permitida.")
+
     if plan.action not in DESKTOP_ACTIONS:
-        return PolicyDecision(False, "Ação fora da allowlist atual.")
+        return PolicyDecision(False, "Ação ainda não possui executor implementado.")
 
     if not desktop_enabled:
         return PolicyDecision(False, "Controle de desktop está desativado localmente.")
@@ -151,26 +141,23 @@ def evaluate_plan(plan: Plan, *, desktop_enabled: bool = False) -> PolicyDecisio
         return PolicyDecision(True, "Percepção local permitida.")
 
     if plan.action == "open_app":
-        if canonical_app_id(plan.target) not in SUPPORTED_APP_IDS:
-            return PolicyDecision(False, "Aplicativo fora da allowlist local.")
-        return PolicyDecision(True, "Aplicativo permitido pela allowlist local.")
+        if not plan.target.strip():
+            return PolicyDecision(False, "Aplicativo/comando vazio.")
+        return PolicyDecision(True, "Aplicativo/processo permitido por padrão no perfil local.")
 
     if plan.action == "move_mouse":
         if not re.fullmatch(r"\d+,\d+", plan.target):
             return PolicyDecision(False, "Coordenadas de mouse inválidas.")
-        x, y = (int(part) for part in plan.target.split(",", maxsplit=1))
-        if x > 9999 or y > 9999:
-            return PolicyDecision(False, "Coordenadas excedem o limite de segurança.")
         return PolicyDecision(True, "Movimento de mouse permitido.")
 
     if plan.action == "click_mouse":
-        if plan.target not in {"left", "right"}:
+        if plan.target not in {"left", "right", "middle"}:
             return PolicyDecision(False, "Botão de mouse inválido.")
         return PolicyDecision(True, "Clique permitido.")
 
     if plan.action == "type_text":
-        if not plan.target or len(plan.target) > 500:
-            return PolicyDecision(False, "Texto vazio ou acima do limite de 500 caracteres.")
+        if not plan.target:
+            return PolicyDecision(False, "Texto vazio.")
         if "\n" in plan.target or "\r" in plan.target:
             return PolicyDecision(False, "Quebras de linha exigem ação de tecla separada.")
         if not all(char.isprintable() for char in plan.target):
@@ -178,8 +165,10 @@ def evaluate_plan(plan: Plan, *, desktop_enabled: bool = False) -> PolicyDecisio
         return PolicyDecision(True, "Digitação permitida.")
 
     if plan.action == "press_key":
-        if plan.target not in ALLOWED_KEYS:
-            return PolicyDecision(False, "Tecla fora da allowlist atual.")
+        if not plan.target.strip() or len(plan.target) > 64:
+            return PolicyDecision(False, "Tecla inválida.")
+        if not all(char.isprintable() for char in plan.target):
+            return PolicyDecision(False, "Tecla contém caracteres de controle.")
         return PolicyDecision(True, "Tecla permitida.")
 
     return PolicyDecision(False, "Ação recusada pela política.")
