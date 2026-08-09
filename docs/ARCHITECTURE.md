@@ -261,6 +261,28 @@ Capacidades em código:
 
 Backend físico inicial: Linux/X11. Wayland não validado.
 
+### 9.1 FAILSAFE explícito de entrada física
+
+O backend mantém `pyautogui.FAILSAFE = True`, mas não depende dele como única proteção porque esse mecanismo falhou no primeiro teste físico real.
+
+Antes das ações `move_mouse`, `click_mouse`, `type_text` e `press_key`, o backend executa uma verificação própria da posição atual do ponteiro.
+
+Uma margem de 20 pixels nos quatro cantos da tela forma a zona de segurança:
+
+```text
+ponteiro em canto seguro
+        ↓
+DesktopFailsafeTriggered
+        ↓
+nenhum movimento/clique/tecla é enviado
+        ↓
+Robô reporta tarefa como failed
+        ↓
+telemetria registra a falha
+```
+
+O FAILSAFE explícito é uma interrupção imediata da próxima entrada física. Ele não substitui a parada de emergência persistente, que encerra o processo do Robô e impede reinício até liberação consciente.
+
 ## 10. Aplicativos
 
 Ids conhecidos são mapeados para executáveis permitidos.
