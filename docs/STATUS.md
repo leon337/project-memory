@@ -77,6 +77,8 @@ Confirmado no navegador:
 - Google/Gemini já possui chave disponível para o usuário;
 - nenhuma chave foi gravada no Git.
 
+A cópia local foi atualizada com `git pull --ff-only` e o `.env` foi aberto para ativar `CONTEXT_ANCHOR_PLANNER_MODE=multi` com Z.AI e Gemini. Durante essa configuração, partes das credenciais ficaram visíveis em um screenshot compartilhado na conversa. Essas credenciais não devem ser usadas para o primeiro teste real; devem ser rotacionadas/substituídas localmente antes de reiniciar o Robô em modo multi. O conteúdo das chaves não deve ser copiado para Git, documentação ou logs.
+
 Ainda falta obter/configurar localmente o **Cloudflare Account ID** para que o adaptador Cloudflare possa chamar a REST API.
 
 ## Testes automatizados desta etapa
@@ -95,10 +97,10 @@ O commit de testes do roteador (`72596186a9038af5bcfe1ded23fb57254d9e73ed`) teve
 
 ## Próximo bloqueio real
 
-O próximo bloqueio não é mais desenhar o router; é **ativá-lo no Linux real**:
+O próximo bloqueio é **ativar o router no Linux real com credenciais não expostas**:
 
-- atualizar a cópia local com `git pull --ff-only`;
-- colocar as chaves Z.AI e Gemini no `.env` e mudar `CONTEXT_ANCHOR_PLANNER_MODE=multi`;
+- rotacionar/substituir localmente as chaves Z.AI e Gemini que apareceram parcialmente no screenshot;
+- salvar o `.env` com `CONTEXT_ANCHOR_PLANNER_MODE=multi` e as novas chaves;
 - reiniciar o Robô e validar uma intenção simples em linguagem natural;
 - depois adicionar `CLOUDFLARE_ACCOUNT_ID` ao `.env` e validar que uma intenção simples pode usar Cloudflare e fazer fallback para outro provedor.
 
