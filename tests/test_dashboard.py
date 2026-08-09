@@ -70,6 +70,9 @@ def test_dashboard_serves_main_page_and_status():
     assert page.status_code == 200
     assert "Painel de Operação e Controle" in page.text
     assert "Laboratório de comandos guiados" in page.text
+    assert "color-scheme:dark" in page.text
+    assert "--bg:#0a0f16" in page.text
+    assert "--card:#111a25" in page.text
 
     status = client.get("/api/status")
     assert status.status_code == 200
