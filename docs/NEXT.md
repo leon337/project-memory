@@ -1,23 +1,29 @@
 # NEXT
 
-## 1. Validar telemetria real de Central e Robô
+## 1. Validar telemetria real do Robô
 
-A terceira revisão do Painel já foi carregada no computador alvo. Os **Controles de estado** foram validados fisicamente para Central, Robô e Emergência, e o log real do **Painel** já apareceu em **Logs reais da aplicação**.
+A terceira revisão do Painel já está carregada no computador alvo. Os **Controles de estado** foram validados fisicamente para Central, Robô e Emergência.
 
-A **Central que estava rodando fora do Painel foi encerrada manualmente com Ctrl+C**. O encerramento foi limpo, com `Shutting down`, `Application shutdown complete` e retorno ao prompt do terminal.
+Já foi confirmado no computador real:
+
+- log real do **Painel**;
+- transição da **Central** de ligada fora do Painel para desligada;
+- início da Central pelo próprio Painel;
+- Central passando a **Ligada e gerenciada pelo Painel**;
+- eventos reais `[PAINEL]` e `[CENTRAL]` aparecendo em **Logs reais da aplicação**.
 
 Próximos passos, em ordem:
 
-1. confirmar no Painel que o controle da **Central** mudou de **Ligada fora do Painel** para **Desligada**;
-2. iniciar a Central pelo próprio Painel com o código novo e confirmar que passa a estado gerenciado pelo Painel;
-3. confirmar eventos reais no filtro **Central**;
-4. reiniciar o **Robô** com o código novo e confirmar eventos reais no filtro **Robô**.
+1. usar **Reiniciar** no controle do **Robô local** para carregar o código novo;
+2. confirmar que o Robô volta a **Ligado** após a reinicialização;
+3. validar em **Logs reais da aplicação** eventos identificados como `[ROBÔ]`, preferencialmente usando o filtro **Robô**;
+4. observar se o controle de estado acompanha corretamente a transição durante a reinicialização.
 
-Critério de conclusão: os três componentes devem produzir telemetria real identificada por origem, e os controles devem refletir corretamente todas as transições observadas.
+Critério de conclusão: Painel, Central e Robô devem produzir telemetria real identificada por origem, e os controles devem refletir corretamente as transições observadas.
 
 ## 2. Concluir segurança e operação física
 
-Depois da validação da telemetria:
+Depois da validação da telemetria do Robô:
 
 - validar o `FAILSAFE` físico;
 - validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
