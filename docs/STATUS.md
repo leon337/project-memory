@@ -43,6 +43,7 @@ Validação física desta revisão:
 
 - **Central** apareceu como **Ligada fora do Painel**, coerente com o fato de ainda estar rodando em terminal separado;
 - o controle da Central mostrou estado **LIGADA** e substituiu ações enganosas por uma indicação explícita de execução externa;
+- depois que a Central externa foi encerrada no terminal, o Painel atualizou automaticamente para **Desligada** e passou a oferecer apenas **Ligar Central**;
 - **Robô local** apareceu como **Ligado**, com ações **Parar Robô** e **Reiniciar** disponíveis;
 - **Emergência** apareceu como **Normal**, com a ação **Ativar emergência** disponível;
 - as telas **Configurações** e **Laboratório** continuaram renderizando corretamente após a revisão;
@@ -129,7 +130,8 @@ Confirmado no computador alvo:
 - encadeamento abrir editor → digitar validado após correção de foco;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
 - segunda revisão ultra escura carregada e confirmada visualmente nas três telas;
-- terceira revisão carregada e validada fisicamente para controles de estado e log real do Painel.
+- terceira revisão carregada e validada fisicamente para controles de estado e log real do Painel;
+- transição real da Central de **Ligada fora do Painel** para **Desligada** refletida automaticamente pelo controle, que passou a oferecer **Ligar Central**.
 
 ## Falhas já diagnosticadas
 
@@ -143,9 +145,9 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- reiniciar a Central com o código novo e confirmar eventos reais no filtro **Central**;
+- iniciar a Central pelo Painel com o código novo e confirmar eventos reais no filtro **Central**;
 - reiniciar o Robô com o código novo e confirmar eventos reais no filtro **Robô**;
-- validar transições dos **Controles de estado** ao ligar/parar/reiniciar componentes pelo próprio Painel;
+- validar demais transições dos **Controles de estado** ao ligar/parar/reiniciar componentes pelo próprio Painel;
 - validar `FAILSAFE` físico;
 - validar parada de emergência real e liberação consciente;
 - concluir ciclo completo de gerenciamento sem dependência normal de terminais.
