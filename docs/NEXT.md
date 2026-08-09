@@ -1,17 +1,16 @@
 # NEXT
 
-## 1. Concluir a validação física de segurança e teclado
+## 1. Concluir a validação física de segurança
 
-O caminho de percepção, mouse, abertura de aplicativo e digitação já foi validado no Linux real.
+Percepção, mouse, abertura de aplicativo, digitação, sincronização de foco e uma tecla permitida (`Enter`) já foram validados no Linux real.
 
 Próximos testes, em passos pequenos:
 
-1. validar uma tecla permitida em um aplicativo controlado;
-2. executar o diagnóstico pelo botão do Painel;
-3. validar o `FAILSAFE` físico;
-4. validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio.
+1. executar o diagnóstico pelo botão do Painel;
+2. validar o `FAILSAFE` físico;
+3. validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio.
 
-Critério de conclusão: teclado e mecanismos de parada devem funcionar fisicamente sem enviar entrada para a janela errada e sem bypass da Policy Layer.
+Critério de conclusão: mecanismos de diagnóstico e parada devem funcionar fisicamente sem bypass da Policy Layer.
 
 ## 2. Fechar o ciclo de operação e melhorar o design do Painel
 
