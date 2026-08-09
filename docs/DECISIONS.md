@@ -176,3 +176,24 @@ O teste físico que abriu o editor e depois falhou por `429 RESOURCE_EXHAUSTED` 
 Caracteres não ASCII usam entrada Unicode do Linux (`Ctrl+Shift+U` + código hexadecimal + Enter), preservando foco e FAILSAFE.
 
 Essa decisão existe porque o teste físico de `Olá mundo` perdeu o caractere `á` usando apenas `pyautogui.write(...)`.
+
+## D-021 — `succeeded` significa objetivo completo comprovado
+
+O status final `succeeded` é reservado para o **objetivo completo**, não para uma ação intermediária executada com sucesso.
+
+Cada task complexa deve manter uma representação explícita de:
+
+- objetivo original;
+- subobjetivos necessários;
+- evidências coletadas após cada ação;
+- critérios de conclusão.
+
+Um fast path determinístico não pode descartar silenciosamente partes de um pedido composto.
+
+O teste físico
+
+`Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
+
+foi marcado como `succeeded`, mas na prática apenas abriu uma pesquisa contendo quase a frase inteira; não leu o primeiro resultado, não abriu o editor e não escreveu o título. Esse resultado é tratado como **FAIL de objetivo** e motivou esta decisão.
+
+A arquitetura futura deve decompor o objetivo, acompanhar subobjetivos e só concluir quando houver evidência suficiente de que todos os critérios relevantes foram atendidos.
