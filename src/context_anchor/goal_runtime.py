@@ -27,11 +27,22 @@ class EvidenceKind(str, Enum):
     ASSERTION = "assertion"
 
 
+class CriterionCheck(str, Enum):
+    """Small deterministic checks used by the first Goal Verifier increment."""
+
+    ANY_VERIFIED_EVIDENCE = "any_verified_evidence"
+    EQUALS = "equals"
+    CONTAINS = "contains"
+    TRUTHY = "truthy"
+
+
 @dataclass(slots=True)
 class GoalCriterion:
     id: str
     description: str
     required: bool = True
+    check: CriterionCheck = CriterionCheck.ANY_VERIFIED_EVIDENCE
+    expected_value: Any = None
     status: ProgressStatus = ProgressStatus.PENDING
     evidence_ids: list[str] = field(default_factory=list)
 
@@ -88,8 +99,6 @@ class GoalRunState:
         criterion = self.contract.criterion(item.criterion_id)
         self.evidence.append(item)
         criterion.evidence_ids.append(item.id)
-        if item.proves_effect:
-            criterion.status = ProgressStatus.SATISFIED
 
     def evidence_for(self, criterion_id: str) -> list[EvidenceRecord]:
         return [item for item in self.evidence if item.criterion_id == criterion_id]
@@ -104,7 +113,43 @@ class GoalVerdict:
 
 
 class GoalVerifier:
-    """Deterministic authority for the first increment of goal completion semantics."""
+    """Deterministic authority for goal completion semantics.
+
+    Planner intent, successful execution and `verified=True` receipts are not
+    enough by themselves. A criterion is satisfied only by independent evidence
+    whose observed value also passes the criterion's deterministic check.
+    """
+
+    @staticmethod
+    def _matches(criterion: GoalCriterion, item: EvidenceRecord) -> bool:
+        if not item.proves_effect:
+            return False
+
+        if criterion.check is CriterionCheck.ANY_VERIFIED_EVIDENCE:
+            return True
+
+        if criterion.check is CriterionCheck.TRUTHY:
+            return bool(item.observed_value)
+
+        if criterion.check is CriterionCheck.EQUALS:
+            return item.observed_value == criterion.expected_value
+
+        if criterion.check is CriterionCheck.CONTAINS:
+            expected = criterion.expected_value
+            observed = item.observed_value
+            if expected is None or observed is None:
+                return False
+            if isinstance(observed, str):
+                return str(expected) in observed
+            try:
+                return expected in observed
+            except TypeError:
+                return False
+
+        return False
+
+    def _criterion_is_satisfied(self, run: GoalRunState, criterion: GoalCriterion) -> bool:
+        return any(self._matches(criterion, item) for item in run.evidence_for(criterion.id))
 
     def evaluate(self, run: GoalRunState) -> GoalVerdict:
         if run.failure_reason:
@@ -119,8 +164,10 @@ class GoalVerifier:
             if not criterion.required:
                 continue
 
-            proof = any(item.proves_effect for item in run.evidence_for(criterion.id))
-            if criterion.status is not ProgressStatus.SATISFIED or not proof:
+            if self._criterion_is_satisfied(run, criterion):
+                criterion.status = ProgressStatus.SATISFIED
+            else:
+                criterion.status = ProgressStatus.PENDING
                 pending.append(criterion.id)
 
         if pending:
@@ -134,7 +181,7 @@ class GoalVerifier:
         return GoalVerdict(
             complete=True,
             status=GoalRunStatus.SUCCEEDED,
-            reason="all required goal criteria are proven by evidence",
+            reason="all required goal criteria are proven by matching evidence",
         )
 
     def finalize(self, run: GoalRunState) -> GoalVerdict:
