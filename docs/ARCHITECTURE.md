@@ -91,7 +91,7 @@ Responsabilidades:
 
 O caminho local existe para reduzir latência e consumo de quota quando a intenção já é inequívoca.
 
-### Comando simples
+### Comandos simples
 
 `DeterministicPlanner` resolve comandos conhecidos sem API externa.
 
@@ -107,9 +107,36 @@ abrir o navegador brave
 → open_app(brave-browser)
 ```
 
+### Navegador + site
+
+Construções determinísticas do tipo `abrir navegador + acessar site` também são resolvidas localmente.
+
+Exemplos:
+
+```text
+abrir o navegador e acessar globo.com
+→ open_url(https://globo.com)
+```
+
+```text
+Abra o navegador e acessa o site globo.com
+→ open_url(https://globo.com)
+```
+
+Quando nenhum navegador específico é nomeado, `open_url` usa o executor estruturado Playwright/Chromium.
+
+Se o pedido nomeia um navegador instalado, ele é preservado:
+
+```text
+abra o navegador brave e acesse globo.com
+→ open_app("brave-browser https://globo.com")
+```
+
+O backend separa executável e argumento com `shlex.split(...)` e executa com `shell=False`.
+
 ### Sequência composta conhecida
 
-`plan_local_sequence(...)` reconhece inicialmente o padrão:
+`plan_local_sequence(...)` reconhece o padrão:
 
 ```text
 abrir aplicativo + escrever/digitar texto
@@ -221,6 +248,8 @@ Brave possui candidatos `brave-browser`, `brave-browser-stable` e `brave`.
 
 Abrir um navegador instalado é `open_app`; navegar para endereço é `open_url`.
 
+Um pedido genérico `abrir navegador e acessar <domínio>` usa `open_url`, pois a navegação já implica abrir a janela estruturada. Um navegador explicitamente nomeado é aberto como aplicativo com a URL como argumento.
+
 ## 11. Desktop, Unicode, foco e FAILSAFE
 
 O desktop físico usa PyAutoGUI no Linux/X11.
@@ -267,7 +296,7 @@ Permanece independente do planner e dos providers.
 - `response_json_schema=ACTION_SCHEMA`;
 - `max_output_tokens=1024`;
 - saída revalidada como `StructuredAction`;
-- nos testes mais recentes retornou `429 RESOURCE_EXHAUSTED` por quota.
+- nos testes recentes retornou `429 RESOURCE_EXHAUSTED` por quota.
 
 ### Cloudflare Workers AI
 
@@ -299,6 +328,6 @@ Canais futuros continuam Web remoto, WhatsApp, Telegram e Instagram.
 
 ## 17. Estado de validação
 
-O teste físico original do loop composto foi **FAIL**: o editor abriu, a digitação Unicode saiu incorreta e uma chamada posterior do Gemini atingiu quota.
+O teste físico `Abra o editor de texto e escreva Olá mundo` está **PASS**: Xed abriu, `Olá mundo` foi digitado corretamente e a task terminou `succeeded` com `planner=deterministic`, `rota=local-sequence`, `etapas=2` e `objetivo=concluido`.
 
-As correções de sequência local sem provider e digitação Unicode passaram em testes automatizados e no CI run `31306326869`, mas ainda precisam de validação física no Linux real.
+O teste físico `abrir navegador + acessar globo.com` estava **FAIL** antes do reconhecimento desse padrão. A correção passou no GitHub Actions CI run `31307288547`, mas ainda precisa ser revalidada fisicamente no Linux real.
