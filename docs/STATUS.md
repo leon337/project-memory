@@ -27,7 +27,7 @@ O usuário não encerrou a revisão visual como aprovada. Na avaliação seguint
 1. os antigos **Controles rápidos** disparavam ações, mas não permitiam entender pelo próprio controle o estado atual de Central/Robô/emergência;
 2. a área **Logs ao vivo** não representava de forma confiável logs reais da aplicação quando os processos tinham sido iniciados fora do Painel.
 
-Uma terceira revisão já está implementada no `main`:
+Uma terceira revisão está implementada e já foi carregada fisicamente no computador alvo:
 
 - fundo ainda mais escuro (`#010308`);
 - **Controles de estado** para Central, Robô e Emergência;
@@ -39,11 +39,20 @@ Uma terceira revisão já está implementada no `main`:
 - tarefas recentes diferenciam `queued`, `running`, `succeeded` e `failed` em vez de usar sempre um ✓ verde;
 - a área foi renomeada para **Logs reais da aplicação** e possui filtros **Todos / Painel / Central / Robô**.
 
+Validação física desta revisão:
+
+- **Central** apareceu como **Ligada fora do Painel**, coerente com o fato de ainda estar rodando em terminal separado;
+- o controle da Central mostrou estado **LIGADA** e substituiu ações enganosas por uma indicação explícita de execução externa;
+- **Robô local** apareceu como **Ligado**, com ações **Parar Robô** e **Reiniciar** disponíveis;
+- **Emergência** apareceu como **Normal**, com a ação **Ativar emergência** disponível;
+- as telas **Configurações** e **Laboratório** continuaram renderizando corretamente após a revisão;
+- a seção **Logs reais da aplicação** exibiu evento real do Painel com timestamp e origem `[PAINEL]` logo após sua inicialização.
+
 ### Telemetria real
 
 Foi criado `src/context_anchor/runtime_log.py`.
 
-Painel, Central e Robô agora gravam eventos estruturados próprios em:
+Painel, Central e Robô gravam eventos estruturados próprios em:
 
 - `runtime/logs/panel.log`;
 - `runtime/logs/central.log`;
@@ -64,7 +73,7 @@ Commits principais desta rodada:
 - `823715419db91206dfac455b3af2b47c29b4b618` — testes do novo Painel;
 - `fd5192628c7c1e6c4d3e58a00dbc09693265b4f2` — testes do logger de runtime.
 
-O CI do código desta rodada concluiu com **success**. A terceira revisão foi baixada com sucesso no computador alvo por `git pull`, atualizando a cópia local até `34e8e51`. Os processos Painel, Central e Robô que estavam em execução durante o pull ainda carregam o código anterior em memória e precisam ser reiniciados separadamente antes da validação física da nova UI e da telemetria.
+O CI do código desta rodada concluiu com **success**.
 
 ## Gerenciamento de processos
 
@@ -120,7 +129,7 @@ Confirmado no computador alvo:
 - encadeamento abrir editor → digitar validado após correção de foco;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
 - segunda revisão ultra escura carregada e confirmada visualmente nas três telas;
-- terceira revisão com controles de estado e telemetria real baixada com sucesso por `git pull`.
+- terceira revisão carregada e validada fisicamente para controles de estado e log real do Painel.
 
 ## Falhas já diagnosticadas
 
@@ -129,15 +138,14 @@ Confirmado no computador alvo:
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
 - tema claro original causava desconforto visual; revisões dark foram aplicadas;
-- controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e aguardando validação física;
-- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada produzida por cada componente e aguardando validação física.
+- controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
+- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. O log real do Painel já foi validado fisicamente; Central e Robô ainda precisam ser reiniciados com o código novo para validar seus próprios eventos.
 
 ## Ainda precisa de validação física
 
-- reiniciar o Painel para carregar a terceira revisão;
-- confirmar visualmente que **Controles de estado** refletem Central, Robô e Emergência corretamente;
-- validar que a Central atualmente iniciada fora do Painel aparece explicitamente como externa, se esse ainda for o estado real;
-- reiniciar Central e Robô com o código novo e confirmar eventos reais aparecendo nos filtros de log;
+- reiniciar a Central com o código novo e confirmar eventos reais no filtro **Central**;
+- reiniciar o Robô com o código novo e confirmar eventos reais no filtro **Robô**;
+- validar transições dos **Controles de estado** ao ligar/parar/reiniciar componentes pelo próprio Painel;
 - validar `FAILSAFE` físico;
 - validar parada de emergência real e liberação consciente;
 - concluir ciclo completo de gerenciamento sem dependência normal de terminais.
