@@ -98,7 +98,7 @@ Confirmado no computador alvo:
 
 - `src/context_anchor/desktop.py` foi alterado para esperar foco observável e proteger teclado contra mudança de janela;
 - `tests/test_desktop_focus.py` cobre rastreamento da janela focada, recusa de digitação quando o foco muda, registro da janela de destino e atualização de foco por clique;
-- o CI dos commits dessa correção estava em execução na última verificação;
+- o CI do commit `f0d424df42df1f67272d051106a326ce86319f07` concluiu com **success**;
 - a correção ainda precisa ser puxada para o computador alvo e retestada fisicamente com `abrir aplicativo editor` seguido de `digitar teste do robo`, sem ação intermediária artificial.
 
 ## Ainda precisa de validação física
