@@ -44,6 +44,14 @@ Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
 `Pillow` é dependência explícita porque o caminho de screenshot usa `PIL` por meio de `pyscreeze`.
 
+A sincronização de foco foi reforçada em `main` após o teste físico de digitação:
+
+- ao abrir aplicativo, o backend espera a janela ativa mudar em vez de confiar apenas em um `sleep` curto;
+- a janela que recebeu foco é registrada como alvo esperado para teclado;
+- digitação e tecla recusam execução se o foco mudou para outra janela;
+- clique atualiza a janela esperada e pode confirmar novo foco;
+- resultados de teclado registram id e título da janela ativa.
+
 ## Navegador
 
 - Playwright + Chromium;
@@ -72,10 +80,10 @@ Confirmado no computador alvo:
 - Pillow `12.3.0` instalado na `.venv`;
 - tarefas `capturar tela` concluíram como **`succeeded`**;
 - tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`;
-- movimento físico do mouse validado pelo Painel: comandos `mover mouse 200 200`, `mover mouse 600 200`, `mover mouse 600 350` e `mover mouse 600 355` concluíram como **`succeeded`**, com deslocamento visível do ponteiro para as coordenadas solicitadas;
-- clique físico validado visualmente: o ponteiro foi posicionado sobre o botão de minimizar e o comando `clicar` minimizou a janela, confirmando o efeito real do clique;
-- abertura de aplicativo permitida validada fisicamente: o comando `abrir aplicativo editor` abriu o editor Xed com um documento novo;
-- capacidade física de digitação foi validada em um segundo encadeamento: o Xed recebeu o texto `teste do robo`.
+- movimento físico do mouse validado pelo Painel;
+- clique físico validado visualmente ao minimizar uma janela;
+- abertura de aplicativo permitida validada fisicamente com o Xed;
+- capacidade física de digitação validada: o Xed recebeu o texto `teste do robo` em um segundo encadeamento.
 
 ## Falhas já diagnosticadas
 
@@ -84,12 +92,18 @@ Confirmado no computador alvo:
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - o primeiro encadeamento `abrir aplicativo editor` → `digitar teste do robo` marcou as duas tarefas como `succeeded`, mas o editor inicialmente permaneceu sem o texto esperado;
 - o segundo encadeamento funcionou quando uma ação intermediária de movimento do mouse adicionou tempo antes da digitação;
-- isso confirma uma condição de corrida de prontidão/foco: `open_application()` espera apenas cerca de `0.15 s` antes de retornar, e `type_text()` atualmente considera a digitação verificada assim que envia as teclas, sem comprovar o destino do foco;
-- portanto a digitação física funciona, mas o encadeamento automático de ações de desktop ainda não é confiável.
+- isso confirmou uma condição de corrida de prontidão/foco e também mostrou que `succeeded` não pode significar apenas “teclas enviadas”.
+
+## Correção em validação
+
+- `src/context_anchor/desktop.py` foi alterado para esperar foco observável e proteger teclado contra mudança de janela;
+- `tests/test_desktop_focus.py` cobre rastreamento da janela focada, recusa de digitação quando o foco muda, registro da janela de destino e atualização de foco por clique;
+- o CI dos commits dessa correção estava em execução na última verificação;
+- a correção ainda precisa ser puxada para o computador alvo e retestada fisicamente com `abrir aplicativo editor` seguido de `digitar teste do robo`, sem ação intermediária artificial.
 
 ## Ainda precisa de validação física
 
-- corrigir e retestar sincronização/foco entre `abrir aplicativo` e `digitar`;
+- retestar sincronização/foco entre `abrir aplicativo` e `digitar` com a correção nova;
 - teclas permitidas;
 - diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
