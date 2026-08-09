@@ -69,7 +69,7 @@ def test_cloudflare_provider_uses_json_schema_and_accepts_object_response(
     assert captured["json"]["response_format"]["type"] == "json_schema"
 
 
-def test_gemini_provider_uses_generate_content_structured_output_fields(
+def test_gemini_provider_uses_interactions_structured_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict = {}
@@ -81,15 +81,15 @@ def test_gemini_provider_uses_generate_content_structured_output_fields(
             url,
             200,
             {
-                "candidates": [
+                "status": "completed",
+                "steps": [
                     {
-                        "content": {
-                            "parts": [
-                                {"text": '{"action":"active_window","target":"active"}'}
-                            ]
-                        }
+                        "type": "model_output",
+                        "content": [
+                            {"type": "text", "text": '{"action":"active_window","target":"active"}'}
+                        ],
                     }
-                ]
+                ],
             },
         )
 
@@ -99,11 +99,42 @@ def test_gemini_provider_uses_generate_content_structured_output_fields(
     result = provider.generate_plan("qual janela está ativa?")
 
     assert result == {"action": "active_window", "target": "active"}
-    config = captured["json"]["generationConfig"]
-    assert config["responseMimeType"] == "application/json"
-    assert config["responseJsonSchema"]["type"] == "object"
-    assert "responseFormat" not in config
-    assert captured["url"].endswith("gemini-3.5-flash:generateContent")
+    assert captured["url"].endswith("/v1beta/interactions")
+    assert captured["json"]["model"] == "gemini-3.5-flash"
+    assert captured["json"]["response_format"]["type"] == "text"
+    assert captured["json"]["response_format"]["mime_type"] == "application/json"
+    assert captured["json"]["response_format"]["schema"]["type"] == "object"
+
+
+def test_gemini_provider_accepts_fenced_json_without_skipping_structured_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_post(url: str, **kwargs):
+        return _response(
+            url,
+            200,
+            {
+                "status": "completed",
+                "steps": [
+                    {
+                        "type": "model_output",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "```json\n{\"action\":\"open_app\",\"target\":\"editor\"}\n```",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    provider = GeminiProvider("secret")
+
+    result = provider.generate_plan("abra o editor")
+
+    assert result == {"action": "open_app", "target": "editor"}
 
 
 def test_provider_429_preserves_retry_after_and_safe_error_detail(
