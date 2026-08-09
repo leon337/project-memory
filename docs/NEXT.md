@@ -1,26 +1,27 @@
 # NEXT
 
-## 1. Concluir a validação do novo dark mode do Painel
+## 1. Validar a segunda revisão ultra escura do Painel
 
-A primeira revisão visual já está implementada no `main`, foi puxada para o computador alvo e a **Visão geral** já carregou corretamente pelo atalho do desktop.
+A segunda revisão visual já está implementada no `main` com fundo próximo de preto, tipografia mais legível, melhor hierarquia, melhor uso do espaço e layouts específicos para Visão geral, Configurações e Laboratório.
 
 Próximos passos, em ordem:
 
-1. abrir **Configurações** e verificar se todos os cartões, botões, textos e diagnóstico continuam legíveis no tema escuro;
-2. abrir **Laboratório** e verificar campos, botões, explicações e contraste;
-3. confirmar com o usuário se o novo tema está confortável para uso prolongado ou se precisa de ajustes adicionais.
+1. executar `git pull` no computador alvo;
+2. reiniciar apenas o processo do **Painel do Robô** pelo atalho do desktop;
+3. validar visualmente **Visão geral**, **Configurações** e **Laboratório**;
+4. confirmar conforto, legibilidade, contraste, organização e funcionamento dos controles.
 
-Critério de conclusão: o usuário deve considerar o novo tema confortável para uso prolongado e nenhum controle funcional pode ter sido prejudicado pela mudança visual.
+Critério de conclusão: o usuário deve aprovar o tema ultra escuro para uso prolongado e nenhum controle funcional pode ser prejudicado pela revisão visual.
 
 ## 2. Concluir segurança e operação física
 
-Depois da validação visual, retomar os testes em passos pequenos:
+Depois da validação visual:
 
 - validar o `FAILSAFE` físico;
 - validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
 - ligar, parar e reiniciar Central e Robô pelo Painel;
 - confirmar estados corretos após cada transição;
-- testar o Laboratório com um comando conhecido, confirmando explicação sem execução automática de shell;
+- testar o Laboratório com um comando conhecido;
 - reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local.
 
 Critério de conclusão: mecanismos de parada, operação e diagnóstico devem funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
