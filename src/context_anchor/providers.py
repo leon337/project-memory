@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from typing import Any
 
 import httpx
+from google import genai
+from google.genai import types
 
 from .planner import ProviderGenerationError, StructuredAction
 
@@ -58,6 +60,9 @@ def _decode_json_text(value: str, provider: str) -> Any:
 def _validated_mapping(value: Any, provider: str) -> Mapping[str, Any]:
     if isinstance(value, str):
         value = _decode_json_text(value, provider)
+
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
 
     if not isinstance(value, Mapping):
         raise ProviderGenerationError(provider, "resposta estruturada não é um objeto JSON")
@@ -152,28 +157,14 @@ def _post_json(
     return payload
 
 
-def _gemini_interaction_text(payload: Mapping[str, Any]) -> str:
-    steps = payload.get("steps")
-    if not isinstance(steps, list):
-        raise ProviderGenerationError("gemini", "estrutura de resposta inesperada")
-
-    for step in reversed(steps):
-        if not isinstance(step, Mapping) or step.get("type") != "model_output":
-            continue
-        content = step.get("content")
-        if not isinstance(content, list):
-            continue
-        text_parts = [
-            item.get("text")
-            for item in content
-            if isinstance(item, Mapping)
-            and item.get("type") == "text"
-            and isinstance(item.get("text"), str)
-        ]
-        if text_parts:
-            return "".join(text_parts)
-
-    raise ProviderGenerationError("gemini", "resposta não contém saída textual")
+def _safe_sdk_error_detail(exc: Exception, secret: str) -> str:
+    status_code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    text = str(exc).replace("\r", " ").replace("\n", " ").strip()
+    if secret:
+        text = text.replace(secret, "[redacted]")
+    if status_code is not None and str(status_code) not in text:
+        text = f"{status_code}: {text}"
+    return text[:300] or exc.__class__.__name__
 
 
 class ZAIProvider:
@@ -269,41 +260,64 @@ class CloudflareWorkersAIProvider:
 
 class GeminiProvider:
     name = "gemini"
+    _minimum_timeout_ms = 10_500
 
     def __init__(
         self,
         api_key: str,
         *,
-        model: str = "gemini-3.5-flash",
+        model: str = "gemini-3.6-flash",
         timeout_seconds: float = 25.0,
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
+        timeout_ms = max(int(timeout_seconds * 1000), self._minimum_timeout_ms)
+        retry_options = types.HttpRetryOptions(
+            attempts=1,
+            initial_delay=0.5,
+            max_delay=1.0,
+            exp_base=2.0,
+            jitter=0.5,
+            http_status_codes=[408, 429, 500, 502, 503, 504],
+        )
+        self._client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                timeout=timeout_ms,
+                retry_options=retry_options,
+            ),
+        )
+        self._config = types.GenerateContentConfig(
+            system_instruction=PLANNER_SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=ACTION_SCHEMA,
+            temperature=0.1,
+            max_output_tokens=160,
+        )
 
     def generate_plan(self, objective: str) -> Mapping[str, Any]:
-        prompt = f"{PLANNER_SYSTEM_PROMPT}\nPedido do usuário:\n{objective}"
-        payload = _post_json(
-            self.name,
-            "https://generativelanguage.googleapis.com/v1beta/interactions",
-            headers={
-                "x-goog-api-key": self.api_key,
-                "Content-Type": "application/json",
-            },
-            body={
-                "model": self.model,
-                "input": prompt,
-                "response_format": {
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": ACTION_SCHEMA,
-                },
-                "generation_config": {
-                    "temperature": 0.1,
-                    "max_output_tokens": 160,
-                },
-            },
-            timeout_seconds=self.timeout_seconds,
-        )
-        content = _gemini_interaction_text(payload)
-        return _validated_mapping(content, self.name)
+        try:
+            response = self._client.models.generate_content(
+                model=self.model,
+                contents=objective,
+                config=self._config,
+            )
+        except Exception as exc:
+            status_code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if not isinstance(status_code, int):
+                status_code = None
+            raise ProviderGenerationError(
+                self.name,
+                _safe_sdk_error_detail(exc, self.api_key),
+                status_code=status_code,
+            ) from exc
+
+        parsed = getattr(response, "parsed", None)
+        if parsed is not None:
+            return _validated_mapping(parsed, self.name)
+
+        text = getattr(response, "text", None)
+        if not isinstance(text, str) or not text.strip():
+            raise ProviderGenerationError(self.name, "SDK Gemini não retornou conteúdo estruturado")
+        return _validated_mapping(text, self.name)
