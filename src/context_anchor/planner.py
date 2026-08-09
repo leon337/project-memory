@@ -6,6 +6,7 @@ from typing import Any, Literal, Mapping, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .desktop import canonical_app_id
 from .policy import Plan, plan_command
 
 ActionName = Literal[
@@ -64,9 +65,45 @@ class DeterministicPlanner:
         return plan_command(objective)
 
 
+_PROVIDER_APP_ALIASES = {
+    "editor de texto": "editor",
+    "editor texto": "editor",
+    "text editor": "editor",
+    "xed": "editor",
+    "gedit": "editor",
+    "gerenciador de arquivos": "arquivos",
+    "file manager": "arquivos",
+    "nemo": "arquivos",
+    "nautilus": "arquivos",
+    "google chrome": "chromium",
+    "chrome": "chromium",
+    "chromium browser": "chromium",
+    "vs code": "vscode",
+    "visual studio code": "vscode",
+    "code": "vscode",
+    "gnome calculator": "calculadora",
+    "mate calc": "calculadora",
+}
+
+
+def _normalize_provider_app_target(value: str) -> str:
+    """Map common model wording to an existing fixed local app id.
+
+    This does not add capabilities. It only canonicalizes aliases to ids that are
+    already enforced by the Policy Layer and the desktop executor allowlist.
+    """
+
+    normalized = value.strip().casefold().replace("_", " ").replace("-", " ")
+    normalized = " ".join(normalized.split())
+    return _PROVIDER_APP_ALIASES.get(normalized, canonical_app_id(normalized))
+
+
 def plan_from_structured(payload: Mapping[str, Any]) -> Plan:
     parsed = StructuredAction.model_validate(payload)
-    return Plan(action=parsed.action, target=parsed.target)
+    target = parsed.target
+    if parsed.action == "open_app":
+        target = _normalize_provider_app_target(target)
+    return Plan(action=parsed.action, target=target)
 
 
 class ProviderPlanner:
