@@ -2,87 +2,50 @@
 
 ## Objetivo atual
 
-Construir um operador digital local capaz de usar navegador e desktop dentro das permissões concedidas pelo usuário e pelo sistema operacional.
+Construir um operador digital local capaz de usar navegador e desktop dentro das permissões concedidas pelo usuário e pelo sistema operacional, evoluindo depois para planejamento por IA, autonomia multietapa e acesso remoto seguro.
 
 ## Estado verificável agora
 
 O branch `main` contém o **MVP 0.3** com três processos separados:
 
-- **Painel do Robô** — interface local de operação e aprendizado;
-- **Central** — recebe, persiste e distribui tarefas;
-- **Robô local** — executa ações permitidas no computador.
+- **Painel do Robô** — interface local de operação, configuração, diagnóstico e aprendizado em `127.0.0.1:8765`;
+- **Central** — recebe, persiste e distribui tarefas em `127.0.0.1:8000`;
+- **Robô local** — consulta a fila, valida ações e executa capacidades permitidas no computador.
+
+O fluxo físico principal do MVP 0.3 foi validado no Linux/X11 real.
 
 ## Painel do Robô
 
-Implementado em `src/context_anchor/dashboard.py`, iniciado por `painel-robo` e disponível por padrão apenas em `127.0.0.1:8765`.
+Implementado em `src/context_anchor/dashboard.py` e iniciado por `painel-robo`.
 
-O Painel mostra estado, configuração, diagnóstico, fila, telemetria e controles locais. O Laboratório não oferece shell arbitrário.
+O Painel mostra estado real, configuração, diagnóstico, fila, telemetria e controles locais. A revisão atual usa tema ultra escuro e controles orientados por estado.
 
-### Revisão visual e operacional
+Validado fisicamente:
 
-O tema claro original foi rejeitado em uso real por causar desconforto visual. Uma primeira revisão dark melhorou a luminosidade, mas ainda foi considerada simples. A segunda revisão ultra escura foi carregada e confirmada fisicamente nas telas **Visão geral**, **Configurações** e **Laboratório**.
+- Central distingue **Desligada**, **Ligada e gerenciada pelo Painel** e **Ligada fora do Painel**;
+- Robô mostra estados **Ligado**, **Desligado** e bloqueado por emergência;
+- emergência alterna corretamente entre **NORMAL** e **ATIVA**;
+- tarefas recentes diferenciam `queued`, `running`, `succeeded` e `failed`;
+- logs reais de Painel, Central e Robô aparecem separados por origem;
+- Central e Robô podem ser iniciados, parados e reiniciados pelo Painel;
+- o atalho local `Painel do Robo.desktop` inicia o Painel;
+- Configurações e Laboratório renderizam e permanecem funcionais.
 
-O usuário não encerrou a revisão visual como aprovada. Na avaliação seguinte apontou dois problemas funcionais de interface:
+A revisão estética final do tema não foi formalmente encerrada como aprovada; operacionalmente a interface atual foi usada durante toda a validação física.
 
-1. os antigos **Controles rápidos** disparavam ações, mas não permitiam entender pelo próprio controle o estado atual de Central/Robô/emergência;
-2. a área **Logs ao vivo** não representava de forma confiável logs reais da aplicação quando os processos tinham sido iniciados fora do Painel.
+## Telemetria real
 
-Uma terceira revisão está implementada e já foi carregada fisicamente no computador alvo:
+Implementada em `src/context_anchor/runtime_log.py`.
 
-- fundo ainda mais escuro (`#010308`);
-- **Controles de estado** para Central, Robô e Emergência;
-- texto, cor e ação de cada controle mudam conforme `/api/status`;
-- Central distingue **desligada**, **ligada e gerenciada** e **ligada fora do Painel**;
-- quando a Central está ligada externamente, o Painel não finge possuir capacidade de parada e informa a situação;
-- Robô bloqueado por emergência não oferece ação de início;
-- emergência alterna visualmente entre estado **Normal** e **ATIVA**;
-- tarefas recentes diferenciam `queued`, `running`, `succeeded` e `failed` em vez de usar sempre um ✓ verde;
-- a área foi renomeada para **Logs reais da aplicação** e possui filtros **Todos / Painel / Central / Robô**.
-
-Validação física desta revisão:
-
-- **Central** apareceu inicialmente como **Ligada fora do Painel**, coerente com o fato de estar rodando em terminal separado;
-- depois que a Central externa foi encerrada no terminal, o Painel atualizou automaticamente para **Desligada** e passou a oferecer apenas **Ligar Central**;
-- a Central foi então iniciada pelo próprio Painel e passou a aparecer como **LIGADA — Em execução e gerenciada pelo Painel**, oferecendo **Parar Central**;
-- **Robô local** aparece como **Ligado**, com ações **Parar Robô** e **Reiniciar** disponíveis;
-- o Robô foi reiniciado pelo próprio Painel e voltou ao estado operacional, com os controles continuando coerentes;
-- **Emergência** aparece como **Normal**, com a ação **Ativar emergência** disponível;
-- as telas **Configurações** e **Laboratório** continuam renderizando corretamente após a revisão;
-- a seção **Logs reais da aplicação** exibiu evento real do Painel com timestamp e origem `[PAINEL]` logo após sua inicialização;
-- após iniciar a Central pelo Painel, a seção exibiu eventos reais separados de `[PAINEL]` e `[CENTRAL]`, incluindo solicitação de início, inicialização da Central em `127.0.0.1:8000` e registro do PID criado pelo Painel;
-- após reiniciar o Robô pelo Painel, a seção exibiu a sequência real de solicitação de reinício, parada, novo início e eventos `[ROBÔ]` informando `agente=desktop-principal` e `desktop=habilitado`;
-- a parada de emergência foi validada fisicamente em dois ciclos pelo Painel: ao ativar, o estado passou para **ATIVA**, o Robô passou para **DESLIGADO** com texto **Bloqueado pela parada de emergência**, e os controles de início/reinício ficaram indisponíveis;
-- em ambos os ciclos, **Liberar emergência** devolveu o estado para **NORMAL** e o Robô permaneceu desligado até uma ação humana explícita de **Ligar Robô**;
-- depois da liberação, o Robô foi iniciado pelo Painel e voltou para **LIGADO**; os logs registraram `PARADA DE EMERGÊNCIA ativada`, `Parada de emergência liberada`, `Solicitado início do Robô`, novo PID e `Robô iniciando`;
-- o ciclo normal sem emergência também foi validado fisicamente: **Parar Robô** colocou o componente em **DESLIGADO**, exibiu **Ligar Robô**, e a ação de ligar retornou o Robô para **LIGADO**;
-- os logs desse ciclo normal registraram `Solicitada parada do Robô`, `Sinal de parada enviado para o Robô`, depois `Solicitado início do Robô`, novo PID `126279` e `Robô iniciando agente=desktop-principal desktop=habilitado`.
-
-### Telemetria real
-
-Foi criado `src/context_anchor/runtime_log.py`.
-
-Painel, Central e Robô gravam eventos estruturados próprios em:
+Arquivos estruturados:
 
 - `runtime/logs/panel.log`;
 - `runtime/logs/central.log`;
 - `runtime/logs/robot.log`.
 
-Cada evento possui timestamp com timezone, nível e mensagem operacional. Esses logs são produzidos pelo próprio componente, portanto não dependem de o processo ter sido iniciado pelo Painel.
+Os componentes gravam timestamp, nível e eventos operacionais. Credenciais não são registradas e o logger estruturado não copia o texto bruto das tarefas.
 
-Eventos estruturados registram ids de tarefas, estados, transições e erros. Credenciais não são registradas e o logger de runtime não copia o texto bruto das tarefas para o log.
-
-Quando o Painel inicia Central ou Robô, `stdout/stderr` bruto é separado em `central-process.log` e `robot-process.log`.
-
-Commits principais da rodada do Painel e telemetria:
-
-- `2aec014c2c7e55570e818a748394ad044e77717f` — logger persistente de runtime;
-- `4936badd931091d596a8036786090238916b2ca7` — eventos reais da Central;
-- `5dfa6e685bc84885afb5dbe4c87497801bdeabc3` — eventos reais do Robô;
-- `c7962d092625f60743cb50393833a2c0c247b3de` — controles orientados por estado e UI de logs reais;
-- `823715419db91206dfac455b3af2b47c29b4b618` — testes do novo Painel;
-- `fd5192628c7c1e6c4d3e58a00dbc09693265b4f2` — testes do logger de runtime.
-
-O CI dessa rodada concluiu com **success**.
+Quando o Painel inicia Central ou Robô, `stdout/stderr` bruto fica separado em `central-process.log` e `robot-process.log`.
 
 ## Gerenciamento de processos
 
@@ -90,117 +53,136 @@ Implementado em `src/context_anchor/process_registry.py`.
 
 - registros guardam PID e tempo de início do processo;
 - a identidade é verificada antes de encerrar processos;
-- processos Linux em estado `Z` (zumbi) são considerados desligados.
+- processos Linux em estado `Z` são considerados desligados.
 
-A correção de processo zumbi já foi validada fisicamente.
+A correção para processo zumbi foi validada fisicamente.
 
 ## Desktop
 
 Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
-- capturar screenshot;
-- consultar janela ativa via `xdotool`;
+- screenshot;
+- janela ativa via `xdotool`;
 - mover mouse;
 - clique esquerdo e direito;
 - digitar texto limitado;
 - pressionar teclas permitidas;
 - abrir aplicativos de allowlist fixa.
 
-`Pillow` é dependência explícita porque o caminho de screenshot usa `PIL` por meio de `pyscreeze`.
+`Pillow` é dependência explícita para screenshot.
 
-A sincronização de foco foi reforçada e validada fisicamente: abrir aplicativo seguido de digitação funciona sem atraso artificial intermediário, e teclado recusa execução quando o foco observado não corresponde ao alvo esperado.
+A sincronização de foco foi reforçada e validada fisicamente: abrir aplicativo seguido de digitação funciona, e o teclado recusa execução quando o foco observado não corresponde ao alvo esperado.
 
 ### FAILSAFE explícito
 
-A primeira validação física do FAILSAFE nativo do PyAutoGUI **falhou**: com o ponteiro colocado no canto superior esquerdo, a tarefa `mover mouse 200 200` foi marcada como `succeeded`, o ponteiro foi movido e a telemetria registrou execução com sucesso.
+O FAILSAFE nativo do PyAutoGUI falhou no primeiro teste real: com o ponteiro no canto superior esquerdo, `mover mouse 200 200` ainda foi executado.
 
-A correção foi implementada no `main`:
+Foi implementada proteção própria:
 
-- `pyautogui.FAILSAFE = True` continua habilitado como defesa adicional;
-- o backend verifica diretamente a posição atual do ponteiro antes de `move_mouse`, `click_mouse`, `type_text` e `press_key`;
-- existe uma zona de segurança de 20 pixels nos quatro cantos da tela;
-- quando o ponteiro está nessa zona, o backend levanta `DesktopFailsafeTriggered` antes de enviar qualquer entrada física;
-- a exceção sobe pelo fluxo normal do Robô e faz a tarefa terminar como `failed`, com o tipo do erro registrado na telemetria;
-- testes automatizados cobrem os quatro cantos, mouse, clique, digitação, tecla e execução normal fora da zona.
+- `pyautogui.FAILSAFE = True` permanece como defesa adicional;
+- antes de mover, clicar, digitar ou pressionar tecla, o backend verifica a posição atual do ponteiro;
+- uma zona de 20 pixels nos quatro cantos dispara `DesktopFailsafeTriggered` antes de qualquer entrada física;
+- testes automatizados cobrem os quatro cantos e as ações físicas.
 
-Commits desta correção:
+Commits principais:
 
-- `8bcc59c7c03be8671a437c5a5a996e8b0dd332f7` — proteção explícita nos cantos;
+- `8bcc59c7c03be8671a437c5a5a996e8b0dd332f7` — proteção explícita;
 - `634b1b70db94e8c00c86821f36032bd6d81129f5` — adaptação dos testes de foco;
 - `4f398f4f745fbd996db13c710601fa83b3da5c37` — suíte específica do FAILSAFE.
 
-O CI do commit `4f398f4f745fbd996db13c710601fa83b3da5c37` concluiu com **success**.
-
-A correção foi **revalidada fisicamente no computador alvo em dois cantos da tela**. Em ambos os testes com `mover mouse 200 200`, a tarefa terminou como `failed` e a telemetria do Robô registrou `DesktopFailsafeTriggered` com a mensagem de que o ponteiro foi detectado na zona de segurança e a entrada física foi recusada antes da execução. Portanto, a proteção explícita cumpriu o critério físico que havia falhado com o FAILSAFE nativo do PyAutoGUI.
+O CI concluiu com **success** e a correção foi revalidada fisicamente em dois cantos: `mover mouse 200 200` terminou `failed` e os logs registraram `DesktopFailsafeTriggered` antes da entrada física.
 
 ## Navegador
 
 - Playwright + Chromium;
-- comandos `abrir <site>` e `pesquisar/buscar <termo>`;
-- validação de URL e bloqueios locais do MVP.
+- comandos atuais incluem `abrir <site>` e `pesquisar/buscar <termo>`;
+- localhost, `.local`, IPs privados/loopback/link-local/reservados permanecem bloqueados no caminho de navegação do MVP.
+
+Validação física concluída para `abrir example.com` e `pesquisar inteligência artificial`.
+
+## Parada de emergência
+
+Implementada em `src/context_anchor/emergency_stop.py` com sentinel persistente e encerramento independente do planner.
+
+Validada fisicamente em dois ciclos pelo Painel:
+
+- ativação colocou emergência em **ATIVA**;
+- o Robô foi encerrado e apareceu como **DESLIGADO**;
+- início e reinício ficaram bloqueados durante a emergência;
+- a liberação voltou para **NORMAL** sem reiniciar automaticamente;
+- o Robô voltou a **LIGADO** somente após ação humana explícita;
+- logs registraram ativação, liberação, solicitação de início, novo PID e inicialização.
+
+## Ciclo operacional normal
+
+Validado integralmente pelo Painel, sem terminal e sem emergência:
+
+**Parar Robô → Desligado → Ligar Robô → Ligado**.
+
+Os logs registraram solicitação de parada, sinal de parada, novo início e novo PID.
+
+## Laboratório de comandos guiados
+
+Validado fisicamente:
+
+- `git pull`, que está catalogado, foi reconhecido e apenas explicado;
+- a interface mostrou **O que faz**, **Por que usamos**, **Resultado esperado** e **Onde executar**;
+- o comando não foi executado automaticamente;
+- `git pull --ff-only`, não catalogado, também não foi executado e foi apresentado como comando desconhecido fora da execução automática.
+
+Portanto, o Laboratório mantém o requisito de **não ser um shell remoto arbitrário**.
 
 ## Planner
 
-O `DeterministicPlanner` continua ativo. Existe contrato provider-agnostic em `src/context_anchor/planner.py`, mas nenhum provedor de IA real está conectado ainda.
+O `DeterministicPlanner` continua ativo.
 
-## Validação física — Linux real
+Existe contrato provider-agnostic em `src/context_anchor/planner.py` e saída estruturada `StructuredAction`, mas **nenhum provedor de IA real está conectado ainda**.
+
+Este é o próximo marco de implementação.
+
+## Validação física consolidada — Linux real
 
 Confirmado no computador alvo:
 
 - sessão X11 com `DISPLAY=:0.0`;
 - `xdotool` e `scrot` instalados;
-- Central em `127.0.0.1:8000` funcionando;
-- Robô fazendo polling quando ligado;
-- `abrir example.com` concluído com sucesso;
-- `pesquisar inteligência artificial` concluído com sucesso;
-- `.env` local com `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`;
-- Painel funcionando em `127.0.0.1:8765`;
-- atalho `/home/leo/Área de trabalho/Painel do Robo.desktop` inicia o Painel;
-- movimento e clique físicos do mouse validados;
-- abertura do Xed, digitação e tecla **Enter** validadas;
-- encadeamento abrir editor → digitar validado após correção de foco;
-- botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
-- segunda revisão ultra escura carregada e confirmada visualmente nas três telas;
-- terceira revisão carregada e validada fisicamente para controles de estado;
-- transição real da Central de **Ligada fora do Painel** → **Desligada** → **Ligada e gerenciada pelo Painel** refletida corretamente;
-- telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada;
-- reinício do Robô pelo Painel validado, com novo PID e retorno ao estado operacional;
-- telemetria real do Robô validada fisicamente com eventos `[ROBÔ]` e `[PAINEL]` coerentes com a reinicialização;
-- FAILSAFE explícito revalidado fisicamente em dois cantos: as duas tarefas `mover mouse 200 200` terminaram `failed` e os logs registraram `DesktopFailsafeTriggered` antes da entrada física;
-- parada de emergência validada fisicamente em dois ciclos: ativação desligou e bloqueou o Robô, a interface impediu início/reinício enquanto o estado estava **ATIVA**, a liberação voltou para **NORMAL** sem reinício automático, e o Robô só voltou para **LIGADO** após ação humana explícita; logs registraram todas essas transições e os novos PIDs;
-- ciclo normal **Parar Robô → Desligado → Ligar Robô → Ligado** validado integralmente pelo Painel sem terminal e sem acionar emergência; o novo início ficou registrado com PID `126279`.
+- Central e Robô operacionais;
+- navegador real validado;
+- Desktop habilitado por `.env`;
+- screenshot, mouse, clique, Xed, digitação e tecla Enter validados;
+- proteção de foco validada;
+- diagnóstico mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
+- controles de estado e telemetria real validados;
+- FAILSAFE explícito validado em dois cantos;
+- parada de emergência validada em dois ciclos;
+- ciclo normal parar/ligar Robô validado;
+- Laboratório validado para comando conhecido e desconhecido sem execução automática.
 
 ## Falhas já diagnosticadas
 
 - screenshot falhava por ausência de `PIL`; corrigido com Pillow;
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
-- primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
-- tema claro original causava desconforto visual; revisões dark foram aplicadas;
-- controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
-- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel, Central e Robô já foram validados fisicamente;
-- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física no primeiro teste real; foi substituído como proteção principal por uma verificação explícita própria nos cantos, que passou no CI e foi revalidada fisicamente em dois cantos.
-
-## Ainda precisa de validação física
-
-- testar o Laboratório com um comando conhecido;
-- confirmar o fluxo diário pelo atalho `Painel do Robô` e pela interface Web local sem dependência normal de terminais separados.
+- abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
+- controles antigos não refletiam estado real; corrigidos e validados;
+- logs anteriores dependiam dos processos terem sido iniciados pelo Painel; substituídos por telemetria estruturada;
+- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física; a proteção explícita própria corrigiu o problema e foi validada.
 
 ## Ainda não implementado
 
-- seletor claro/escuro e preferências visuais persistentes;
+- planner conectado a IA real;
+- loop autônomo multietapa orientado a objetivo;
 - árvore de acessibilidade;
 - percepção semântica de screenshots;
 - controle genérico de arquivos;
 - câmera;
-- planner conectado a IA real;
-- loop autônomo multietapa orientado a objetivo;
 - confirmação humana completa para ações sensíveis;
 - publicação segura do Painel/Central para acesso remoto;
 - WhatsApp;
 - Telegram;
-- Instagram.
+- Instagram;
+- seletor claro/escuro e preferências visuais persistentes.
 
 ## Limite operacional atual
 
-Painel e Central escutam apenas localhost por padrão e não devem ser expostos diretamente à Internet nesta versão.
+Painel e Central escutam apenas localhost por padrão e **não devem ser expostos diretamente à Internet** nesta versão.
