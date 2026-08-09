@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 
 from .config import ControlPlaneSettings, DashboardSettings
 from .process_registry import registered_process
+from .runtime_log import write_runtime_log
 from .schemas import AgentResult, AgentTask, TaskCreate, TaskView
 from .store import TaskStore
 
@@ -90,8 +91,12 @@ def _bearer_token(authorization: str | None) -> str:
 
 def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
     cfg = settings or ControlPlaneSettings()
+    dashboard_cfg = DashboardSettings()
     store = TaskStore(cfg.db_path)
     app = FastAPI(title="Central do Robô", version="0.2.0")
+
+    def log(message: str, *, level: str = "INFO") -> None:
+        write_runtime_log("central", message, level=level, log_dir=dashboard_cfg.log_dir)
 
     def require_user(authorization: Annotated[str | None, Header()] = None) -> None:
         token = _bearer_token(authorization)
@@ -113,7 +118,9 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
 
     @app.post("/api/tasks", response_model=TaskView, dependencies=[Depends(require_user)])
     def create_task(payload: TaskCreate) -> dict:
-        return store.create_task(payload.command)
+        task = store.create_task(payload.command)
+        log(f"Tarefa criada id={task['id']} status={task['status']}")
+        return task
 
     @app.get("/api/tasks/{task_id}", response_model=TaskView, dependencies=[Depends(require_user)])
     def get_task(task_id: str) -> dict:
@@ -131,6 +138,7 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
         )
         if task is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
+        log(f"Tarefa entregue id={task['id']} agente={agent_id} tentativa={task['attempts']}")
         return AgentTask(
             id=task["id"],
             command=task["command"],
@@ -147,10 +155,12 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
             error=payload.error,
         )
         if updated is None:
+            log(f"Resultado recusado id={task_id}: lease inválido ou expirado", level="WARN")
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Lease da tarefa expirou ou não pertence mais a esta execução.",
             )
+        log(f"Tarefa finalizada id={task_id} status={updated['status']}", level="INFO" if payload.ok else "ERROR")
         return updated
 
     return app
@@ -159,8 +169,16 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
 def main() -> None:
     cfg = ControlPlaneSettings()
     dashboard_cfg = DashboardSettings()
-    with registered_process(dashboard_cfg.central_pid_path):
-        uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port)
+    write_runtime_log(
+        "central",
+        f"Central iniciando em http://{cfg.host}:{cfg.port}",
+        log_dir=dashboard_cfg.log_dir,
+    )
+    try:
+        with registered_process(dashboard_cfg.central_pid_path):
+            uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port)
+    finally:
+        write_runtime_log("central", "Central encerrada", log_dir=dashboard_cfg.log_dir)
 
 
 if __name__ == "__main__":
