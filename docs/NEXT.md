@@ -1,61 +1,43 @@
 # NEXT
 
-## 1. Implementar interpretação geral + decomposição de objetivo
+## 1. Criar a fundação do Goal Runtime universal
 
-O baseline físico foi concluído. Não adicionar novos `regex` por frase como estratégia principal.
+A decisão arquitetural está tomada: todo pedido deverá usar a mesma semântica de objetivo/conclusão, seja resolvido por fast path determinístico ou por IA.
 
-Introduzir uma camada explícita que transforme linguagem natural em:
+Preparar primeiro a fundação leve antes da refatoração pesada:
 
-- intenção principal;
-- entidades relevantes;
-- capacidades necessárias;
-- subobjetivos ordenados;
-- critérios de conclusão do objetivo inteiro.
+- contratos tipados para Goal Contract, subobjetivos, critérios, artefatos e evidências;
+- estado de execução do objetivo;
+- Goal Verifier mínimo e determinístico;
+- testes de contrato provando que ação executada não equivale a objetivo concluído;
+- manter compatibilidade com o MVP enquanto a migração não termina.
 
-Ela deve resolver semanticamente casos como:
+Regressão principal: um objetivo composto não pode ser `succeeded` se ainda houver critério obrigatório pendente.
 
-- `Quero fazer uma anotação. Abra alguma coisa onde eu possa escrever` → capacidade de edição;
-- `Abra o Visual Studio Code` e `Abra o VS Code` → mesma entidade/aplicativo;
-- `Preciso fazer algumas contas` → capacidade de calculadora disponível;
-- `Quero saber o significado do nome Josiel` → objetivo informacional que pode exigir pesquisa;
-- pedidos compostos com `e depois`, sem transformar a frase inteira em uma única consulta de busca.
+## 2. Migrar `local_agent` para usar o Goal Runtime em todos os caminhos
 
-Critério de conclusão: pedidos semanticamente equivalentes geram a mesma representação operacional e um pedido composto não pode perder subobjetivos silenciosamente.
+Depois da fundação, substituir a bifurcação semântica atual por um runtime comum:
 
-## 2. Adicionar estado/evidência de objetivo e eliminar falso `succeeded`
+- fast paths viram skills/etapas dentro do Goal Run;
+- planner por IA sugere próxima etapa, mas não declara sucesso;
+- Execution Receipt, observação e evidência ficam separados;
+- somente o Goal Verifier autoriza o verdict final;
+- manter quotas, fallback de providers, Policy Layer, FAILSAFE e Emergency Stop inalterados.
 
-Representar por task:
-
-- objetivo original;
-- subobjetivos pendentes/concluídos;
-- evidências observadas por etapa;
-- estado operacional relevante;
-- motivo explícito de conclusão.
-
-Alterar o encerramento para que `succeeded` só seja emitido quando todos os critérios necessários do objetivo estiverem comprovados.
-
-Regressão obrigatória baseada no FAIL físico:
+Regressão física obrigatória:
 
 `Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
 
-Não pode ser considerado sucesso apenas porque uma busca foi aberta. O sistema precisa, no mínimo, pesquisar, observar/obter o primeiro resultado, abrir o editor, escrever o título e verificar a escrita antes de concluir.
+Não pode concluir até pesquisar, obter o primeiro resultado, transferir o título ao editor e comprovar o resultado.
 
-## 3. Evoluir percepção + contexto operacional e validar primeiro objetivo condicional
+## 3. Evoluir percepção, capacidades e contexto operacional
 
-Adicionar observações estruturadas suficientes para o loop autônomo, priorizando:
+Após o runtime comum estar estável:
 
-- URL atual;
-- título e texto/DOM útil da página;
-- janela/aplicativo ativo;
-- resultado de abertura/escrita;
-- contexto curto entre tasks (`agora`, `lá`, `nesse navegador`, `nesse site`, `depois`).
-
-Depois validar fisicamente um objetivo condicional real:
-
-```text
-Verifique uma condição observável.
-Se verdadeira, execute A.
-Se falsa, execute B.
-```
-
-Garantir ao menos um provider de raciocínio disponível no router durante esse teste, sem depender dele para fast paths determinísticos já conhecidos.
+- browser: DOM/texto/links/resultados estruturados;
+- desktop: accessibility/AT-SPI antes de visão multimodal;
+- capability resolver (`text.edit`, `calculate`, `browser.search`, `browser.read` etc.);
+- descoberta dinâmica de aplicativos;
+- Session Context curto entre tasks;
+- Recovery Manager com budgets, no-progress e estratégias alternativas;
+- primeiro objetivo condicional real com evidência de branch.
