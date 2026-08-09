@@ -2,7 +2,7 @@
 
 ## Objetivo atual
 
-Construir um operador digital local capaz de receber objetivos em linguagem natural, usar as capacidades que o usuário e o sistema operacional permitem e continuar executando etapas até concluir o objetivo.
+Construir um operador digital local capaz de receber objetivos em linguagem natural, usar as capacidades disponíveis ao usuário e ao sistema operacional e continuar executando até concluir o objetivo.
 
 ## Estado verificável agora
 
@@ -10,9 +10,9 @@ O `main` contém o MVP 0.3 com três processos separados:
 
 - **Painel do Robô** — `127.0.0.1:8765`;
 - **Central** — `127.0.0.1:8000`;
-- **Robô local** — polling autenticado, planner, execução e telemetria.
+- **Robô local** — polling autenticado, planejamento, execução, verificação e telemetria.
 
-Painel, Central e Robô continuam locais por padrão. Publicação remota ainda não foi implementada.
+Painel e Central continuam locais por padrão. Publicação remota ainda não foi implementada.
 
 ## Capacidades já validadas fisicamente
 
@@ -24,206 +24,145 @@ No Linux/X11 real já foram validados:
 - screenshot;
 - movimento e clique de mouse;
 - abertura de aplicativos;
-- digitação e tecla Enter;
+- digitação ASCII e tecla Enter;
 - proteção de foco entre ações de teclado;
 - navegação por Playwright/Chromium;
 - telemetria real de Painel, Central e Robô;
-- planner multi-provider com fallback Z.AI → Gemini;
-- primeira ação planejada por IA real e executada fisicamente: Gemini abriu Xed e a tarefa terminou `succeeded` com janela verificada.
+- planner multi-provider com fallback;
+- Gemini abrindo Xed, calculadora e navegador em testes reais anteriores.
 
-## Planner multi-provider
+## Providers
 
-O modo `multi` está implementado com:
+O modo `multi` possui adaptadores para:
 
-- Z.AI / GLM;
-- Google Gemini pelo SDK oficial `google-genai`;
-- Cloudflare Workers AI preparado, mas ainda sem `Account ID` configurado no ambiente real.
+- **Z.AI / GLM**;
+- **Google Gemini** via SDK oficial `google-genai`;
+- **Cloudflare Workers AI**, ainda sem `Account ID` configurado no ambiente real.
 
-O Gemini vigente usa `gemini-3.6-flash`, `response_json_schema` e `max_output_tokens=1024`.
+Estado observado nos testes mais recentes:
 
-Nos testes reais, Z.AI pode responder `HTTP 429 / 1305`; o router faz fallback antes de qualquer execução física.
+- Z.AI pode retornar `429/1305`;
+- Gemini retornou `429 RESOURCE_EXHAUSTED` por quota;
+- por isso uma tarefa simples não pode depender de várias chamadas externas consecutivas para funcionar.
 
-## Testes físicos adicionais de 2026-08-09
+## Teste físico do primeiro loop orientado a objetivo — FAIL
 
-Depois da primeira aceitação IA → editor, foram feitos novos testes de linguagem natural:
-
-### Calculadora
-
-Pedido equivalente a:
-
-`Eu preciso fazer algumas contas, abra a calculadora para mim`
-
-Resultado físico:
-
-- calculadora abriu;
-- tarefa `succeeded`;
-- logs registraram `planner=gemini` e `rota=fast`.
-
-### Navegador
-
-Pedido equivalente a:
-
-`Quero navegar na internet, abra o navegador para mim`
-
-Resultado físico:
-
-- Firefox abriu;
-- tarefa `succeeded`;
-- logs registraram `planner=gemini` e `rota=fast`.
-
-### Photoshop — falha da política antiga
-
-Pedido:
-
-`Abra o Photoshop para mim`
-
-Resultado físico antes da inversão de política:
-
-- tarefa `failed`;
-- `PermissionError: Aplicativo fora da allowlist local.`
-
-Esse resultado ajudou a confirmar que a allowlist fixa contrariava a direção desejada do produto.
-
-### Variação natural do editor — falha da política antiga
-
-Pedido:
-
-`Preciso escrever uma anotação, poderia abrir um editor de texto?`
-
-Resultado observado antes da inversão de política:
-
-- tarefa `failed` com `PermissionError: Aplicativo fora da allowlist local.`
-
-### Objetivo composto — falso sucesso no nível do objetivo
-
-Pedido:
+Em 2026-08-09 foi repetido:
 
 `Abra o editor de texto e escreva Olá mundo`
 
-Resultado físico:
+Resultado real:
 
 - Xed abriu;
-- o texto **não foi digitado**;
-- mesmo assim a tarefa apareceu como `succeeded`.
+- o Robô tentou a etapa de digitação;
+- o texto exibido ficou incorreto (`ol mundo` em vez de `Olá mundo`);
+- depois da ação física, o loop tentou consultar novamente o provider;
+- Gemini respondeu `429 RESOURCE_EXHAUSTED`;
+- a task terminou `failed`.
 
-A causa foi confirmada no código: `execute_command()` encerrava a tarefa depois de uma única `StructuredAction`. Portanto o sucesso da ação `open_app` estava sendo confundido com conclusão do objetivo inteiro.
+Nova tentativa sem acento também falhou, mas dessa vez antes de abrir o editor, porque o router não conseguiu obter um plano válido dos providers disponíveis.
 
-### Brave — duas falhas diferentes
+Portanto o teste foi classificado como **FAIL**.
 
-Testes com pedidos para abrir Brave mostraram:
+## Causas confirmadas
 
-1. uma frase começando exatamente por `abrir ` foi capturada pelo parser determinístico como se o restante fosse URL, produzindo navegação inválida semelhante a `%20navegador%20brave` em Chromium/Chrome for Testing;
-2. uma formulação mais natural chegou ao planner de IA, mas ainda encontrou a política antiga de aplicativos.
+### 1. Unicode na digitação
 
-Esses testes provaram que era necessário separar melhor **URL** de **aplicativo** e remover a autorização baseada em cadastro fixo.
+`type_text()` usava somente `pyautogui.write(...)`. No Linux/X11 real esse caminho não preservou corretamente o caractere `á`.
 
-## Mudança de política — implementada no código, validação física pendente
+### 2. Excesso de chamadas de IA para tarefa simples
 
-A direção vigente agora é **permissiva por padrão no perfil local confiável**.
+O primeiro loop consultava a IA depois de cada etapa física e também para obter `finish`.
 
-Implementado no `main`:
+Para uma tarefa simples como abrir editor + digitar texto, isso criava dependência desnecessária de várias chamadas consecutivas e tornava a task vulnerável a rate limit/quota depois de já ter executado parte do objetivo.
 
-- `open_app` não exige mais que o aplicativo pertença a `SUPPORTED_APP_IDS` para ser autorizado pela Policy Layer;
-- URLs HTTP/HTTPS locais, privadas ou públicas não são mais bloqueadas apenas por serem locais/privadas;
-- nomes de tecla imprimíveis não dependem mais de uma allowlist fechada;
-- aliases conhecidos continuam existindo apenas como conveniência;
-- `desktop.py` tenta resolver também executáveis/comandos que não estejam em `APP_COMMANDS`;
-- argumentos são preservados com `shlex.split(...)` e execução por `subprocess.Popen(..., shell=False)`;
-- Brave recebeu aliases de conveniência para `brave-browser`, `brave-browser-stable` ou `brave` quando instalados;
-- caminho determinístico `abrir ...` só assume `open_url` quando o alvo realmente se parece com URL/domínio; frases como `abrir o navegador brave` passam para o planner de IA.
+## Correções implementadas no `main` — validação física pendente
 
-A tabela `APP_COMMANDS` permanece no código somente como resolvedor de aliases/candidatos conhecidos, não como fronteira de autorização.
+### Digitação Unicode
 
-## Loop orientado a objetivo — implementado no código, validação física pendente
+`src/context_anchor/desktop.py` agora:
 
-Foi implementada a primeira versão do ciclo multietapa para pedidos planejados por IA:
+- continua usando `pyautogui.write(...)` para trechos ASCII;
+- para caracteres não ASCII usa entrada Unicode do Linux (`Ctrl+Shift+U` + código hexadecimal + Enter);
+- preserva o foco esperado e o FAILSAFE antes da digitação;
+- registra `input_method` no resultado sem registrar o conteúdo digitado.
+
+### Sequência local conhecida
+
+`src/context_anchor/policy.py` ganhou `plan_local_sequence(...)` para o primeiro padrão composto inequívoco:
 
 ```text
-objetivo original
-→ planner escolhe próxima ação
-→ Policy Layer
-→ executor
-→ observação compacta do resultado
-→ planner recebe objetivo + histórico
-→ próxima ação
-→ ...
-→ action=finish
-→ task succeeded
+abrir aplicativo + escrever/digitar texto
 ```
 
-Detalhes atuais:
+Exemplo:
 
-- `StructuredAction` ganhou a ação interna `finish`;
-- o provider continua escolhendo **uma próxima ação por vez**, em vez de gerar uma lista inteira antecipadamente;
-- depois de cada ação verificada, o Robô devolve ao planner um histórico compacto da etapa;
-- `finish` só encerra a task depois de pelo menos uma etapa executada;
-- se uma etapa retornar `verified=False`, o objetivo falha e não pode virar falso `succeeded`;
-- o loop tem limite configurável `CONTEXT_ANCHOR_GOAL_MAX_STEPS`, padrão 8;
-- o resultado final preserva lista de etapas e trace de providers/rotas/fallbacks;
-- o caminho determinístico simples continua sendo uma execução única para preservar quota e compatibilidade.
+`Abra o editor de texto e escreva Olá mundo`
 
-O teste automatizado cobre explicitamente:
+vira localmente:
 
-`open_app(editor) → type_text("Olá mundo") → finish`.
+```text
+open_app(editor)
+→ verificar
+→ type_text("Olá mundo")
+→ verificar
+→ objetivo concluído
+```
 
-Também há testes para limite de etapas e recusa de falso sucesso quando a etapa não é verificada.
+Essa sequência não chama Gemini, Z.AI ou Cloudflare.
+
+`src/context_anchor/local_agent.py` executa cada etapa da sequência local, registra observações e só retorna `goal_completed=true` se nenhuma etapa retornar `verified=False`.
+
+### Abertura de aplicativos sem IA quando inequívoca
+
+O caminho determinístico agora trata `abrir/abra/abre ...` assim:
+
+- se o alvo parece URL/domínio → `open_url`;
+- caso contrário → `open_app`.
+
+Assim, `abrir o navegador brave` é resolvido localmente para `brave-browser` e não precisa consumir quota de IA.
+
+Pedidos com sufixos como `para mim` e `por favor` também são normalizados.
+
+## Loop por IA continua existindo
+
+O loop `ação → observação → nova decisão → ... → finish` continua vigente para pedidos que realmente exigem raciocínio, condição, ambiguidade ou replanejamento.
+
+A otimização local não substitui o loop por IA; ela evita usar IA repetidamente quando a sequência é determinística e já conhecida.
 
 ## Validação automatizada
 
-No `main`, foram adicionados testes para:
+Foram adicionados testes para:
 
-- política local permissiva;
-- `abrir o navegador brave` não ser tratado como URL pelo parser determinístico;
-- aplicativo não cadastrado ser autorizado pela Policy Layer;
-- resolução de executável não cadastrado;
-- preservação de argumentos com `shell=False`;
-- loop `open_app → type_text → finish`;
-- limite de etapas;
-- etapa não verificada impedir conclusão falsa.
+- preservar exatamente `Olá mundo` no planejamento local;
+- executar `open_app → type_text` sem qualquer chamada ao provider;
+- entrada Unicode no backend de desktop;
+- `abrir o navegador brave` ser resolvido localmente como aplicativo;
+- formulação `abra o navegador brave para mim por favor`;
+- manter o loop por IA para objetivos que não pertencem ao caminho local conhecido.
 
-GitHub Actions CI run `31305151754` concluiu com **success** nas etapas Install, Compile e Test.
+GitHub Actions CI run `31306326869` terminou com **success** em Install, Compile e Test.
 
-## Estado de segurança/controle que permanece
+## Controles que permanecem
 
-Mesmo com a política local permissiva, continuam implementados:
+Continuam implementados:
 
 - parada de emergência persistente;
 - FAILSAFE físico próprio nos quatro cantos;
 - verificação de foco antes de teclado quando há janela esperada observável;
-- execução de processos com `shell=False` no resolvedor atual;
+- execução de processos do resolvedor com `shell=False`;
 - credenciais fora de código, Git, logs e prompts;
 - Painel e Central em localhost por padrão.
 
-Esses itens não funcionam como allowlist de aplicativos; são mecanismos operacionais independentes.
+## Ainda não validado fisicamente após as últimas correções
 
-## Próxima validação física obrigatória
-
-A nova implementação **ainda não foi validada no computador real**.
-
-O primeiro teste deve repetir exatamente:
-
-`Abra o editor de texto e escreva Olá mundo`
-
-Critério de sucesso:
-
-1. abrir Xed/Gedit;
-2. manter o foco correto;
-3. digitar `Olá mundo`;
-4. planner retornar `finish` depois das etapas;
-5. task terminar `succeeded` somente depois da conclusão integral.
-
-Depois deve ser repetido o teste do Brave para confirmar que ele abre como aplicativo e não como URL.
-
-## Ainda não implementado ou não validado
-
-- validação física do novo loop multietapa;
-- validação física da política permissiva e do resolvedor genérico de aplicativos;
-- percepção semântica de conteúdo de janela/screenshot;
-- árvore de acessibilidade;
-- multimodalidade ligada ao router;
-- provider/rota/target persistidos também quando uma etapa falha antes de produzir resultado final;
+- sequência local `open_app(editor) → type_text("Olá mundo")`;
+- entrada Unicode real com `á`;
+- Brave aberto pelo caminho determinístico local;
+- primeiro objetivo condicional real usando o loop por IA;
 - Cloudflare ativo no router real;
-- quota manager completo por provider;
+- percepção semântica de screenshots/árvore de acessibilidade;
+- multimodalidade;
 - câmera;
 - publicação remota segura;
 - WhatsApp, Telegram e Instagram.
