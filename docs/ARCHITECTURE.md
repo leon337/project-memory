@@ -128,16 +128,32 @@ Estado atual:
 - `ProviderPlanner` existe para integração externa;
 - nenhum provedor externo está ativo ainda.
 
-A arquitetura deve permanecer **provider-agnostic**. O caminho previsto para qualquer provedor é:
+A arquitetura permanece **provider-agnostic**, mas a direção definida para IA é agora **multi-provider com roteamento inteligente e quota-aware**.
+
+Arquitetura alvo:
 
 ```text
 pedido do usuário
       ↓
 ProviderPlanner
       ↓
-adaptador do provedor selecionado
+AI Router / Quota Manager
+  ├─ classifica capacidade exigida
+  ├─ observa quota/budget conhecido
+  ├─ respeita concorrência
+  ├─ mede latência
+  ├─ acompanha 429 / timeout / 5xx
+  └─ aplica cooldown / circuit breaker
       ↓
-resposta estruturada
+┌─────────────────────────────────────┐
+│ Z.AI / GLM-4.7-Flash               │ → reasoning / decisões complexas
+│ Cloudflare Workers AI              │ → fast planner / burst eficiente
+│ Google Gemini                      │ → multimodalidade / visão / fallback
+└─────────────────────────────────────┘
+      ↓
+adaptador do provedor escolhido
+      ↓
+resposta normalizada
       ↓
 StructuredAction
       ↓
@@ -146,19 +162,75 @@ Policy Layer
 executor permitido
 ```
 
-A seleção atual do primeiro provedor está em avaliação entre SiliconFlow, Z.AI/GLM, Cloudflare Workers AI e Groq. Essa avaliação não altera o contrato interno do planner.
+O roteador não usa round-robin simples. A seleção é feita por adequação à tarefa e estado operacional do provedor.
 
-Trocar de provedor não deve exigir alterações na Policy Layer, nos executores físicos, no FAILSAFE ou na parada de emergência.
+### 5.1 Papéis iniciais
 
-O adaptador do provedor deverá tratar erros, rate limits e respostas inválidas sem derrubar o Robô.
+**Z.AI / GLM-4.7-Flash**
+
+- alvo principal para reasoning e decisões complexas;
+- preço zero atual segundo a pesquisa/documentação auditada;
+- suporta reasoning, tools e structured output;
+- a conta real validada mostrou `concurrency limit = 1` para `GLM-4.7-Flash`, portanto o roteador deve serializar ou respeitar esse teto.
+
+**Cloudflare Workers AI**
+
+- alvo para decisões simples, frequentes e bursts;
+- o rate limit default de Text Generation é alto, mas existe também budget diário em neurons;
+- modelos menores/eficientes devem ser preferidos para chamadas simples para não desperdiçar o budget com reasoning pesado;
+- Cloudflare AI Gateway pode futuramente ser usado como camada adicional de fallback/routing, mas não é obrigatório para o primeiro router local.
+
+**Google Gemini**
+
+- alvo complementar para multimodalidade, visão e capacidades próprias do ecossistema;
+- também funciona como fallback compatível quando a tarefa não exigir um recurso exclusivo de outro provedor;
+- limites reais são por projeto/modelo e devem ser lidos e contabilizados conforme o projeto configurado.
+
+### 5.2 Estado por provedor
+
+O roteador deverá manter, quando possível:
+
+- `request_headroom`;
+- `token_headroom`;
+- `daily_headroom` ou budget equivalente;
+- `concurrency_available`;
+- latência recente;
+- taxa recente de erros;
+- `cooldown_until` após rate limit/falhas transitórias;
+- capabilities do modelo: texto, reasoning, tools, structured output, vision.
+
+Quando o provedor não expuser headers ou endpoint de quota suficiente, o projeto manterá contadores locais conservadores e reagirá a `429`/erros retornados pela própria API.
+
+### 5.3 Fallback e idempotência
+
+Fallback de provedor acontece na camada de planejamento.
+
+Se uma chamada ao modelo falhar antes de produzir uma ação executável, outro provedor compatível pode ser tentado.
+
+Uma ação física já executada não deve ser repetida automaticamente apenas porque uma etapa posterior do planner falhou. O estado deve ser verificado antes de nova execução.
+
+Trocar de provedor nunca altera ou ignora:
+
+- `StructuredAction`;
+- Policy Layer;
+- FAILSAFE;
+- parada de emergência;
+- verificação de resultado;
+- regras de idempotência.
+
+O `DeterministicPlanner` permanece como fallback técnico e para testes.
+
+SiliconFlow permanece compatível com a estratégia provider-agnostic e pode ser adicionado depois como novo adaptador se seus limites gratuitos reais forem comprovados.
 
 ## 6. Credenciais de provedores
 
 Chaves de API não entram em código, Git, logs ou prompts.
 
-Quando um provedor for escolhido, sua chave será consumida somente por variável de ambiente/configuração local do adaptador.
+Cada adaptador consome sua própria chave somente por variável de ambiente/configuração local.
 
-Contas e chaves já foram criadas externamente para SiliconFlow e Z.AI, mas nenhuma foi integrada ao código até o momento.
+Contas e chaves já foram criadas externamente para SiliconFlow e Z.AI. Gemini já está disponível ao usuário. Cloudflare Workers AI ainda precisa ter sua credencial local preparada para o projeto.
+
+Nenhuma dessas credenciais está integrada ao código neste momento.
 
 ## 7. Policy Layer
 
