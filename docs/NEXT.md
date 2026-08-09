@@ -1,47 +1,61 @@
 # NEXT
 
-## 1. Executar baseline físico de linguagem natural
+## 1. Implementar interpretação geral + decomposição de objetivo
 
-Testar frases com o mesmo objetivo, mas formulações progressivamente menos prescritivas, sem corrigir uma a uma durante o teste.
+O baseline físico foi concluído. Não adicionar novos `regex` por frase como estratégia principal.
 
-Registrar PASS/FAIL para cada caso e, quando falhar, classificar a causa em uma destas categorias:
+Introduzir uma camada explícita que transforme linguagem natural em:
 
-- interpretação de intenção;
-- resolução de aplicativo/capacidade;
-- contexto entre tarefas;
-- percepção/observação;
-- provider/quota;
-- execução física.
+- intenção principal;
+- entidades relevantes;
+- capacidades necessárias;
+- subobjetivos ordenados;
+- critérios de conclusão do objetivo inteiro.
 
-O objetivo é medir onde o Robô exige sintaxe específica antes de alterar a arquitetura.
+Ela deve resolver semanticamente casos como:
 
-## 2. Implementar camada geral de interpretação + contexto operacional
+- `Quero fazer uma anotação. Abra alguma coisa onde eu possa escrever` → capacidade de edição;
+- `Abra o Visual Studio Code` e `Abra o VS Code` → mesma entidade/aplicativo;
+- `Preciso fazer algumas contas` → capacidade de calculadora disponível;
+- `Quero saber o significado do nome Josiel` → objetivo informacional que pode exigir pesquisa;
+- pedidos compostos com `e depois`, sem transformar a frase inteira em uma única consulta de busca.
 
-Depois do baseline, introduzir uma camada que transforme linguagem natural variada em intenção/capacidades sem depender de `regex` por frase.
+Critério de conclusão: pedidos semanticamente equivalentes geram a mesma representação operacional e um pedido composto não pode perder subobjetivos silenciosamente.
 
-Ela deve incluir:
+## 2. Adicionar estado/evidência de objetivo e eliminar falso `succeeded`
 
-- normalização de sinônimos e entidades;
-- resolução geral de aplicativos/capacidades disponíveis;
-- contexto operacional curto entre tarefas (`agora`, `nesse navegador`, `nesse site`, `depois`);
-- preservação dos caminhos determinísticos atuais como fast path, não como linguagem obrigatória.
+Representar por task:
 
-Critério de conclusão: pedidos semanticamente equivalentes devem produzir o mesmo objetivo operacional sem exigir que o usuário especifique navegador, URL ou aplicativo quando isso puder ser inferido.
+- objetivo original;
+- subobjetivos pendentes/concluídos;
+- evidências observadas por etapa;
+- estado operacional relevante;
+- motivo explícito de conclusão.
 
-## 3. Evoluir percepção + replanejamento para primeiro objetivo realmente autônomo
+Alterar o encerramento para que `succeeded` só seja emitido quando todos os critérios necessários do objetivo estiverem comprovados.
 
-Depois da interpretação/contexto, ampliar observação de browser/desktop e testar um objetivo que exija:
+Regressão obrigatória baseada no FAIL físico:
+
+`Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
+
+Não pode ser considerado sucesso apenas porque uma busca foi aberta. O sistema precisa, no mínimo, pesquisar, observar/obter o primeiro resultado, abrir o editor, escrever o título e verificar a escrita antes de concluir.
+
+## 3. Evoluir percepção + contexto operacional e validar primeiro objetivo condicional
+
+Adicionar observações estruturadas suficientes para o loop autônomo, priorizando:
+
+- URL atual;
+- título e texto/DOM útil da página;
+- janela/aplicativo ativo;
+- resultado de abertura/escrita;
+- contexto curto entre tasks (`agora`, `lá`, `nesse navegador`, `nesse site`, `depois`).
+
+Depois validar fisicamente um objetivo condicional real:
 
 ```text
-objetivo
-→ observar
-→ decidir
-→ agir
-→ verificar
-→ replanejar se necessário
-→ concluir
+Verifique uma condição observável.
+Se verdadeira, execute A.
+Se falsa, execute B.
 ```
 
-Priorizar observações estruturadas, como URL/título/conteúdo de página e janela ativa, antes de depender somente de visão por screenshot.
-
-Garantir ao menos um provider de raciocínio disponível no router para esse teste.
+Garantir ao menos um provider de raciocínio disponível no router durante esse teste, sem depender dele para fast paths determinísticos já conhecidos.
