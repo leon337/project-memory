@@ -25,89 +25,90 @@ Foram validados fisicamente no computador alvo:
 - FAILSAFE explícito em dois cantos da tela, gerando `DesktopFailsafeTriggered` antes da entrada física;
 - screenshot, mouse, clique, Xed, digitação e tecla Enter;
 - proteção de foco para sequências como abrir aplicativo → digitar;
-- navegador com Playwright/Chromium para `abrir example.com` e `pesquisar inteligência artificial`;
+- navegador com Playwright/Chromium;
 - diagnóstico de Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
 - telemetria real de Painel, Central e Robô;
 - Laboratório para comando conhecido e desconhecido sem execução de shell arbitrário.
 
 ## Segurança física e operacional
 
-O backend de desktop em `src/context_anchor/desktop.py` mantém `pyautogui.FAILSAFE = True`, mas possui também proteção própria: antes de mover, clicar, digitar ou pressionar tecla, verifica se o ponteiro está dentro de uma zona de 20 pixels em qualquer canto da tela. Nesse caso a ação é recusada com `DesktopFailsafeTriggered`.
+O backend de desktop em `src/context_anchor/desktop.py` mantém `pyautogui.FAILSAFE = True` e também uma proteção própria: antes de mover, clicar, digitar ou pressionar tecla, verifica se o ponteiro está dentro de uma zona de 20 pixels em qualquer canto da tela. Nesse caso a ação é recusada com `DesktopFailsafeTriggered`.
 
 A parada de emergência em `src/context_anchor/emergency_stop.py` é independente do planner, usa estado persistente e impede reinício até liberação consciente.
 
-A Central, o Painel e o Robô continuam locais por padrão e não devem ser expostos diretamente à Internet nesta versão.
+Central, Painel e Robô continuam locais por padrão e não devem ser expostos diretamente à Internet nesta versão.
 
 ## Planner e roteador multi-provider
-
-O `DeterministicPlanner` continua sendo o modo padrão enquanto `CONTEXT_ANCHOR_PLANNER_MODE=deterministic`.
 
 Foi implementada no `main` a primeira versão do modo **multi-provider**:
 
 - `MultiProviderPlanner` em `src/context_anchor/planner.py`;
-- adaptadores reais em `src/context_anchor/providers.py` para **Z.AI**, **Cloudflare Workers AI** e **Gemini**;
+- adaptadores em `src/context_anchor/providers.py` para **Z.AI**, **Cloudflare Workers AI** e **Gemini**;
 - configuração em `LocalAgentSettings` para modo do planner, timeout, cooldown, modelos e credenciais locais;
-- `local_agent.py` constrói dinamicamente o roteador usando somente provedores que possuam credenciais suficientes no `.env`;
+- `local_agent.py` constrói dinamicamente o roteador usando somente provedores configurados no `.env`;
 - comandos que o planner determinístico já entende continuam sendo resolvidos localmente antes da IA, sem consumir quota externa;
-- pedidos simples priorizam Cloudflare → Z.AI → Gemini;
+- pedidos simples priorizam Cloudflare → Z.AI → Gemini quando esses provedores estiverem disponíveis;
 - pedidos com marcadores de análise/condição priorizam Z.AI → Gemini → Cloudflare;
-- o roteador acompanha sucessos, falhas consecutivas, latência, cooldown e uma janela local de RPM quando há limite configurado;
-- falha ou resposta estruturada inválida de um provedor pode acionar outro provedor **antes da execução física**;
-- resultado de tarefa pode registrar `planner_provider`, `planner_route` e provedores que falharam sem registrar credenciais;
-- toda saída ainda é validada como `StructuredAction` e depois passa pela Policy Layer.
+- falha de um provedor pode acionar outro provedor antes da execução física;
+- toda saída continua validada como `StructuredAction` e depois passa pela Policy Layer.
 
-O modo multi-provider **ainda não foi validado fisicamente com as chaves reais no computador do usuário**.
+## Primeiro teste real do planner multi-provider
 
-### Provedores iniciais
+Em 2026-08-09 foi feito o primeiro teste físico com `CONTEXT_ANCHOR_PLANNER_MODE=multi` e provedores **Z.AI + Gemini** configurados localmente.
 
-- **Z.AI / `glm-4.7-flash`** — principal para reasoning/decisões complexas;
-- **Cloudflare Workers AI / `@cf/meta/llama-3.1-8b-instruct-fast`** — fast planner estruturado para chamadas simples;
-- **Google Gemini / `gemini-3.5-flash`** — fallback textual inicial e base para multimodalidade futura.
+Pedido enviado pelo Painel:
 
-A visão/multimodalidade do Gemini ainda não está conectada ao planner atual; o adaptador implementado nesta etapa recebe texto e devolve uma única `StructuredAction`.
+`Por favor abra o editor de texto para mim`
 
-## Contas e credenciais — estado real
+Resultado observado:
 
-Confirmado no navegador:
+- o Robô iniciou em `planner=multi` com `providers=zai,gemini`;
+- a tarefa entrou na Central e foi entregue normalmente ao Robô;
+- **Z.AI respondeu HTTP 429**;
+- o roteador tentou o fallback para **Gemini**;
+- **Gemini respondeu HTTP 400**;
+- a tarefa terminou `failed`;
+- nenhuma ação física foi executada, portanto o fallback ocorreu antes da execução, como projetado.
 
-- conta e API key do **Z.AI** criadas;
-- `GLM-4.7-Flash` mostrou **concurrency limit = 1** na tela real de Rate Limits;
-- conta e API key do **SiliconFlow** criadas, mas o serviço permanece opcional enquanto o limite de um modelo free atual não for comprovado;
-- token personalizado do **Cloudflare Workers AI** criado com permissões Workers AI Read/Edit e guardado localmente;
-- Google/Gemini já possui chave disponível para o usuário;
-- nenhuma chave foi gravada no Git.
+Esse teste comprovou a cadeia básica de fallback, mas ainda não comprovou uma geração de plano bem-sucedida por API real.
 
-A cópia local foi atualizada com `git pull --ff-only` e o `.env` foi aberto para ativar `CONTEXT_ANCHOR_PLANNER_MODE=multi` com Z.AI e Gemini. Durante essa configuração, partes das credenciais ficaram visíveis em um screenshot compartilhado na conversa. Essas credenciais não devem ser usadas para o primeiro teste real; devem ser rotacionadas/substituídas localmente antes de reiniciar o Robô em modo multi. O conteúdo das chaves não deve ser copiado para Git, documentação ou logs.
+## Correções após o primeiro teste real
 
-Ainda falta obter/configurar localmente o **Cloudflare Account ID** para que o adaptador Cloudflare possa chamar a REST API.
+O erro Gemini `HTTP 400` foi diagnosticado como incompatibilidade no corpo enviado ao endpoint `generateContent`. O adaptador foi corrigido no `main` para usar:
 
-## Testes automatizados desta etapa
+- `responseMimeType=application/json`;
+- `responseJsonSchema=ACTION_SCHEMA`.
 
-Foram adicionados testes para:
+Também foi melhorado o diagnóstico HTTP dos provedores. Em respostas de erro, o sistema agora tenta registrar somente código/status e mensagem do provedor, sem copiar chave, headers de autenticação ou corpo da requisição.
 
-- preservar comandos determinísticos sem chamada externa;
-- roteamento fast para Cloudflare;
-- roteamento de reasoning para Z.AI;
-- fallback quando o primeiro provedor falha;
-- fallback quando um provedor devolve ação estruturada inválida;
-- parsing dos formatos de resposta de Z.AI, Cloudflare e Gemini sem acessar a rede;
-- preservação de `Retry-After` em erro 429.
+O commit de testes dessa correção (`8769e23cf595f30fdb6c1943dbe4e79217d584e8`) teve CI `success` no run `31299282874`.
 
-O commit de testes do roteador (`72596186a9038af5bcfe1ded23fb57254d9e73ed`) teve CI `success`. O commit de testes dos adaptadores (`4d4f32b39efd16860d34c385f8a305de9f069064`) também teve CI `success` no run `31298563811`.
+O `429` do Z.AI ainda não teve a causa específica confirmada. O endpoint, o model id `glm-4.7-flash` e o uso de `response_format={"type":"json_object"}` permanecem compatíveis com a documentação atual; o próximo teste deve revelar a mensagem real devolvida pela API.
+
+## Provedores e credenciais — estado atual
+
+- **Z.AI / `glm-4.7-flash`**: conta e API key criadas; tela real de Rate Limits mostrou `concurrency limit = 1`; chave configurada localmente no `.env`;
+- **Google Gemini / `gemini-3.5-flash`**: chave configurada localmente no `.env`;
+- **Cloudflare Workers AI**: token personalizado com Workers AI Read/Edit criado e guardado localmente; ainda falta `Account ID` no `.env` para ativar o adaptador;
+- **SiliconFlow**: conta e API key criadas, mas permanece opcional enquanto um modelo gratuito atual e seus limites reais não forem comprovados.
+
+As credenciais permanecem fora do Git. O usuário optou por continuar os testes com as chaves atuais.
 
 ## Próximo bloqueio real
 
-O próximo bloqueio é **ativar o router no Linux real com credenciais não expostas**:
+O próximo bloqueio é revalidar o planner real depois da correção Gemini:
 
-- rotacionar/substituir localmente as chaves Z.AI e Gemini que apareceram parcialmente no screenshot;
-- salvar o `.env` com `CONTEXT_ANCHOR_PLANNER_MODE=multi` e as novas chaves;
-- reiniciar o Robô e validar uma intenção simples em linguagem natural;
-- depois adicionar `CLOUDFLARE_ACCOUNT_ID` ao `.env` e validar que uma intenção simples pode usar Cloudflare e fazer fallback para outro provedor.
+- atualizar a cópia local com `git pull --ff-only`;
+- reiniciar o Robô pelo Painel;
+- repetir a intenção em linguagem natural;
+- confirmar se Gemini agora produz uma `StructuredAction` válida ou, se Z.AI continuar em `429`, capturar a mensagem específica do provedor;
+- depois obter/configurar o `Cloudflare Account ID` e ativar o terceiro provedor.
 
 ## Ainda não implementado ou não validado
 
-- validação física do planner multi-provider com APIs reais;
-- quota manager completo com TPD/budget diário de Cloudflare e quotas desconhecidas do Z.AI;
+- uma geração de plano bem-sucedida por API real no Linux alvo;
+- Cloudflare ativo no router real;
+- quota manager completo com TPD/budget diário e telemetria detalhada por provedor;
 - visão/multimodalidade ligada ao router;
 - loop autônomo multietapa orientado a objetivo;
 - árvore de acessibilidade;
