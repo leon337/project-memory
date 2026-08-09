@@ -60,7 +60,7 @@ class LocalAgentSettings(DesktopSettings):
 
     # Google Gemini
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3.5-flash"
+    gemini_model: str = "gemini-3.6-flash"
     gemini_rpm_limit: int = Field(default=20, ge=1, le=10000)
 
 
