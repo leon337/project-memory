@@ -60,9 +60,17 @@ class PyAutoGuiDesktopBackend:
     an active graphical display merely to import the package.
     """
 
-    def __init__(self, *, pause_seconds: float = 0.05) -> None:
+    def __init__(
+        self,
+        *,
+        pause_seconds: float = 0.05,
+        app_ready_timeout_seconds: float = 3.0,
+    ) -> None:
         self.pause_seconds = pause_seconds
+        self.app_ready_timeout_seconds = app_ready_timeout_seconds
         self._gui: Any | None = None
+        self._expected_window_id: str | None = None
+        self._focus_guard_error: str | None = None
 
     def _pyautogui(self) -> Any:
         if self._gui is None:
@@ -72,6 +80,86 @@ class PyAutoGuiDesktopBackend:
             pyautogui.PAUSE = self.pause_seconds
             self._gui = pyautogui
         return self._gui
+
+    @staticmethod
+    def _xdotool_path() -> str | None:
+        return shutil.which("xdotool")
+
+    def _active_window_id(self) -> str | None:
+        xdotool = self._xdotool_path()
+        if not xdotool:
+            return None
+        completed = subprocess.run(
+            [xdotool, "getactivewindow"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        value = completed.stdout.strip() if completed.returncode == 0 else ""
+        return value or None
+
+    def _window_title(self, window_id: str | None = None) -> str | None:
+        xdotool = self._xdotool_path()
+        if not xdotool:
+            return None
+        argv = [xdotool, "getwindowname", window_id] if window_id else [
+            xdotool,
+            "getactivewindow",
+            "getwindowname",
+        ]
+        completed = subprocess.run(
+            argv,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        value = completed.stdout.strip() if completed.returncode == 0 else ""
+        return value or None
+
+    def _wait_for_active_window_change(self, previous_window_id: str | None) -> dict[str, Any]:
+        if not self._xdotool_path() or previous_window_id is None:
+            # Fallback for environments where focus cannot be observed reliably.
+            time.sleep(min(self.app_ready_timeout_seconds, 0.8))
+            current = self._active_window_id()
+            return {
+                "window_changed": None,
+                "window_id": current,
+                "window_title": self._window_title(current),
+            }
+
+        deadline = time.monotonic() + self.app_ready_timeout_seconds
+        current: str | None = previous_window_id
+        while time.monotonic() < deadline:
+            current = self._active_window_id()
+            if current and current != previous_window_id:
+                # Small settle period after the window manager reports focus.
+                time.sleep(0.15)
+                return {
+                    "window_changed": True,
+                    "window_id": current,
+                    "window_title": self._window_title(current),
+                }
+            time.sleep(0.05)
+
+        return {
+            "window_changed": False,
+            "window_id": current,
+            "window_title": self._window_title(current),
+        }
+
+    def _focused_window_for_input(self) -> tuple[str | None, str | None]:
+        if self._focus_guard_error:
+            raise RuntimeError(self._focus_guard_error)
+
+        current = self._active_window_id()
+        if self._expected_window_id and current and current != self._expected_window_id:
+            raise RuntimeError(
+                "O foco mudou para outra janela desde a última ação preparada. "
+                "O Robô recusou enviar teclado para evitar digitar no lugar errado."
+            )
+        return current, self._window_title(current)
 
     def capture_screen(self, output_path: Path) -> dict[str, Any]:
         gui = self._pyautogui()
@@ -87,26 +175,10 @@ class PyAutoGuiDesktopBackend:
         }
 
     def active_window(self) -> dict[str, Any]:
-        xdotool = shutil.which("xdotool")
-        if not xdotool:
-            return {
-                "action": "active_window",
-                "title": None,
-                "verified": False,
-                "reason": "xdotool não encontrado no sistema.",
-            }
-
-        completed = subprocess.run(
-            [xdotool, "getactivewindow", "getwindowname"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        title = completed.stdout.strip() if completed.returncode == 0 else ""
+        title = self._window_title()
         return {
             "action": "active_window",
-            "title": title or None,
+            "title": title,
             "verified": bool(title),
         }
 
@@ -130,30 +202,42 @@ class PyAutoGuiDesktopBackend:
         gui = self._pyautogui()
         gui.click(button=button)
         x, y = gui.position()
+        current_window = self._active_window_id()
+        if current_window:
+            self._expected_window_id = current_window
+            self._focus_guard_error = None
         return {
             "action": "click_mouse",
             "button": button,
             "x": int(x),
             "y": int(y),
+            "window_id": current_window,
+            "window_title": self._window_title(current_window),
             "verified": True,
         }
 
     def type_text(self, text: str) -> dict[str, Any]:
         gui = self._pyautogui()
+        window_id, window_title = self._focused_window_for_input()
         gui.write(text, interval=0.01)
         return {
             "action": "type_text",
             "characters": len(text),
-            "verified": True,
+            "window_id": window_id,
+            "window_title": window_title,
+            "verified": window_id is not None if self._xdotool_path() else True,
         }
 
     def press_key(self, key: str) -> dict[str, Any]:
         gui = self._pyautogui()
+        window_id, window_title = self._focused_window_for_input()
         gui.press(key)
         return {
             "action": "press_key",
             "key": key,
-            "verified": True,
+            "window_id": window_id,
+            "window_title": window_title,
+            "verified": window_id is not None if self._xdotool_path() else True,
         }
 
     def open_application(self, app_id: str) -> dict[str, Any]:
@@ -161,6 +245,8 @@ class PyAutoGuiDesktopBackend:
         candidates = APP_COMMANDS.get(canonical)
         if not candidates:
             raise PermissionError(f"Aplicativo fora da allowlist: {app_id}")
+
+        previous_window = self._active_window_id()
 
         for candidate in candidates:
             executable = shutil.which(candidate[0])
@@ -175,13 +261,33 @@ class PyAutoGuiDesktopBackend:
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
-            time.sleep(0.15)
+            readiness = self._wait_for_active_window_change(previous_window)
+            window_id = readiness["window_id"]
+            window_changed = readiness["window_changed"]
+
+            if window_id and window_changed is not False:
+                self._expected_window_id = window_id
+                self._focus_guard_error = None
+            elif self._xdotool_path() and previous_window is not None:
+                self._expected_window_id = None
+                self._focus_guard_error = (
+                    f"O aplicativo '{canonical}' foi iniciado, mas não assumiu o foco dentro de "
+                    f"{self.app_ready_timeout_seconds:.1f}s. O Robô não enviará teclado até o foco ser confirmado por um clique."
+                )
+            else:
+                self._expected_window_id = window_id
+                self._focus_guard_error = None
+
+            launched = process.poll() is None or window_changed is True
             return {
                 "action": "open_app",
                 "app": canonical,
                 "executable": executable,
                 "pid": process.pid,
-                "verified": process.poll() is None,
+                "window_changed": window_changed,
+                "window_id": window_id,
+                "window_title": readiness["window_title"],
+                "verified": bool(launched and window_changed is not False),
             }
 
         raise FileNotFoundError(
