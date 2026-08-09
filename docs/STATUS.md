@@ -20,6 +20,8 @@ O Painel mostra o estado de Central, Robô, Desktop e emergência; permite ligar
 
 O Laboratório não oferece shell arbitrário.
 
+Feedback de uso real: o tema atual, predominantemente claro, foi considerado cansativo para a visão durante uso prolongado. A interface ainda precisa de revisão visual com menor luminosidade e melhor conforto antes de ser considerada pronta para uso diário.
+
 ## Gerenciamento de processos
 
 Implementado em `src/context_anchor/process_registry.py`.
@@ -110,7 +112,8 @@ Confirmado no computador alvo:
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
-- Laboratório de comandos guiados no uso real.
+- Laboratório de comandos guiados no uso real;
+- revisão visual do Painel com tema de menor luminosidade e validação do conforto visual no computador real.
 
 ## Ainda não implementado
 
