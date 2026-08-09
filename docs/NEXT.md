@@ -1,13 +1,34 @@
 # NEXT
 
-## 1. Inverter a política local para permissiva por padrão
+## 1. Validar fisicamente o loop orientado a objetivo
 
-Substituir o modelo atual de allowlist por **permitir por padrão** dentro das permissões reais do usuário e do sistema operacional. Aplicativos, executáveis, shell/processos, argumentos e demais capacidades locais não devem depender de cadastro prévio. Criar uma denylist/regras de bloqueio para exceções que o usuário decidir proibir depois. Manter FAILSAFE, parada de emergência, telemetria e limites impostos pelo próprio sistema operacional.
+Atualizar a cópia local, reiniciar o Robô e repetir exatamente:
 
-## 2. Implementar o primeiro loop multi-etapa orientado por objetivo
+`Abra o editor de texto e escreva Olá mundo`
 
-Corrigir a diferença entre “uma ação terminou” e “o objetivo foi concluído”. O caso físico `Abra o editor de texto e escreva Olá mundo` abriu o editor, mas não digitou, embora a task tenha sido marcada `succeeded`. O Robô deve executar → observar/verificar → raciocinar novamente → escolher a próxima ação até concluir ou falhar explicitamente.
+Critério de conclusão:
 
-## 3. Retomar observabilidade do router e terceiro provider
+- editor abre;
+- foco permanece correto;
+- `Olá mundo` é realmente digitado;
+- o planner continua depois de `open_app`;
+- uma decisão posterior retorna `finish`;
+- a task só então termina `succeeded`;
+- logs/resultados mostram mais de uma etapa no objetivo.
 
-Depois dos dois pontos acima, preservar metadados seguros também em falhas, validar semântica antes da execução e ativar Cloudflare Workers AI com `Account ID`, quotas e retries observáveis.
+## 2. Validar fisicamente a política permissiva e o Brave
+
+Testar:
+
+`abrir o navegador brave`
+
+Critério de conclusão:
+
+- a frase não vira URL;
+- o planner escolhe `open_app`;
+- Brave é resolvido para um executável instalado e abre como aplicativo;
+- se um aplicativo/comando não existir, a falha deve ser de resolução/execução (`FileNotFoundError` ou equivalente), não `PermissionError` de allowlist.
+
+## 3. Depois das validações, testar objetivo condicional real
+
+Executar um primeiro caso do tipo observar → decidir → agir → observar novamente, sem ainda depender de visão semântica avançada. Depois disso, retomar metadados de falha, Cloudflare Workers AI e quota manager.
