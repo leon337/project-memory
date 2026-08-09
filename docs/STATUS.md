@@ -30,7 +30,8 @@ No Linux/X11 real já foram validados:
 - planner multi-provider com fallback;
 - sequência local `abrir editor + escrever` sem provider externo;
 - navegação genérica `abrir navegador + acessar site` sem provider externo;
-- navegação com navegador específico `abrir Brave + acessar site` sem provider externo.
+- navegação com navegador específico `abrir Brave + acessar site` sem provider externo;
+- sequência local `Brave + Google + pesquisar` sem provider externo.
 
 ## Providers
 
@@ -85,106 +86,124 @@ Resultado real:
 - log registrou `planner=deterministic rota=deterministic`;
 - nenhum provider externo foi necessário.
 
-Isso confirma fisicamente a correção do parser para `abrir navegador + acessar site`.
-
 ## Teste físico `Brave + site` — PASS
 
-Também foi validado um pedido equivalente a:
+Pedido validado em forma equivalente a:
 
 `Abra o navegador brave e acesse o site google.com`
 
 Resultado real:
 
-- o navegador solicitado abriu;
-- o destino foi acessado;
-- task `succeeded`.
+- Brave abriu;
+- Google foi carregado;
+- task `succeeded`;
+- nenhum provider externo foi necessário.
 
-O caminho local preserva o navegador explicitamente solicitado e passa a URL como argumento ao processo.
+## Teste físico `Brave + Google + pesquisar` — PASS
 
-## Testes físicos de pesquisa — FAIL antes da correção mais recente
+Após a correção do parser de pesquisa, foi validado no computador real um pedido equivalente a:
 
-### Brave + Google + pesquisar
+`Abra o navegador brave e acesse o site google.com e pesquise o São Lourenço da Mata`
 
-Foi testado um pedido equivalente a:
+Resultado real observado:
 
-`Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`
+- Brave abriu/preservou o navegador solicitado;
+- a pesquisa do Google foi carregada;
+- task `succeeded`;
+- o fluxo foi resolvido localmente.
 
-Resultado: `failed`.
+Outro teste anterior também abriu a pesquisa pelo significado do nome Josiel.
 
-A construção tinha três partes — navegador específico, site e consulta — e ainda não existia no parser determinístico.
+Isso confirma fisicamente que uma sequência determinística de três partes pode ser concluída sem provider externo quando sua intenção já está mapeada localmente.
 
-### Pesquisa isolada
+## Baseline de autonomia em linguagem natural — LIMITADO
 
-Também foi testado:
+Os testes físicos mais recentes também mostraram que capacidades funcionais ainda dependem demais da formulação exata do pedido.
 
-`agora pesquise sobre inteligencia artificial`
+Exemplos observados como `failed`:
 
-Resultado: `failed`.
+- `Acesse a internet em qualquer navegador e pesquise por São Lourenço da Mata`;
+- pedido em forma equivalente a `Acesse o navegador Chrome e pesquise por São Lourenço da Mata`;
+- `Abrir o aplicativo Vs code`.
 
-Como `pesquise` e a forma com prefixo `agora` ainda não estavam no parser local, a tarefa caiu no router externo. O log mostrou Z.AI sem plano JSON válido e Gemini com `429 RESOURCE_EXHAUSTED`.
+No caso de VS Code, o log registrou `FileNotFoundError` porque o resolvedor chegou ao backend com o alvo literal `vs code`, em vez de normalizar de forma geral para o executável instalado.
 
-## Correção de pesquisa implementada no `main` — validação física pendente
+Esses FAILs não demonstram ausência das capacidades de navegador, pesquisa ou abertura de aplicativo. Eles demonstram uma lacuna de **interpretação, normalização de intenção, resolução de entidades e contexto operacional**.
 
-`src/context_anchor/policy.py` agora resolve localmente pesquisas inequívocas.
+Portanto o próximo avanço não deve ser adicionar um `regex` específico para cada frase que falhar.
 
-### Pesquisa simples
+## Lacuna principal para autonomia real
 
-Variações como:
+O Robô já possui executor físico e um loop orientado a objetivo, mas ainda falta uma camada geral que transforme linguagem natural variada em intenção operacional.
 
-```text
-pesquise inteligência artificial
-agora pesquise sobre inteligência artificial
-busque FastAPI
-procure agentes de IA
-```
-
-viram uma URL de pesquisa em DuckDuckGo e não usam provider externo.
-
-### Navegador + mecanismo de busca + consulta
-
-Para mecanismos conhecidos — atualmente Google, DuckDuckGo e Bing — o parser monta diretamente a URL da pesquisa.
-
-Exemplo com navegador específico:
+A autonomia desejada exige que o usuário possa expressar um objetivo como:
 
 ```text
-Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel
-→ open_app("brave-browser https://www.google.com/search?q=o+significado+do+nome+Josiel")
+Quero saber o significado do nome Josiel.
 ```
 
-Exemplo com navegador genérico:
+sem precisar determinar navegador, mecanismo de busca, URL ou sequência de cliques.
+
+O sistema deve ser capaz de:
 
 ```text
-Abra o navegador e acesse google.com e pesquise inteligência artificial
-→ open_url("https://www.google.com/search?q=intelig%C3%AAncia+artificial")
+objetivo do usuário
+→ interpretar intenção
+→ observar estado atual
+→ escolher capacidades disponíveis
+→ planejar próxima ação
+→ executar
+→ verificar resultado
+→ replanejar se necessário
+→ concluir quando o objetivo estiver realmente atendido
 ```
 
-Nenhuma dessas formas precisa de Gemini, Z.AI ou Cloudflare.
+Para isso ainda são necessários, principalmente:
 
-## Limite conhecido de contexto entre tarefas
+1. **interpretação geral de objetivo** — sinônimos e frases naturais não podem depender de padrões exatos;
+2. **resolução de entidades/capacidades** — `VS Code`, `editor`, `navegador`, `internet`, `pesquisa` devem ser associados às capacidades reais disponíveis;
+3. **memória operacional entre tarefas** — expressões como `agora`, `nesse navegador`, `nesse site`, `depois` precisam referenciar o estado anterior;
+4. **percepção mais rica** — URL atual, conteúdo DOM/texto de página, janela ativa, árvore de acessibilidade e posteriormente percepção visual;
+5. **replanejamento por resultado** — se uma ação falha ou produz estado diferente, escolher outra estratégia em vez de depender de nova formulação humana.
 
-Um pedido isolado como:
+## Caminhos determinísticos locais vigentes
 
-`agora pesquise ...`
+Continuam úteis como fast path para tarefas inequívocas:
 
-é atualmente interpretado como uma nova pesquisa web determinística e usa `open_url` no navegador estruturado.
+- abrir URL/domínio;
+- abrir aplicativo;
+- pesquisar/buscar/procurar;
+- abrir aplicativo + escrever/digitar;
+- abrir navegador + acessar site;
+- navegador + mecanismo de busca + consulta.
 
-Ele ainda não promete reutilizar um navegador externo específico, como Brave, que tenha sido aberto em uma tarefa anterior. Persistência explícita de contexto entre tarefas/navegadores ainda precisa ser implementada se esse for o comportamento desejado.
+Esses caminhos devem funcionar como atalhos confiáveis, não como linguagem obrigatória para o usuário.
 
-## Loop por IA continua existindo
+## Loop por IA
 
-O loop:
+O loop já implementado continua sendo:
 
 ```text
 ação → observação → nova decisão → ... → finish
 ```
 
-continua vigente para pedidos que exigem condição, interpretação de conteúdo, ambiguidade ou replanejamento.
+Ele é necessário para condição, interpretação de conteúdo, ambiguidade e replanejamento.
 
-O caminho local apenas evita chamadas de IA quando a intenção já é determinística.
+O caminho local apenas evita chamadas de IA quando a próxima ação já é determinística.
+
+## Limitações atuais do loop autônomo
+
+Mesmo com o loop implementado, autonomia sem formulação rígida ainda está limitada porque:
+
+- providers externos estão instáveis por quota/resposta inválida no ambiente real;
+- Cloudflare ainda não está ativo no router real;
+- observação semântica de páginas e desktop ainda é limitada;
+- não existe memória operacional explícita entre tarefas independentes;
+- resolução de nomes de aplicativos ainda não é geral o suficiente.
 
 ## Validação automatizada
 
-A suíte cobre agora, entre outros casos:
+A suíte cobre, entre outros casos:
 
 - `Abra o editor de texto e escreva Olá mundo`;
 - Unicode no backend de desktop;
@@ -196,7 +215,7 @@ A suíte cobre agora, entre outros casos:
 - `Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`;
 - `Abra o navegador e acesse google.com e pesquise inteligência artificial`.
 
-GitHub Actions CI run `31307745802` terminou com **success** em Install, Compile e Test após a correção de pesquisa.
+GitHub Actions CI run `31307745802` terminou com **success** após a correção de pesquisa.
 
 ## Controles que permanecem
 
@@ -209,15 +228,15 @@ Continuam implementados:
 - credenciais fora de código, Git, logs e prompts;
 - Painel e Central em localhost por padrão.
 
-## Ainda não validado fisicamente após a correção mais recente
+## Ainda não validado/implementado para autonomia completa
 
-- `Brave + Google + pesquisar` pelo novo caminho local;
-- pesquisa isolada com `pesquise/agora pesquise` sem provider;
-- persistência de contexto entre tarefas e navegadores externos;
-- primeiro objetivo condicional real usando o loop por IA;
+- interpretação geral de linguagem natural independente de frases pré-cadastradas;
+- resolução geral de aplicativos instalados e sinônimos;
+- persistência de contexto entre tarefas e navegadores;
+- primeiro objetivo condicional real usando percepção + decisão + replanejamento;
 - Cloudflare ativo no router real;
-- percepção semântica de screenshots/árvore de acessibilidade;
-- multimodalidade;
+- percepção semântica de DOM/árvore de acessibilidade;
+- percepção visual multimodal integrada ao loop;
 - câmera;
 - publicação remota segura;
 - WhatsApp, Telegram e Instagram.
