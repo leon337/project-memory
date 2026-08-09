@@ -24,12 +24,13 @@ No Linux/X11 real já foram validados:
 - screenshot;
 - movimento e clique de mouse;
 - abertura de aplicativos;
-- digitação e tecla Enter;
+- digitação Unicode e tecla Enter;
 - proteção de foco entre ações de teclado;
-- navegação por Playwright/Chromium em testes anteriores;
 - telemetria real de Painel, Central e Robô;
 - planner multi-provider com fallback;
-- Gemini abrindo Xed, calculadora e navegador em testes reais anteriores.
+- sequência local `abrir editor + escrever` sem provider externo;
+- navegação genérica `abrir navegador + acessar site` sem provider externo;
+- navegação com navegador específico `abrir Brave + acessar site` sem provider externo.
 
 ## Providers
 
@@ -41,26 +42,26 @@ O modo `multi` possui adaptadores para:
 
 Estado observado nos testes recentes:
 
-- Z.AI pode retornar `429/1305`;
+- Z.AI pode retornar `429/1305` ou resposta sem JSON válido;
 - Gemini retornou `429 RESOURCE_EXHAUSTED` por quota;
-- tarefas simples conhecidas não devem depender de várias chamadas externas consecutivas.
+- tarefas determinísticas conhecidas não devem depender desses providers.
 
 ## Teste físico `abrir + escrever` — PASS
 
-Em 2026-08-09 foi repetido:
+Pedido validado:
 
 `Abra o editor de texto e escreva Olá mundo`
 
-Resultado real após as correções:
+Resultado real:
 
 - Xed abriu;
 - o foco ficou correto;
-- o texto exibido foi exatamente `Olá mundo`, incluindo o caractere `á`;
-- a task terminou `succeeded`;
-- o log registrou `planner=deterministic rota=local-sequence etapas=2 objetivo=concluido`;
-- nenhuma chamada ao Gemini, Z.AI ou Cloudflare foi necessária para concluir essa tarefa.
+- `Olá mundo` apareceu exatamente, incluindo `á`;
+- task `succeeded`;
+- log: `planner=deterministic rota=local-sequence etapas=2 objetivo=concluido`;
+- nenhum provider externo foi necessário.
 
-Esse teste valida fisicamente a sequência local:
+Esse teste valida fisicamente a digitação Unicode e a sequência:
 
 ```text
 open_app(editor)
@@ -70,98 +71,132 @@ open_app(editor)
 → objetivo concluído
 ```
 
-Também valida o novo caminho de digitação Unicode no Linux/X11.
+## Teste físico `navegador + site` — PASS
 
-## Teste físico de navegador + site — FAIL
+Pedido validado:
 
-Na sequência foram testadas frases equivalentes a:
-
-`abrir o navegador e acessar globo.com`
-
-`Abra o navegador e acessa o site globo.com`
+`Abra o navegador e acesse o site globo.com`
 
 Resultado real:
 
-- as tasks terminaram `failed`;
-- o navegador/site não foi concluído como solicitado.
+- o navegador estruturado abriu;
+- `globo.com` foi carregado corretamente;
+- task `succeeded`;
+- log registrou `planner=deterministic rota=deterministic`;
+- nenhum provider externo foi necessário.
 
-A causa foi localizada no parser determinístico: ele já reconhecia `abrir globo.com` e `abrir o navegador brave`, mas não reconhecia ainda a construção composta `abrir navegador + acessar site`.
+Isso confirma fisicamente a correção do parser para `abrir navegador + acessar site`.
 
-## Correção de navegador implementada no `main` — validação física pendente
+## Teste físico `Brave + site` — PASS
 
-`src/context_anchor/policy.py` agora reconhece localmente construções do tipo:
+Também foi validado um pedido equivalente a:
+
+`Abra o navegador brave e acesse o site google.com`
+
+Resultado real:
+
+- o navegador solicitado abriu;
+- o destino foi acessado;
+- task `succeeded`.
+
+O caminho local preserva o navegador explicitamente solicitado e passa a URL como argumento ao processo.
+
+## Testes físicos de pesquisa — FAIL antes da correção mais recente
+
+### Brave + Google + pesquisar
+
+Foi testado um pedido equivalente a:
+
+`Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`
+
+Resultado: `failed`.
+
+A construção tinha três partes — navegador específico, site e consulta — e ainda não existia no parser determinístico.
+
+### Pesquisa isolada
+
+Também foi testado:
+
+`agora pesquise sobre inteligencia artificial`
+
+Resultado: `failed`.
+
+Como `pesquise` e a forma com prefixo `agora` ainda não estavam no parser local, a tarefa caiu no router externo. O log mostrou Z.AI sem plano JSON válido e Gemini com `429 RESOURCE_EXHAUSTED`.
+
+## Correção de pesquisa implementada no `main` — validação física pendente
+
+`src/context_anchor/policy.py` agora resolve localmente pesquisas inequívocas.
+
+### Pesquisa simples
+
+Variações como:
 
 ```text
-abrir/abra/abre navegador + acessar/acesse/acessa/visitar site
+pesquise inteligência artificial
+agora pesquise sobre inteligência artificial
+busque FastAPI
+procure agentes de IA
 ```
 
-Exemplos cobertos:
+viram uma URL de pesquisa em DuckDuckGo e não usam provider externo.
+
+### Navegador + mecanismo de busca + consulta
+
+Para mecanismos conhecidos — atualmente Google, DuckDuckGo e Bing — o parser monta diretamente a URL da pesquisa.
+
+Exemplo com navegador específico:
 
 ```text
-abrir o navegador e acessar globo.com
-→ open_url(https://globo.com)
+Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel
+→ open_app("brave-browser https://www.google.com/search?q=o+significado+do+nome+Josiel")
 ```
+
+Exemplo com navegador genérico:
 
 ```text
-Abra o navegador e acessa o site globo.com
-→ open_url(https://globo.com)
+Abra o navegador e acesse google.com e pesquise inteligência artificial
+→ open_url("https://www.google.com/search?q=intelig%C3%AAncia+artificial")
 ```
 
-Quando o navegador é genérico, o destino usa o executor estruturado Playwright/Chromium.
+Nenhuma dessas formas precisa de Gemini, Z.AI ou Cloudflare.
 
-Quando um navegador específico é pedido, por exemplo:
+## Limite conhecido de contexto entre tarefas
 
-```text
-abra o navegador brave e acesse globo.com
-```
+Um pedido isolado como:
 
-o plano local preserva o navegador solicitado e abre o aplicativo com a URL como argumento:
+`agora pesquise ...`
 
-```text
-open_app("brave-browser https://globo.com")
-```
+é atualmente interpretado como uma nova pesquisa web determinística e usa `open_url` no navegador estruturado.
 
-Esses casos não precisam de provider externo.
-
-## Caminhos locais vigentes
-
-### Aplicativo simples
-
-- alvo que parece URL/domínio → `open_url`;
-- outro alvo → `open_app`.
-
-Exemplo:
-
-`abrir o navegador brave` → `open_app(brave-browser)`.
-
-### Aplicativo + texto
-
-`abrir aplicativo + escrever/digitar texto` é executado como sequência local verificada.
-
-### Navegador + site
-
-`abrir navegador + acessar site` é resolvido localmente para navegação estruturada ou para o navegador específico solicitado.
+Ele ainda não promete reutilizar um navegador externo específico, como Brave, que tenha sido aberto em uma tarefa anterior. Persistência explícita de contexto entre tarefas/navegadores ainda precisa ser implementada se esse for o comportamento desejado.
 
 ## Loop por IA continua existindo
 
-O loop `ação → observação → nova decisão → ... → finish` continua vigente para pedidos que realmente exigem raciocínio, condição, ambiguidade ou replanejamento.
+O loop:
 
-A otimização local não substitui o loop por IA; ela evita uso de quota quando a intenção é determinística.
+```text
+ação → observação → nova decisão → ... → finish
+```
+
+continua vigente para pedidos que exigem condição, interpretação de conteúdo, ambiguidade ou replanejamento.
+
+O caminho local apenas evita chamadas de IA quando a intenção já é determinística.
 
 ## Validação automatizada
 
-A suíte cobre agora:
+A suíte cobre agora, entre outros casos:
 
-- preservação de `Olá mundo` na sequência local;
-- execução `open_app → type_text` sem provider;
-- entrada Unicode no backend de desktop;
-- `abrir o navegador brave` como aplicativo local;
-- pedido educado para Brave;
-- `abrir o navegador e acessar globo.com` → `open_url(https://globo.com)`;
-- `Abra o navegador e acessa o site globo.com` → `open_url(https://globo.com)`;
-- `abra o navegador brave e acesse globo.com` → Brave com URL como argumento.
+- `Abra o editor de texto e escreva Olá mundo`;
+- Unicode no backend de desktop;
+- `abrir o navegador brave`;
+- `abrir o navegador e acessar globo.com`;
+- `Abra o navegador e acessa o site globo.com`;
+- `abra o navegador brave e acesse globo.com`;
+- `agora pesquise sobre inteligencia artificial`;
+- `Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`;
+- `Abra o navegador e acesse google.com e pesquise inteligência artificial`.
 
-GitHub Actions CI run `31307288547` terminou com **success** em Install, Compile e Test após a correção de navegação.
+GitHub Actions CI run `31307745802` terminou com **success** em Install, Compile e Test após a correção de pesquisa.
 
 ## Controles que permanecem
 
@@ -170,14 +205,15 @@ Continuam implementados:
 - parada de emergência persistente;
 - FAILSAFE físico próprio nos quatro cantos;
 - verificação de foco antes de teclado quando há janela esperada observável;
-- execução de processos do resolvedor com `shell=False`;
+- execução de processos com `shell=False`;
 - credenciais fora de código, Git, logs e prompts;
 - Painel e Central em localhost por padrão.
 
 ## Ainda não validado fisicamente após a correção mais recente
 
-- `abrir o navegador e acessar globo.com` pelo novo caminho local;
-- `abra o navegador brave e acesse globo.com` preservando Brave;
+- `Brave + Google + pesquisar` pelo novo caminho local;
+- pesquisa isolada com `pesquise/agora pesquise` sem provider;
+- persistência de contexto entre tarefas e navegadores externos;
 - primeiro objetivo condicional real usando o loop por IA;
 - Cloudflare ativo no router real;
 - percepção semântica de screenshots/árvore de acessibilidade;
