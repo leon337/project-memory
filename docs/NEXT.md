@@ -1,27 +1,30 @@
 # NEXT
 
-## 1. Fechar a revisão ultra escura do Painel
+## 1. Validar Controles de estado e logs reais
 
-A segunda revisão visual já foi implementada, baixada no computador alvo, carregada pelo atalho do desktop e confirmada visualmente nas telas **Visão geral**, **Configurações** e **Laboratório**.
+A terceira revisão do Painel já está no `main` e passou no CI.
 
-Próximo passo:
+Próximos passos, em ordem:
 
-1. obter a confirmação final do usuário sobre conforto, legibilidade, contraste e organização.
+1. executar `git pull` no computador alvo e reiniciar apenas o **Painel do Robô**;
+2. confirmar que Central, Robô e Emergência mostram estado real e que a ação oferecida muda conforme esse estado;
+3. se a Central ainda estiver iniciada fora do Painel, confirmar que aparece como **ligada fora do Painel**;
+4. reiniciar Central e Robô com o código novo e validar em **Logs reais da aplicação** eventos de Painel, Central e Robô, usando os filtros por componente.
 
-Critério de conclusão: o usuário deve aprovar o tema ultra escuro para uso prolongado e nenhum controle funcional pode ter sido prejudicado pela revisão visual.
+Critério de conclusão: nenhum controle pode parecer ligado/desligado de forma ambígua, e os logs exibidos devem corresponder a eventos realmente produzidos pelos componentes.
 
 ## 2. Concluir segurança e operação física
 
-Depois da aprovação visual:
+Depois da validação dos controles e telemetria:
 
 - validar o `FAILSAFE` físico;
 - validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
-- ligar, parar e reiniciar Central e Robô pelo Painel;
+- completar o ciclo ligar/parar/reiniciar Central e Robô pelo Painel;
 - confirmar estados corretos após cada transição;
 - testar o Laboratório com um comando conhecido;
 - reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local.
 
-Critério de conclusão: mecanismos de parada, operação e diagnóstico devem funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
+Critério de conclusão: mecanismos de parada, operação, diagnóstico e telemetria devem funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
 
 ## 3. Ativar o primeiro planner por IA
 
