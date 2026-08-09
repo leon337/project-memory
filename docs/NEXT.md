@@ -2,14 +2,14 @@
 
 ## 1. Validar Controles de estado e logs reais
 
-A terceira revisão do Painel já está no `main` e passou no CI.
+A terceira revisão do Painel já está no `main`, passou no CI e foi baixada no computador alvo por `git pull`.
 
 Próximos passos, em ordem:
 
-1. executar `git pull` no computador alvo e reiniciar apenas o **Painel do Robô**;
+1. reiniciar apenas o **Painel do Robô** para carregar a nova interface;
 2. confirmar que Central, Robô e Emergência mostram estado real e que a ação oferecida muda conforme esse estado;
 3. se a Central ainda estiver iniciada fora do Painel, confirmar que aparece como **ligada fora do Painel**;
-4. reiniciar Central e Robô com o código novo e validar em **Logs reais da aplicação** eventos de Painel, Central e Robô, usando os filtros por componente.
+4. reiniciar Central e Robô separadamente com o código novo e validar em **Logs reais da aplicação** eventos de Painel, Central e Robô, usando os filtros por componente.
 
 Critério de conclusão: nenhum controle pode parecer ligado/desligado de forma ambígua, e os logs exibidos devem corresponder a eventos realmente produzidos pelos componentes.
 
