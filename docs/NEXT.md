@@ -1,21 +1,18 @@
 # NEXT
 
-## 1. Validar a segunda revisão ultra escura do Painel
+## 1. Fechar a revisão ultra escura do Painel
 
-A segunda revisão visual já está implementada no `main` com fundo próximo de preto, tipografia mais legível, melhor hierarquia, melhor uso do espaço e layouts específicos para Visão geral, Configurações e Laboratório.
+A segunda revisão visual já foi implementada, baixada no computador alvo, carregada pelo atalho do desktop e confirmada visualmente nas telas **Visão geral**, **Configurações** e **Laboratório**.
 
-Próximos passos, em ordem:
+Próximo passo:
 
-1. executar `git pull` no computador alvo;
-2. reiniciar apenas o processo do **Painel do Robô** pelo atalho do desktop;
-3. validar visualmente **Visão geral**, **Configurações** e **Laboratório**;
-4. confirmar conforto, legibilidade, contraste, organização e funcionamento dos controles.
+1. obter a confirmação final do usuário sobre conforto, legibilidade, contraste e organização.
 
-Critério de conclusão: o usuário deve aprovar o tema ultra escuro para uso prolongado e nenhum controle funcional pode ser prejudicado pela revisão visual.
+Critério de conclusão: o usuário deve aprovar o tema ultra escuro para uso prolongado e nenhum controle funcional pode ter sido prejudicado pela revisão visual.
 
 ## 2. Concluir segurança e operação física
 
-Depois da validação visual:
+Depois da aprovação visual:
 
 - validar o `FAILSAFE` físico;
 - validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
