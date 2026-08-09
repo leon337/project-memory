@@ -143,18 +143,17 @@ Já confirmado no computador alvo:
 - o Painel detectou Central ligada, Robô ligado, Desktop habilitado e emergência normal;
 - foi criado localmente um atalho `.desktop` em `/home/leo/Área de trabalho/Painel do Robo.desktop` e ele inicia o Painel;
 - o botão **Reiniciar Robô** foi acionado fisicamente pelo Painel;
-- a interface mostrou `Robô ligado.` e o servidor registrou `POST /api/robot/restart` com HTTP `200 OK`.
+- a interface mostrou `Robô ligado.` e o servidor registrou `POST /api/robot/restart` com HTTP `200 OK`;
+- após esse reinício, uma nova tarefa `capturar tela` foi enviada pelo Painel, entrou como `queued`, foi reivindicada pelo Robô e terminou como `failed` na tentativa 1.
 
-Falha já entendida:
+Falhas observadas e ainda não resolvidas:
 
-- `abrir google.com e pesquisar inteligencia artificial` foi interpretado pelo planner determinístico como uma única URL inválida;
-- isso confirma o limite atual de uma ação por comando, não uma falha de rede.
-
-Uma tarefa antiga `capturar tela` aparece como `failed` no histórico; ela ocorreu antes da validação atual do Robô reiniciado com Desktop habilitado e não conta como validação final da captura.
+- a captura real de screenshot continua falhando mesmo após o Robô ser reiniciado com o Painel mostrando Desktop habilitado; a causa técnica exata ainda não foi coletada;
+- `abrir google.com e pesquisar inteligencia artificial` foi interpretado pelo planner determinístico como uma única URL inválida; isso confirma o limite atual de uma ação por comando, não uma falha de rede.
 
 Ainda precisam ser validados fisicamente pelo Painel:
 
-- captura real de screenshot após o reinício atual;
+- diagnosticar e corrigir a falha atual de screenshot;
 - leitura da janela ativa;
 - mouse;
 - teclado;
