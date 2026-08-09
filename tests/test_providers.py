@@ -103,7 +103,9 @@ def test_gemini_provider_uses_official_sdk_structured_output(
     assert request["contents"] == "qual janela está ativa?"
     config = request["config"]
     assert config.response_mime_type == "application/json"
-    assert config.response_schema["type"] == "object"
+    assert config.response_schema is None
+    assert config.response_json_schema["type"] == "object"
+    assert config.response_json_schema["additionalProperties"] is False
 
 
 def test_gemini_provider_accepts_fenced_json_without_skipping_structured_validation(
