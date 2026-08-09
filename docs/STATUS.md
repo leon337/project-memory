@@ -105,6 +105,8 @@ Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
 A sincronização de foco foi reforçada e validada fisicamente: abrir aplicativo seguido de digitação funciona sem atraso artificial intermediário, e teclado recusa execução quando o foco observado não corresponde ao alvo esperado.
 
+O backend configura `pyautogui.FAILSAFE = True`, mas a primeira validação física do FAILSAFE **falhou**: com o ponteiro colocado no canto superior esquerdo, a tarefa `mover mouse 200 200` foi marcada como `succeeded`, o ponteiro foi movido e a telemetria registrou execução com sucesso. Portanto, o FAILSAFE nativo do PyAutoGUI não é considerado proteção suficiente neste ambiente e precisa ser reforçado no código do Robô antes de ser aprovado.
+
 ## Navegador
 
 - Playwright + Chromium;
@@ -137,7 +139,8 @@ Confirmado no computador alvo:
 - transição real da Central de **Ligada fora do Painel** → **Desligada** → **Ligada e gerenciada pelo Painel** refletida corretamente;
 - telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada;
 - reinício do Robô pelo Painel validado, com novo PID e retorno ao estado operacional;
-- telemetria real do Robô validada fisicamente com eventos `[ROBÔ]` e `[PAINEL]` coerentes com a reinicialização.
+- telemetria real do Robô validada fisicamente com eventos `[ROBÔ]` e `[PAINEL]` coerentes com a reinicialização;
+- primeira tentativa de validar o FAILSAFE físico **não interrompeu** `mover mouse 200 200`; a tarefa terminou `succeeded`.
 
 ## Falhas já diagnosticadas
 
@@ -147,11 +150,12 @@ Confirmado no computador alvo:
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
 - tema claro original causava desconforto visual; revisões dark foram aplicadas;
 - controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
-- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel, Central e Robô já foram validados fisicamente.
+- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel, Central e Robô já foram validados fisicamente;
+- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física no primeiro teste real; precisa de proteção explícita adicional no backend de desktop.
 
 ## Ainda precisa de validação física
 
-- validar `FAILSAFE` físico;
+- corrigir e repetir o teste do `FAILSAFE` físico;
 - validar parada de emergência real e liberação consciente;
 - validar a transição explícita **Parar Robô → Desligado → Ligar Robô → Ligado** pelo Painel;
 - testar o Laboratório com um comando conhecido;
