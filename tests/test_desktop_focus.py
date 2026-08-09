@@ -21,6 +21,9 @@ class FakeGui:
     def position(self):
         return (400, 300)
 
+    def size(self):
+        return (1920, 1080)
+
 
 class FakeProcess:
     pid = 12345
