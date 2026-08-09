@@ -1,23 +1,31 @@
 # NEXT
 
-## 1. Corrigir e revalidar o FAILSAFE físico
+## 1. Revalidar fisicamente o FAILSAFE explícito
 
-A primeira validação física do FAILSAFE falhou: com o ponteiro no canto superior esquerdo, a tarefa `mover mouse 200 200` foi executada e terminou como `succeeded`.
+A primeira validação física do FAILSAFE nativo do PyAutoGUI falhou: com o ponteiro no canto superior esquerdo, a tarefa `mover mouse 200 200` foi executada e terminou como `succeeded`.
 
-O backend atualmente ativa `pyautogui.FAILSAFE = True`, mas isso não foi suficiente no computador alvo.
+A correção já está implementada no `main`:
 
-Próximos passos:
+- `PyAutoGuiDesktopBackend` mantém `pyautogui.FAILSAFE = True` como defesa adicional;
+- antes de mover, clicar, digitar ou pressionar tecla, o backend verifica a posição atual do ponteiro;
+- uma zona de 20 pixels nos quatro cantos funciona como FAILSAFE explícito do Robô;
+- quando o ponteiro está nessa zona, `DesktopFailsafeTriggered` é levantado antes de qualquer entrada física;
+- testes automatizados cobrem os quatro cantos, bloqueio de mouse/teclado e execução normal fora da zona;
+- CI do commit `4f398f4f745fbd996db13c710601fa83b3da5c37` concluiu com `success`.
 
-1. adicionar no backend de desktop uma proteção explícita própria antes de ações físicas, tratando uma pequena zona dos cantos da tela como área de parada;
-2. cobrir a proteção com testes automatizados;
-3. baixar/reiniciar o Robô;
-4. repetir fisicamente `mover mouse 200 200` com o ponteiro na zona de segurança.
+Próximos passos no computador alvo:
 
-Critério de conclusão: a ação deve ser recusada antes do movimento, a tarefa deve terminar como `failed` e a telemetria deve registrar a interrupção de segurança.
+1. sincronizar o `main` local com o GitHub;
+2. reiniciar o Robô pelo Painel para carregar o código novo;
+3. colocar o ponteiro no canto superior esquerdo;
+4. enviar `mover mouse 200 200`;
+5. verificar no Painel que a tarefa terminou como `failed` e que o log do Robô registra `DesktopFailsafeTriggered`.
+
+Critério de conclusão: o ponteiro não deve sair do canto por ação do Robô, a tarefa deve terminar como `failed` e a telemetria deve registrar a interrupção de segurança.
 
 ## 2. Concluir parada de emergência e ciclo operacional
 
-Depois do FAILSAFE corrigido e aprovado:
+Depois do FAILSAFE corrigido e aprovado fisicamente:
 
 - validar a parada de emergência real pelo Painel;
 - confirmar que o Robô é encerrado e o bloqueio persistente fica visível;
