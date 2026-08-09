@@ -67,10 +67,11 @@ def test_ai_goal_loop_continues_until_finish() -> None:
         ]
     )
     executor = FakeExecutor()
+    objective = "Analise o objetivo e use o editor conforme necessário"
 
     result = execute_command(
         executor,
-        "Abra o editor de texto e escreva Olá mundo",
+        objective,
         planner=planner,
         max_goal_steps=5,
     )
@@ -83,10 +84,33 @@ def test_ai_goal_loop_continues_until_finish() -> None:
     assert result["steps"][1]["action"] == "type_text"
     assert result["planner_provider"] == "gemini"
     assert len(planner.calls) == 3
-    assert planner.calls[0] == "Abra o editor de texto e escreva Olá mundo"
+    assert planner.calls[0] == objective
     assert "OBJETIVO ORIGINAL" in planner.calls[1]
     assert "open_app" in planner.calls[1]
     assert "type_text" in planner.calls[2]
+
+
+def test_known_compound_goal_runs_without_provider_calls() -> None:
+    planner = ScriptedPlanner([])
+    executor = FakeExecutor()
+
+    result = execute_command(
+        executor,
+        "Abra o editor de texto e escreva Olá mundo",
+        planner=planner,
+        max_goal_steps=5,
+    )
+
+    assert planner.calls == []
+    assert executor.executed == [
+        Plan("open_app", "editor"),
+        Plan("type_text", "Olá mundo"),
+    ]
+    assert result["goal_completed"] is True
+    assert result["verified"] is True
+    assert result["planner_provider"] == "deterministic"
+    assert result["planner_route"] == "local-sequence"
+    assert len(result["steps"]) == 2
 
 
 def test_ai_goal_loop_refuses_false_success_when_step_is_not_verified() -> None:
@@ -101,7 +125,7 @@ def test_ai_goal_loop_refuses_false_success_when_step_is_not_verified() -> None:
     with pytest.raises(RuntimeError, match="não foi verificada"):
         execute_command(
             executor,
-            "Abra o editor",
+            "Analise e abra o editor se necessário",
             planner=planner,
             max_goal_steps=5,
         )
