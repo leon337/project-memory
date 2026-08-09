@@ -1,111 +1,115 @@
 # Robô Operador — MVP 0.3
 
-Operador digital local com **Painel do Robô**, Central, fila de tarefas e Robô executor.
+Operador digital local em Linux/X11 com **Painel do Robô**, Central, fila persistente e Robô executor.
 
-## Visão simples
+> O estado oficial e detalhado do projeto está em `docs/STATUS.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` e `docs/NEXT.md`. Este README é apenas uma visão rápida.
+
+## Arquitetura atual
 
 ```text
-Você
+Usuário
   ↓
-Painel do Robô
+Painel do Robô — 127.0.0.1:8765
   ↓
-Central
+Central — 127.0.0.1:8000
   ↓
-Fila SQLite
+SQLite — fila / leases / histórico
   ↓
 Robô local
   ↓
-Planner + Policy Layer
-  ├─ Navegador: Playwright / Chromium
-  └─ Desktop: PyAutoGUI / Linux X11
+Planner determinístico + MultiProviderPlanner
+  ├─ Z.AI / GLM
+  ├─ Google Gemini
+  └─ Cloudflare Workers AI (adaptador implementado)
   ↓
-Resultado volta ao Painel
+Policy Layer
+  ↓
+Executores
+  ├─ Playwright / Chromium
+  └─ Desktop Linux / PyAutoGUI / subprocess
 ```
 
-## Comandos principais
+A migração vigente adiciona um **Goal Runtime universal** acima desse pipeline para que `succeeded` represente objetivo completo comprovado, não apenas uma ação executada.
 
-Com a `.venv` ativa:
+## Estado já validado fisicamente
 
-```bash
-painel-robo
-```
+No Linux/X11 real já foram validados, entre outros:
 
-Abre o **Painel do Robô** em:
+- Painel, Central e Robô como processos separados;
+- ligar/parar/reiniciar pelo Painel;
+- telemetria real;
+- Emergency Stop persistente;
+- FAILSAFE físico nos cantos;
+- screenshot, mouse e teclado;
+- digitação Unicode;
+- proteção de foco;
+- abertura de aplicativos;
+- navegação e pesquisa;
+- planner multi-provider com fallback;
+- fast paths locais como `editor + escrever` e `navegador + pesquisa`.
+
+O baseline de autonomia também demonstrou limitações reais de interpretação, percepção, resolução de capacidades, contexto entre tarefas e um caso histórico de falso `succeeded` em objetivo composto. Esses resultados estão documentados em `docs/STATUS.md`.
+
+## Goal Runtime — migração atual
+
+A direção arquitetural vigente é:
 
 ```text
-http://127.0.0.1:8765
+Goal Contract
+→ estado operacional
+→ subobjetivos / capabilities
+→ próxima etapa
+→ Policy Layer
+→ executor
+→ Execution Receipt
+→ observação
+→ EvidenceRecord
+→ GoalVerifier
+→ continuar/replanejar ou succeeded
 ```
 
-O Painel é a interface principal para operação e aprendizado.
+Fundação já criada:
 
-Também continuam disponíveis:
+- `src/context_anchor/goal_runtime.py`
+- `tests/test_goal_runtime_contract.py`
 
-```bash
-central
-robo
-diagnostico-robo
-parar-robo status
-```
+Missão de integração completa e critérios de aceite:
 
-## O que o Painel do Robô já faz
+- `docs/CODEX_GOAL_RUNTIME_MISSION.md`
 
-- mostra se Central e Robô estão ligados;
-- mostra se o controle do Desktop está habilitado;
-- mostra o estado da parada de emergência;
-- liga e para a Central quando ela está registrada pela versão atual;
-- liga, para e reinicia o Robô;
-- altera visualmente `CONTEXT_ANCHOR_DESKTOP_ENABLED`;
-- executa diagnóstico de leitura;
-- mostra tarefas recentes;
-- envia tarefas para o Robô sem exigir que o token seja digitado no navegador;
-- mostra logs dos processos iniciados pelo Painel;
-- possui Laboratório de comandos guiados.
+## Regra de conclusão
 
-O Laboratório explica comandos de desenvolvimento antes da execução manual. Ele não oferece shell remoto arbitrário.
+Ação executada não significa objetivo concluído.
 
-## Navegador
+Um `ExecutionReceipt` registra apenas sucesso técnico. A arquitetura nova exige evidência compatível com os critérios obrigatórios do Goal antes de permitir `succeeded`.
 
-Comandos atuais:
+## Fast paths e IA
 
-- `abrir example.com`
-- `abrir https://www.python.org`
-- `pesquisar agentes de IA`
-- `buscar FastAPI`
+Fast paths determinísticos continuam importantes para latência e economia de quota, mas passam a ser **skills internas do mesmo Goal Run**, não um caminho paralelo de conclusão.
 
-Localhost, `.local`, IPs privados/loopback e esquemas diferentes de HTTP/HTTPS permanecem bloqueados.
+IA fica reservada para interpretação semântica, decomposição, condição, ambiguidade e replanejamento. Providers são intercambiáveis e podem fazer fallback antes da ação física correspondente.
 
-## Desktop
+## Perfil local
 
-Ações tipadas em código:
+O perfil local confiável é **permissivo por padrão**: ausência de cadastro prévio não deve ser, por si só, motivo para bloquear uma capacidade disponível ao usuário e ao sistema operacional. Bloqueios específicos futuros entram como regras explícitas/denylist.
 
-- `capturar tela`
-- `janela ativa`
-- `mover mouse 120 350`
-- `clicar`
-- `clicar direito`
-- `digitar algum texto`
-- `tecla enter`
-- `abrir aplicativo firefox`
+Continuam independentes do raciocínio:
 
-Aplicativos da allowlist inicial:
+- Emergency Stop;
+- FAILSAFE;
+- verificação de foco;
+- Policy Layer;
+- credenciais fora de Git/logs/prompts.
 
-- Firefox;
-- Chromium/Chrome;
-- Nemo/Nautilus;
-- Xed/Gedit;
-- VS Code;
-- calculadora;
-- LibreOffice.
-
-Aplicativos usam `shell=False`; não existe executor genérico de shell remoto.
+Painel e Central permanecem em localhost e esta versão não deve ser publicada diretamente na Internet.
 
 ## Requisitos
 
 - Python 3.11+;
-- Linux desktop para o primeiro alvo;
-- sessão X11 para o backend físico inicial;
+- Linux desktop;
+- sessão X11 no backend físico atual;
 - Chromium do Playwright;
-- `xdotool` e `scrot` para os primeiros recursos de percepção.
+- `xdotool` e `scrot` para recursos atuais de percepção.
 
 Linux Mint/Ubuntu:
 
@@ -123,99 +127,35 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 python -m playwright install chromium
-```
-
-## Configuração inicial
-
-```bash
 cp .env.example .env
 ```
 
-Gere dois tokens diferentes:
+As credenciais e tokens ficam somente no `.env` local.
+
+## Operação
+
+Com a `.venv` ativa:
 
 ```bash
-python -c "import secrets; print(secrets.token_urlsafe(32)); print(secrets.token_urlsafe(32))"
-```
-
-Configure:
-
-```env
-CONTEXT_ANCHOR_USER_TOKEN=...
-CONTEXT_ANCHOR_AGENT_TOKEN=...
-```
-
-O Desktop começa desligado por padrão:
-
-```env
-CONTEXT_ANCHOR_DESKTOP_ENABLED=false
-```
-
-No MVP 0.3 essa opção também pode ser alterada pelo Painel do Robô.
-
-## Fluxo recomendado de uso
-
-Depois da instalação:
-
-```bash
-source .venv/bin/activate
 painel-robo
 ```
 
-Abra:
+Painel:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-A partir daí use os botões do Painel para ligar Central e Robô, consultar diagnóstico e enviar tarefas.
+Também existem comandos técnicos como:
 
-Se uma Central de uma versão anterior já estiver rodando sem registro de PID, o Painel pode detectá-la como online, mas pedirá que ela seja parada manualmente uma vez. Depois de reiniciada pela versão nova, passa a ser gerenciável pelo Painel.
-
-## Laboratório de aprendizado
-
-O Painel possui uma área para colar linhas como:
-
-```text
-git pull
-pip install -e .
-source .venv/bin/activate
+```bash
 central
 robo
 diagnostico-robo
-```
-
-Para comandos catalogados, o Painel mostra:
-
-- o que o comando faz;
-- por que ele está sendo usado;
-- qual resultado esperar;
-- onde deve ser executado.
-
-Comandos desconhecidos não são executados automaticamente.
-
-## Parada de emergência
-
-Pelo terminal:
-
-```bash
 parar-robo status
-parar-robo trigger --reason "parada manual"
-parar-robo clear
 ```
 
-O Painel também oferece botões para ativar e liberar a emergência.
-
-Enquanto o marcador persistente estiver ativo, o Robô recusa reinício.
-
-## Recuperação de tarefas
-
-Cada tarefa reivindicada pelo Robô recebe um lease temporário e um token de propriedade.
-
-- lease padrão: 120 segundos;
-- máximo padrão: 3 tentativas;
-- resultado com lease antigo é recusado;
-- tarefa abandonada pode voltar para a fila;
-- após interrupções repetidas, a tarefa falha para evitar loop infinito.
+O Painel é a interface principal para operação normal.
 
 ## Testes
 
@@ -223,28 +163,8 @@ Cada tarefa reivindicada pelo Robô recebe um lease temporário e um token de pr
 pytest
 ```
 
-O GitHub Actions compila e testa Central, fila, leases, desktop, política, planner, parada de emergência e Painel sem exigir uma sessão gráfica real.
+O GitHub Actions executa instalação, compilação e testes automatizados. A migração do Goal Runtime possui também critérios físicos obrigatórios descritos em `docs/CODEX_GOAL_RUNTIME_MISSION.md`; testes mockados sozinhos não concluem essa missão.
 
-## Segurança atual
+## Próximo passo
 
-- Painel: `127.0.0.1:8765` por padrão;
-- Central: `127.0.0.1:8000` por padrão;
-- tokens separados para usuário e Robô;
-- `.env` fora do Git;
-- desktop sujeito a feature gate e Policy Layer;
-- aplicativos por allowlist;
-- sem shell remoto arbitrário;
-- sem bypass de login/MFA;
-- parada de emergência independente do planner;
-- processos são identificados por PID + tempo de início antes de encerramento pelo Painel.
-
-Esta versão não deve ser exposta diretamente à Internet.
-
-## Próximos passos
-
-1. validar fisicamente o Painel do Robô no Linux real;
-2. validar screenshot, janela ativa, mouse, teclado, aplicativos e emergência pelo Painel;
-3. integrar o primeiro planner por IA estruturado;
-4. depois avançar para acesso remoto seguro e Telegram/WhatsApp/Instagram.
-
-O estado oficial do projeto é mantido em `docs/STATUS.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` e `docs/NEXT.md`.
+Integrar o Goal Runtime ao `local_agent.py` e continuar até atingir os critérios automatizados e físicos definidos em `docs/CODEX_GOAL_RUNTIME_MISSION.md`.
