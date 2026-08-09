@@ -70,6 +70,57 @@ def _normalize_url_target(value: str) -> str:
     return target
 
 
+def _search_engine_url(site_url: str, query: str) -> str | None:
+    """Build a deterministic search URL only for search engines we know."""
+
+    parsed = urlparse(site_url)
+    hostname = (parsed.hostname or "").casefold()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+
+    encoded = quote_plus(query.strip())
+    if not encoded:
+        raise ValueError("A pesquisa precisa de um termo.")
+
+    if hostname == "google.com":
+        return f"https://www.google.com/search?q={encoded}"
+    if hostname == "duckduckgo.com":
+        return f"https://duckduckgo.com/?q={encoded}"
+    if hostname == "bing.com":
+        return f"https://www.bing.com/search?q={encoded}"
+    return None
+
+
+def _browser_site_search_plan(command: str) -> Plan | None:
+    """Resolve browser + search-engine + query phrases without provider calls."""
+
+    match = re.fullmatch(
+        r"(?:por\s+favor\s+)?(?:abra|abre|abrir|open)\s+"
+        r"(?:o\s+)?(?:navegador|browser)"
+        r"(?:\s+([A-Za-z0-9._-]+))?\s+e\s+"
+        r"(?:acesse|acessa|acessar|visite|visitar|entre\s+em|va\s+para|vá\s+para|ir\s+para)\s+"
+        r"(.+?)\s+e\s+"
+        r"(?:pesquise|pesquisar|busque|buscar|procure|procurar|search)\s+"
+        r"(.+)",
+        command.strip(),
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    browser_name = match.group(1)
+    site_url = _normalize_url_target(match.group(2))
+    query = _strip_polite_suffix(match.group(3))
+    search_url = _search_engine_url(site_url, query)
+    if search_url is None:
+        return None
+
+    if browser_name:
+        app = canonical_app_id(browser_name)
+        return Plan("open_app", f"{app} {search_url}")
+    return Plan("open_url", search_url)
+
+
 def _browser_navigation_plan(command: str) -> Plan | None:
     """Resolve browser + site phrases without spending provider quota.
 
@@ -169,12 +220,30 @@ def plan_command(command: str) -> Plan:
                 raise ValueError("Informe o aplicativo a abrir.")
             return Plan("open_app", app_id)
 
-    for prefix in ("pesquisar ", "buscar ", "search "):
+    search_prefixes = (
+        "agora pesquise ",
+        "agora pesquisar ",
+        "agora busque ",
+        "agora buscar ",
+        "agora procure ",
+        "pesquise ",
+        "pesquisar ",
+        "busque ",
+        "buscar ",
+        "procure ",
+        "procurar ",
+        "search ",
+    )
+    for prefix in search_prefixes:
         if lowered.startswith(prefix):
             query = text[len(prefix):].strip()
             if not query:
                 raise ValueError("A pesquisa precisa de um termo.")
             return Plan("open_url", f"https://duckduckgo.com/?q={quote_plus(query)}")
+
+    browser_site_search = _browser_site_search_plan(text)
+    if browser_site_search:
+        return browser_site_search
 
     browser_navigation = _browser_navigation_plan(text)
     if browser_navigation:
