@@ -197,3 +197,31 @@ O teste físico
 foi marcado como `succeeded`, mas na prática apenas abriu uma pesquisa contendo quase a frase inteira; não leu o primeiro resultado, não abriu o editor e não escreveu o título. Esse resultado é tratado como **FAIL de objetivo** e motivou esta decisão.
 
 A arquitetura futura deve decompor o objetivo, acompanhar subobjetivos e só concluir quando houver evidência suficiente de que todos os critérios relevantes foram atendidos.
+
+## D-022 — Goal Runtime universal em ciclo fechado
+
+Todo pedido deve possuir uma única semântica de conclusão, independentemente de ser resolvido por fast path determinístico ou por IA.
+
+A unidade de sucesso deixa de ser a ação e passa a ser o **critério de objetivo comprovado por evidência**.
+
+O runtime universal seguirá conceitualmente:
+
+```text
+Goal Contract
+→ estado operacional / blackboard
+→ resolução de capacidade
+→ próxima etapa
+→ Policy Layer
+→ executor
+→ Execution Receipt
+→ observação
+→ evidência
+→ Goal Verifier
+→ replanejamento ou conclusão
+```
+
+Fast paths determinísticos permanecem como otimizações/skills dentro desse runtime; eles não podem retornar `succeeded` por uma semântica paralela de conclusão.
+
+O planner pode sugerir que não há mais trabalho, mas não possui autoridade final para declarar o objetivo concluído. Apenas o verificador de objetivo, usando critérios e evidências, pode autorizar o verdict final.
+
+No primeiro incremento, o Goal Contract deve permanecer pequeno: objetivo original, subobjetivos, critérios, artefatos produzidos e evidências. Não criar microserviços nem reescrever Painel, Central, fila, executores, FAILSAFE, parada de emergência ou providers.
