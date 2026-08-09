@@ -8,10 +8,76 @@ import httpx
 from .actions import ActionExecutor
 from .config import DashboardSettings, LocalAgentSettings
 from .emergency_stop import EmergencyStop, EmergencyStopTriggered
-from .planner import DeterministicPlanner, Planner
+from .planner import (
+    DeterministicPlanner,
+    MultiProviderPlanner,
+    Planner,
+    ProviderCandidate,
+)
 from .policy import evaluate_plan
+from .providers import CloudflareWorkersAIProvider, GeminiProvider, ZAIProvider
 from .runtime_log import write_runtime_log
 from .schemas import AgentTask
+
+
+def build_planner(cfg: LocalAgentSettings) -> Planner:
+    if cfg.planner_mode == "deterministic":
+        return DeterministicPlanner()
+
+    candidates: list[ProviderCandidate] = []
+
+    if cfg.cloudflare_api_token and cfg.cloudflare_account_id:
+        candidates.append(
+            ProviderCandidate(
+                name="cloudflare",
+                provider=CloudflareWorkersAIProvider(
+                    cfg.cloudflare_api_token,
+                    cfg.cloudflare_account_id,
+                    model=cfg.cloudflare_model,
+                    timeout_seconds=cfg.planner_timeout_seconds,
+                ),
+                roles=frozenset({"fast", "reasoning"}),
+                rpm_limit=cfg.cloudflare_rpm_limit,
+            )
+        )
+
+    if cfg.zai_api_key:
+        candidates.append(
+            ProviderCandidate(
+                name="zai",
+                provider=ZAIProvider(
+                    cfg.zai_api_key,
+                    model=cfg.zai_model,
+                    timeout_seconds=cfg.planner_timeout_seconds,
+                ),
+                roles=frozenset({"fast", "reasoning"}),
+            )
+        )
+
+    if cfg.gemini_api_key:
+        candidates.append(
+            ProviderCandidate(
+                name="gemini",
+                provider=GeminiProvider(
+                    cfg.gemini_api_key,
+                    model=cfg.gemini_model,
+                    timeout_seconds=cfg.planner_timeout_seconds,
+                ),
+                roles=frozenset({"fast", "reasoning"}),
+                rpm_limit=cfg.gemini_rpm_limit,
+            )
+        )
+
+    if not candidates:
+        raise ValueError(
+            "CONTEXT_ANCHOR_PLANNER_MODE=multi exige ao menos um provedor com credencial local configurada."
+        )
+
+    return MultiProviderPlanner(
+        candidates,
+        deterministic=DeterministicPlanner(),
+        cooldown_seconds=cfg.planner_cooldown_seconds,
+    )
 
 
 def execute_command(
@@ -27,6 +93,16 @@ def execute_command(
         raise PermissionError(decision.reason)
     result = executor.execute(plan)
     result["policy_reason"] = decision.reason
+
+    provider = getattr(active_planner, "last_provider", None)
+    route = getattr(active_planner, "last_route", None)
+    fallback_errors = getattr(active_planner, "last_errors", None)
+    if provider:
+        result["planner_provider"] = provider
+    if route:
+        result["planner_route"] = route
+    if fallback_errors:
+        result["planner_fallbacks"] = list(fallback_errors)
     return result
 
 
@@ -54,10 +130,15 @@ def run() -> None:
         screenshot_dir=cfg.screenshot_dir,
         emergency_stop=stop,
     )
-    planner = DeterministicPlanner()
+    planner = build_planner(cfg)
 
+    planner_names = getattr(planner, "provider_names", ())
+    planner_detail = (
+        f"multi provedores={','.join(planner_names)}" if planner_names else "determinístico"
+    )
     log(
-        f"Robô iniciando agente={cfg.agent_id} desktop={'habilitado' if cfg.desktop_enabled else 'desabilitado'}"
+        f"Robô iniciando agente={cfg.agent_id} desktop={'habilitado' if cfg.desktop_enabled else 'desabilitado'} "
+        f"planner={planner_detail}"
     )
     try:
         with stop.register_agent_process():
@@ -81,7 +162,14 @@ def run() -> None:
                                     "ok": True,
                                     "result": result,
                                 }
-                                log(f"Tarefa executada id={task.id} resultado=sucesso")
+                                provider = result.get("planner_provider")
+                                route = result.get("planner_route")
+                                planner_suffix = (
+                                    f" planner={provider} rota={route}" if provider else ""
+                                )
+                                log(
+                                    f"Tarefa executada id={task.id} resultado=sucesso{planner_suffix}"
+                                )
                             except EmergencyStopTriggered as exc:
                                 payload = {
                                     "lease_token": task.lease_token,
