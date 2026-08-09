@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import shutil
 import subprocess
 import time
@@ -7,6 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 
+# Known aliases remain as convenience, not as an authorization boundary.
 APP_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     "firefox": (("firefox",),),
     "chromium": (("chromium",), ("chromium-browser",), ("google-chrome",)),
@@ -15,6 +17,7 @@ APP_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     "vscode": (("code",),),
     "calculadora": (("gnome-calculator",), ("mate-calc",)),
     "libreoffice": (("libreoffice",),),
+    "brave-browser": (("brave-browser",), ("brave-browser-stable",), ("brave",)),
 }
 
 SUPPORTED_APP_IDS = frozenset(APP_COMMANDS)
@@ -34,12 +37,54 @@ APP_ALIASES = {
     "code": "vscode",
     "visual studio code": "vscode",
     "calculator": "calculadora",
+    "brave": "brave-browser",
+    "brave browser": "brave-browser",
+    "navegador brave": "brave-browser",
 }
 
 
 def canonical_app_id(value: str) -> str:
-    normalized = " ".join(value.strip().casefold().split())
+    raw = value.strip()
+    if not raw:
+        return ""
+
+    # Preserve case-sensitive explicit paths/commands. Authorization is no longer
+    # based on this canonicalization; it is only a convenience resolver.
+    if "/" in raw:
+        return raw
+
+    normalized = " ".join(raw.casefold().split())
+    for prefix in ("o navegador ", "navegador ", "browser ", "o aplicativo ", "aplicativo ", "app "):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):].strip()
+            break
     return APP_ALIASES.get(normalized, normalized)
+
+
+def _application_candidates(value: str) -> tuple[tuple[str, ...], ...]:
+    canonical = canonical_app_id(value)
+    known = APP_COMMANDS.get(canonical)
+    if known:
+        return known
+
+    candidates: list[tuple[str, ...]] = []
+    for source in (canonical, value.strip()):
+        if not source:
+            continue
+        try:
+            argv = tuple(shlex.split(source))
+        except ValueError:
+            continue
+        if argv and argv not in candidates:
+            candidates.append(argv)
+
+    if " " in canonical and "/" not in canonical:
+        for executable_name in (canonical.replace(" ", "-"), canonical.replace(" ", "")):
+            argv = (executable_name,)
+            if argv not in candidates:
+                candidates.append(argv)
+
+    return tuple(candidates)
 
 
 class DesktopFailsafeTriggered(RuntimeError):
@@ -157,7 +202,6 @@ class PyAutoGuiDesktopBackend:
 
     def _wait_for_active_window_change(self, previous_window_id: str | None) -> dict[str, Any]:
         if not self._xdotool_path() or previous_window_id is None:
-            # Fallback for environments where focus cannot be observed reliably.
             time.sleep(min(self.app_ready_timeout_seconds, 0.8))
             current = self._active_window_id()
             return {
@@ -171,7 +215,6 @@ class PyAutoGuiDesktopBackend:
         while time.monotonic() < deadline:
             current = self._active_window_id()
             if current and current != previous_window_id:
-                # Small settle period after the window manager reports focus.
                 time.sleep(0.15)
                 return {
                     "window_changed": True,
@@ -283,9 +326,9 @@ class PyAutoGuiDesktopBackend:
 
     def open_application(self, app_id: str) -> dict[str, Any]:
         canonical = canonical_app_id(app_id)
-        candidates = APP_COMMANDS.get(canonical)
+        candidates = _application_candidates(app_id)
         if not candidates:
-            raise PermissionError(f"Aplicativo fora da allowlist: {app_id}")
+            raise FileNotFoundError(f"Não foi possível resolver o aplicativo/comando '{app_id}'.")
 
         previous_window = self._active_window_id()
 
@@ -324,6 +367,7 @@ class PyAutoGuiDesktopBackend:
                 "action": "open_app",
                 "app": canonical,
                 "executable": executable,
+                "argv": list(argv[1:]),
                 "pid": process.pid,
                 "window_changed": window_changed,
                 "window_id": window_id,
@@ -332,5 +376,5 @@ class PyAutoGuiDesktopBackend:
             }
 
         raise FileNotFoundError(
-            f"Nenhum executável instalado foi encontrado para o aplicativo '{canonical}'."
+            f"Nenhum executável instalado foi encontrado para o aplicativo/comando '{app_id}'."
         )
