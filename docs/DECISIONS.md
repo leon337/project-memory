@@ -64,33 +64,37 @@ A interface Web permanece o primeiro canal funcional.
 
 WhatsApp, Telegram e Instagram entram depois que o núcleo local estiver validado e o acesso remoto estiver protegido.
 
-## D-012 — Seguro por padrão
+## D-012 — Operação local permissiva por padrão
 
-A Central escuta apenas localhost por padrão.
+A Central continua escutando apenas localhost por padrão; publicação remota é uma etapa separada.
 
-Usuário e Robô têm credenciais separadas. Ações não reconhecidas ou fora da allowlist são bloqueadas.
+Dentro do perfil local confiável, o Robô deve partir de uma política **permitir por padrão** para capacidades que o usuário e o sistema operacional já permitem. A ausência de uma allowlist não deve, por si só, bloquear uma ação.
 
-## D-013 — Sem shell arbitrário
+Restrições futuras devem ser expressas como bloqueios explícitos, denylist ou regras específicas definidas pelo usuário. Usuário e Robô continuam com credenciais separadas.
 
-O sistema não oferece execução genérica de shell recebida remotamente.
+## D-013 — Shell, processos e comandos fazem parte do operador local
 
-Novas capacidades entram como ações tipadas, validadas e autorizadas pela Policy Layer.
+O operador local deve poder usar terminal/shell, processos, caminhos de executáveis e argumentos quando isso for necessário para cumprir um objetivo e estiver dentro das permissões do usuário e do sistema operacional.
 
-## D-014 — Desktop desativado por padrão
+Essas capacidades não serão proibidas por padrão. O que o usuário decidir não permitir deverá ser bloqueado explicitamente depois.
 
-A existência do executor de desktop não implica permissão para usá-lo.
+Expor a Central ou o Painel diretamente à Internet continua sendo uma decisão separada da capacidade local do Robô.
 
-O controle físico fica bloqueado até `CONTEXT_ANCHOR_DESKTOP_ENABLED=true` ser configurado localmente.
+## D-014 — Desktop faz parte do perfil local permissivo
 
-Isso permite instalar, testar CI e operar apenas o navegador sem habilitar mouse/teclado por acidente.
+O controle de desktop é uma capacidade central do operador local e deve evoluir para ficar disponível por padrão no perfil local confiável.
 
-## D-015 — Aplicativos por allowlist fixa
+Deve continuar existindo uma forma explícita de desabilitar desktop quando o usuário quiser operar sem mouse, teclado ou aplicativos. Até essa mudança ser implementada, a versão atual ainda depende de `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`.
 
-Pedidos remotos para abrir aplicativos são resolvidos por ids conhecidos para uma lista fixa de executáveis.
+## D-015 — Aplicativos são permitidos por padrão e bloqueados por exceção
 
-O sistema não aceita caminho de executável ou argumentos de shell fornecidos livremente pelo comando remoto. A abertura usa `shell=False`.
+O Robô não deve exigir cadastro manual prévio de cada aplicativo para poder abri-lo.
 
-Saídas de planner podem usar aliases textuais previamente aprovados, mas esses aliases devem ser normalizados para o ID canônico antes da Policy Layer. Para o editor, `editor de texto`, `text editor`, `text_editor`, `xed`, `gedit` e `notepad` equivalem somente ao ID `editor`, que continua resolvendo a lista fixa `xed`/`gedit`. Essa normalização não autoriza `notepad.exe`, caminhos, argumentos ou executáveis fora da allowlist.
+Aplicativos e executáveis disponíveis à sessão do usuário devem poder ser resolvidos e usados por padrão, inclusive quando a IA os identificar por nome natural, caminho ou comando compatível com o sistema local.
+
+Aplicativos, executáveis, argumentos ou classes de ação que o usuário não quiser permitir deverão entrar em denylist ou regra explícita de bloqueio.
+
+A tabela fixa `APP_COMMANDS` existente é transitória e deverá ser substituída por resolução local mais ampla; ela não representa mais a política desejada do produto.
 
 ## D-016 — Emergency stop independente do planner
 
@@ -106,11 +110,13 @@ Uma tarefa em execução pertence temporariamente a uma execução específica p
 
 Resultados só são aceitos enquanto esse lease ainda for o proprietário atual. Tarefas abandonadas podem voltar para a fila e existe limite de tentativas para impedir loop infinito.
 
-## D-018 — Contrato estruturado para planners de IA
+## D-018 — Contrato estruturado serve à orquestração, não à restrição de capacidades
 
-Um provedor de IA deve devolver somente uma ação pertencente ao esquema estruturado conhecido pelo sistema.
+Os provedores de IA continuam devolvendo ações estruturadas para manter validação, observabilidade, verificação e roteamento previsíveis.
 
-O esquema não possui ação de shell nem campos livres para comandos de ferramenta. Mesmo uma ação estruturalmente válida continua sujeita à Policy Layer antes da execução.
+O contrato estruturado não deve funcionar como uma whitelist permanente de capacidades. Ele pode evoluir para representar capacidades amplas do operador, incluindo shell/processos, arquivos, aplicativos, navegador, mouse, teclado e outras ações necessárias.
+
+As restrições passam a ser exceções explícitas definidas pela política local, além das permissões reais do usuário e do sistema operacional. FAILSAFE e parada de emergência permanecem independentes desse modelo de permissões.
 
 ## D-019 — Construção também deve ensinar operação e diagnóstico
 
@@ -167,7 +173,7 @@ O Painel do Robô deve oferecer progressivamente:
 - área de aprendizado que explique comandos, resultado esperado e erros comuns;
 - campo para receber comandos de manutenção fornecidos durante o desenvolvimento, com visualização e explicação antes da execução.
 
-O campo de comandos do painel não será um shell remoto irrestrito. Ele deverá executar somente operações locais explicitamente suportadas pelo modo de desenvolvimento, ou apresentar o comando para cópia/execução manual quando estiver fora dessa lista.
+O campo de comandos do painel pode evoluir para acionar capacidades amplas do operador local, mas isso não significa publicar um endpoint de shell diretamente na Internet.
 
 O Painel do Robô permanece um processo local separado da Central para continuar disponível mesmo quando a Central ou o Robô forem desligados ou reiniciados.
 
@@ -179,7 +185,7 @@ Ao encadear ações como `abrir aplicativo` seguido de `digitar`, o executor dev
 
 A digitação deve registrar em qual janela ativa foi executada e não deve ser tratada como verificada apenas porque as teclas foram enviadas. Quando o alvo esperado puder ser conhecido, foco e resultado devem ser confirmados antes de marcar a etapa como concluída.
 
-A proteção acompanha a identidade observada da janela, não uma allowlist separada de aplicativos autorizados a receber teclado. Abrir um aplicativo ou clicar em uma janela observável pode estabelecer o foco esperado; `type_text` e `press_key` devem recusar a ação se a janela ativa mudar depois disso. A allowlist fixa de D-015 continua restrita à ação `open_app` e não altera esse contrato de foco.
+A proteção acompanha a identidade observada da janela, não uma allowlist separada de aplicativos autorizados a receber teclado. Abrir um aplicativo ou clicar em uma janela observável pode estabelecer o foco esperado; `type_text` e `press_key` devem recusar a ação se a janela ativa mudar depois disso. A política permissiva de aplicativos de D-015 não altera esse contrato de foco.
 
 ## D-023 — Conforto visual é requisito do Painel
 
@@ -233,7 +239,7 @@ A distribuição não será round-robin nem balanceamento igual. O roteador deve
 
 Quando um provedor estiver indisponível, limitado ou inadequado para a tarefa, o roteador poderá selecionar outro provedor compatível sem alterar o contrato interno do Robô.
 
-O roteador seleciona apenas o **planner**. Ele não pode contornar a Policy Layer, o FAILSAFE, a parada de emergência ou as validações dos executores.
+O roteador seleciona apenas o **planner**. Ele não pode contornar o FAILSAFE, a parada de emergência ou as verificações locais do executor. A política funcional de capacidades é permissiva por padrão conforme D-012, D-013 e D-015.
 
 Fallback de provedor deve acontecer antes da execução física ou depois de uma falha comprovadamente anterior à execução. Uma ação física já executada não deve ser repetida automaticamente apenas porque a chamada seguinte de IA falhou; verificação e idempotência continuam obrigatórias.
 
@@ -253,4 +259,4 @@ O modelo padrão do planner Gemini é `gemini-3.6-flash`. O SDK recebe `Generate
 
 O limite de output deve acomodar pensamento interno e o JSON. O teto anterior de 160 produziu uma resposta real truncada com `FinishReason.MAX_TOKENS`; 1024 produziu JSON completo e `FinishReason.STOP`. Desabilitar thinking com `thinking_budget=0` não é usado porque o modelo vigente recusou essa configuração com `400 INVALID_ARGUMENT`.
 
-A resposta do SDK, seja por `parsed` ou texto JSON, continua obrigada a validar como `StructuredAction`. O uso do SDK não dá ao Gemini acesso direto a ferramentas, mouse, teclado, navegador ou shell; a ação proposta ainda passa pela Policy Layer, FAILSAFE e demais proteções locais.
+A resposta do SDK, seja por `parsed` ou texto JSON, continua obrigada a validar como `StructuredAction`. O uso do SDK não dá ao Gemini acesso direto ao sistema operacional; ele propõe ações estruturadas que podem representar capacidades amplas do operador, e o executor local continua responsável por observação, verificação, FAILSAFE, parada de emergência e limites reais do usuário/sistema operacional.
