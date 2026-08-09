@@ -184,3 +184,13 @@ O padrão visual do Painel será **ultra escuro**, com fundo próximo de preto, 
 A revisão visual deve melhorar conjuntamente hierarquia, contraste, tamanho e legibilidade dos textos, uso do espaço e aparência profissional. Configurações e Laboratório devem seguir o mesmo sistema visual da Visão geral, sem parecer páginas vazias ou desconectadas.
 
 A melhoria visual deve preservar destaque inequívoco para estados positivos, falhas e parada de emergência. O design só é considerado concluído depois de carregado e aprovado visualmente no computador real.
+
+## D-024 — Controles operacionais e logs devem refletir realidade observável
+
+Controles de operação não devem funcionar como botões estáticos que apenas disparam comandos. O Painel deve mostrar no próprio controle o estado atual do componente e adaptar a próxima ação disponível a esse estado.
+
+A Central deve distinguir pelo menos os estados **desligada**, **ligada e gerenciada pelo Painel** e **ligada fora do Painel**. O Robô e a parada de emergência também devem refletir seu estado real antes de oferecer ações.
+
+Uma área chamada **Logs ao vivo** ou equivalente só pode ser apresentada como tal quando exibir eventos reais produzidos pela aplicação. Painel, Central e Robô devem gravar telemetria persistente por componente, com timestamp e nível, independentemente de terem sido iniciados pelo Painel.
+
+A telemetria não deve registrar credenciais. Para reduzir exposição desnecessária, os eventos estruturados devem preferir ids de tarefa, estados, transições e tipos de erro em vez de copiar o texto bruto enviado pelo usuário.
