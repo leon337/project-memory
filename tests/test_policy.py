@@ -1,6 +1,6 @@
 import pytest
 
-from context_anchor.policy import Plan, evaluate_plan, plan_command
+from context_anchor.policy import Plan, evaluate_plan, plan_command, plan_local_sequence
 
 
 def test_plan_search() -> None:
@@ -15,9 +15,24 @@ def test_plan_open_adds_https() -> None:
     assert plan.target == "https://example.com"
 
 
-def test_deterministic_open_only_claims_targets_that_look_like_urls() -> None:
-    with pytest.raises(ValueError, match="não parece uma URL"):
-        plan_command("abrir o navegador brave")
+def test_deterministic_open_treats_non_url_as_application() -> None:
+    plan = plan_command("abrir o navegador brave")
+    assert plan.action == "open_app"
+    assert plan.target == "brave-browser"
+
+
+def test_deterministic_open_handles_polite_application_request() -> None:
+    plan = plan_command("abra o navegador brave para mim por favor")
+    assert plan.action == "open_app"
+    assert plan.target == "brave-browser"
+
+
+def test_local_sequence_preserves_exact_unicode_text() -> None:
+    plans = plan_local_sequence("Abra o editor de texto e escreva Olá mundo")
+    assert plans == (
+        Plan("open_app", "editor"),
+        Plan("type_text", "Olá mundo"),
+    )
 
 
 def test_policy_allows_localhost_in_trusted_local_profile() -> None:
