@@ -71,7 +71,8 @@ Confirmado no computador alvo:
 - botão **Ligar Robô** inicia uma nova execução funcional;
 - Pillow `12.3.0` instalado na `.venv`;
 - tarefas `capturar tela` concluíram como **`succeeded`**;
-- tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`.
+- tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`;
+- movimento físico do mouse validado pelo Painel: comandos `mover mouse 200 200`, `mover mouse 600 200`, `mover mouse 600 350` e `mover mouse 600 355` concluíram como **`succeeded`**, com deslocamento visível do ponteiro para as coordenadas solicitadas.
 
 ## Falhas já diagnosticadas
 
@@ -81,7 +82,6 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- movimento do mouse;
 - clique do mouse;
 - digitação;
 - teclas permitidas;
