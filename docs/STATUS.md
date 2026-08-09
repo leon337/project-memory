@@ -20,7 +20,18 @@ O Painel mostra o estado de Central, Robô, Desktop e emergência; permite ligar
 
 O Laboratório não oferece shell arbitrário.
 
-Feedback de uso real: o tema atual, predominantemente claro, foi considerado cansativo para a visão durante uso prolongado. A interface ainda precisa de revisão visual com menor luminosidade e melhor conforto antes de ser considerada pronta para uso diário.
+Feedback de uso real mostrou que o tema predominantemente claro era cansativo para a visão durante uso prolongado. Uma primeira revisão visual foi implementada no `main`:
+
+- tema escuro como padrão;
+- fundo geral e barra lateral em grafite de baixa luminosidade;
+- cards, fila, campos e diagnóstico em superfícies escuras;
+- textos principais e secundários com hierarquia de contraste;
+- estados verde, vermelho, azul e âmbar recalibrados para fundo escuro;
+- botões com hover, foco de teclado e feedback visual mais claros;
+- console e barras de rolagem integrados ao tema;
+- responsividade preservada.
+
+O teste `tests/test_dashboard.py` agora verifica marcadores essenciais da paleta escura para reduzir risco de regressão visual acidental. O commit principal da mudança de tema passou no CI. A revisão ainda precisa ser puxada e validada visualmente no computador alvo antes de ser considerada concluída.
 
 ## Gerenciamento de processos
 
@@ -98,25 +109,29 @@ Confirmado no computador alvo:
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - o primeiro encadeamento `abrir aplicativo editor` → `digitar teste do robo` marcou as duas tarefas como `succeeded`, mas o editor inicialmente permaneceu sem o texto esperado;
 - um segundo encadeamento funcionou quando uma ação intermediária adicionou tempo antes da digitação, revelando uma condição de corrida de prontidão/foco;
-- a condição de corrida foi corrigida com espera observável de foco e proteção de teclado e depois validada fisicamente em novo reteste direto.
+- a condição de corrida foi corrigida com espera observável de foco e proteção de teclado e depois validada fisicamente em novo reteste direto;
+- o tema claro original do Painel foi considerado desconfortável em uso real; a correção visual escura está implementada no repositório e aguarda validação física.
 
-## Correção validada
+## Correções validadas em código
 
 - `src/context_anchor/desktop.py` espera foco observável e protege teclado contra mudança de janela;
 - `tests/test_desktop_focus.py` cobre rastreamento da janela focada, recusa de digitação quando o foco muda, registro da janela de destino e atualização de foco por clique;
-- o CI do commit de testes concluiu com **success**;
-- o computador alvo recebeu a correção por `git pull`, o Robô foi reiniciado e o reteste físico direto passou.
+- o computador alvo recebeu a correção de foco por `git pull`, o Robô foi reiniciado e o reteste físico direto passou;
+- `src/context_anchor/dashboard.py` contém a primeira revisão de dark mode;
+- o CI do commit `e162b1e3811fc33df987f5c6531ac0ab56c7748f` concluiu com **success**;
+- `tests/test_dashboard.py` inclui proteção básica contra regressão da paleta escura.
 
 ## Ainda precisa de validação física
 
+- puxar a nova versão do Painel e validar conforto, contraste, legibilidade e estados do dark mode no computador real;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
-- Laboratório de comandos guiados no uso real;
-- revisão visual do Painel com tema de menor luminosidade e validação do conforto visual no computador real.
+- Laboratório de comandos guiados no uso real.
 
 ## Ainda não implementado
 
+- seletor claro/escuro e preferências visuais persistentes;
 - árvore de acessibilidade;
 - percepção semântica de screenshots;
 - controle genérico de arquivos;
