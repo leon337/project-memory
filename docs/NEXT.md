@@ -1,28 +1,31 @@
 # NEXT
 
-## 1. Concluir a validação física de segurança
+## 1. Validar o novo dark mode do Painel
 
-Percepção, mouse, abertura de aplicativo, digitação, sincronização de foco, uma tecla permitida (`Enter`) e o diagnóstico pelo Painel já foram validados no Linux real.
+A primeira revisão visual já está implementada no `main` e usa tema escuro como padrão para reduzir brilho e fadiga visual.
 
-Próximos testes, em passos pequenos:
+Próximos passos, em ordem:
 
-1. validar o `FAILSAFE` físico;
-2. validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio.
+1. atualizar o computador com `git pull`;
+2. reiniciar apenas o processo do **Painel do Robô** para ele carregar o novo HTML/CSS;
+3. abrir novamente `http://127.0.0.1:8765`;
+4. validar visualmente Visão geral, Configurações e Laboratório;
+5. confirmar conforto, contraste, legibilidade de textos, estados e botões de segurança.
 
-Critério de conclusão: mecanismos de diagnóstico e parada devem funcionar fisicamente sem bypass da Policy Layer.
+Critério de conclusão: o usuário deve considerar o novo tema confortável para uso prolongado e nenhum controle funcional pode ter sido prejudicado pela mudança visual.
 
-## 2. Fechar o ciclo de operação e melhorar o design do Painel
+## 2. Concluir segurança e operação física
 
-Validar o uso normal sem depender de vários terminais manuais e corrigir o desconforto visual observado no uso real:
+Depois da validação visual, retomar os testes em passos pequenos:
 
+- validar o `FAILSAFE` físico;
+- validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
 - ligar, parar e reiniciar Central e Robô pelo Painel;
 - confirmar estados corretos após cada transição;
 - testar o Laboratório com um comando conhecido, confirmando explicação sem execução automática de shell;
-- reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local;
-- revisar o tema atual para reduzir brilho e fadiga visual, com aparência de menor luminosidade, melhor hierarquia e contraste;
-- validar visualmente o novo design no computador real antes de considerar o Painel pronto para uso diário.
+- reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local.
 
-Critério de conclusão: o usuário deve conseguir administrar e diagnosticar o ciclo básico pelo Painel sem manter terminais separados para Central e Robô e sem desconforto causado pelo tema atual.
+Critério de conclusão: mecanismos de parada, operação e diagnóstico devem funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
 
 ## 3. Ativar o primeiro planner por IA
 
