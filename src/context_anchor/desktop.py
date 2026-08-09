@@ -37,6 +37,10 @@ def canonical_app_id(value: str) -> str:
     return APP_ALIASES.get(normalized, normalized)
 
 
+class DesktopFailsafeTriggered(RuntimeError):
+    """Raised when the pointer is intentionally parked in a safety corner."""
+
+
 class DesktopBackend(Protocol):
     def capture_screen(self, output_path: Path) -> dict[str, Any]: ...
 
@@ -65,9 +69,13 @@ class PyAutoGuiDesktopBackend:
         *,
         pause_seconds: float = 0.05,
         app_ready_timeout_seconds: float = 3.0,
+        failsafe_margin_pixels: int = 20,
     ) -> None:
+        if failsafe_margin_pixels < 1:
+            raise ValueError("failsafe_margin_pixels deve ser pelo menos 1.")
         self.pause_seconds = pause_seconds
         self.app_ready_timeout_seconds = app_ready_timeout_seconds
+        self.failsafe_margin_pixels = failsafe_margin_pixels
         self._gui: Any | None = None
         self._expected_window_id: str | None = None
         self._focus_guard_error: str | None = None
@@ -80,6 +88,30 @@ class PyAutoGuiDesktopBackend:
             pyautogui.PAUSE = self.pause_seconds
             self._gui = pyautogui
         return self._gui
+
+    def _assert_pointer_outside_failsafe_zone(self, gui: Any | None = None) -> None:
+        """Block physical input while the pointer is parked in any screen corner.
+
+        This guard is intentionally independent from PyAutoGUI's native FAILSAFE.
+        The native mechanism remains enabled as defense in depth, but the Robô
+        does not rely on it as the only physical interruption mechanism.
+        """
+
+        active_gui = gui or self._pyautogui()
+        width, height = active_gui.size()
+        x, y = active_gui.position()
+        margin = self.failsafe_margin_pixels
+
+        near_left = 0 <= int(x) < margin
+        near_right = max(0, int(width) - margin) <= int(x) < int(width)
+        near_top = 0 <= int(y) < margin
+        near_bottom = max(0, int(height) - margin) <= int(y) < int(height)
+
+        if (near_left or near_right) and (near_top or near_bottom):
+            raise DesktopFailsafeTriggered(
+                "Ponteiro detectado na zona de segurança de um canto da tela. "
+                "A entrada física foi recusada antes da execução."
+            )
 
     @staticmethod
     def _xdotool_path() -> str | None:
@@ -184,6 +216,7 @@ class PyAutoGuiDesktopBackend:
 
     def move_mouse(self, x: int, y: int) -> dict[str, Any]:
         gui = self._pyautogui()
+        self._assert_pointer_outside_failsafe_zone(gui)
         width, height = gui.size()
         if not (0 <= x < width and 0 <= y < height):
             raise ValueError(
@@ -200,6 +233,7 @@ class PyAutoGuiDesktopBackend:
 
     def click_mouse(self, button: str) -> dict[str, Any]:
         gui = self._pyautogui()
+        self._assert_pointer_outside_failsafe_zone(gui)
         gui.click(button=button)
         x, y = gui.position()
         current_window = self._active_window_id()
@@ -218,6 +252,7 @@ class PyAutoGuiDesktopBackend:
 
     def type_text(self, text: str) -> dict[str, Any]:
         gui = self._pyautogui()
+        self._assert_pointer_outside_failsafe_zone(gui)
         window_id, window_title = self._focused_window_for_input()
         gui.write(text, interval=0.01)
         return {
@@ -230,6 +265,7 @@ class PyAutoGuiDesktopBackend:
 
     def press_key(self, key: str) -> dict[str, Any]:
         gui = self._pyautogui()
+        self._assert_pointer_outside_failsafe_zone(gui)
         window_id, window_title = self._focused_window_for_input()
         gui.press(key)
         return {
