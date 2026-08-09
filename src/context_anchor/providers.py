@@ -67,6 +67,44 @@ def _retry_after_seconds(response: httpx.Response) -> float | None:
         return None
 
 
+def _safe_http_error_detail(response: httpx.Response) -> str | None:
+    """Extract only compact provider error code/status/message for diagnostics.
+
+    Request headers, API keys and request bodies are never copied into telemetry.
+    """
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+
+    error = payload.get("error")
+    parts: list[str] = []
+    if isinstance(error, Mapping):
+        code = error.get("status") or error.get("code")
+        message = error.get("message")
+        if code is not None:
+            parts.append(str(code))
+        if isinstance(message, str) and message.strip():
+            parts.append(message.strip())
+    elif isinstance(error, str) and error.strip():
+        parts.append(error.strip())
+    else:
+        code = payload.get("code")
+        message = payload.get("message")
+        if code is not None:
+            parts.append(str(code))
+        if isinstance(message, str) and message.strip():
+            parts.append(message.strip())
+
+    if not parts:
+        return None
+    detail = ": ".join(parts).replace("\r", " ").replace("\n", " ")
+    return detail[:300]
+
+
 def _post_json(
     provider: str,
     url: str,
@@ -81,9 +119,13 @@ def _post_json(
         raise ProviderGenerationError(provider, "falha de rede ao chamar o provedor") from exc
 
     if response.status_code >= 400:
+        detail = _safe_http_error_detail(response)
+        message = f"HTTP {response.status_code}"
+        if detail:
+            message = f"{message}: {detail}"
         raise ProviderGenerationError(
             provider,
-            f"HTTP {response.status_code}",
+            message,
             status_code=response.status_code,
             retry_after_seconds=_retry_after_seconds(response),
         )
@@ -215,12 +257,8 @@ class GeminiProvider:
             body={
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                 "generationConfig": {
-                    "responseFormat": {
-                        "text": {
-                            "mimeType": "application/json",
-                            "schema": ACTION_SCHEMA,
-                        }
-                    },
+                    "responseMimeType": "application/json",
+                    "responseJsonSchema": ACTION_SCHEMA,
                     "temperature": 0.1,
                     "maxOutputTokens": 160,
                 },
