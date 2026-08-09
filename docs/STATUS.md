@@ -50,7 +50,7 @@ Implementado em `src/context_anchor/process_registry.py`.
 - a Central registra `runtime/central.pid`;
 - o Robô registra `runtime/local_agent.pid`;
 - o Painel administra processos compatíveis com esses registros;
-- a detecção em `main` agora consulta também o estado Linux do processo e considera estado `Z` (zumbi) como desligado, em vez de confiar apenas na existência do PID em `/proc`.
+- a detecção em `main` consulta também o estado Linux do processo e considera estado `Z` (zumbi) como desligado, em vez de confiar apenas na existência do PID em `/proc`.
 
 ## Comandos humanos atuais
 
@@ -130,7 +130,7 @@ O diagnóstico agora também informa se `Pillow (PIL)` e `pyscreeze` estão inst
 - testes verificam a ausência de endpoint genérico `/api/shell`;
 - testes anteriores de Central, desktop, emergency stop, planner, política e leases continuam no pipeline;
 - foi adicionado teste para os campos de diagnóstico de `Pillow` e `pyscreeze`;
-- foram adicionados testes específicos para garantir que registros de processo em estado Linux `Z` não sejam tratados como Robô online; o CI correspondente ainda estava em execução na última verificação.
+- foram adicionados testes específicos para garantir que registros de processo em estado Linux `Z` não sejam tratados como Robô online.
 
 ## Validação física — Linux real
 
@@ -147,28 +147,27 @@ Já confirmado no computador alvo:
 - `.env` local está com `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`;
 - `painel-robo` iniciou fisicamente em `127.0.0.1:8765`;
 - Visão geral, Configurações e Laboratório abriram corretamente no navegador;
-- o Painel detectou Central ligada, Robô ligado, Desktop habilitado e emergência normal;
 - foi criado localmente um atalho `.desktop` em `/home/leo/Área de trabalho/Painel do Robo.desktop` e ele inicia o Painel;
 - uma tarefa `capturar tela` chegou ao Robô e falhou inicialmente porque `Pillow/PIL` não estava instalado;
 - a leitura direta da tarefa no SQLite mostrou `PyAutoGUIException: PyAutoGUI was unable to import pyscreeze`;
 - o teste direto `python -c "import pyscreeze"` revelou `ModuleNotFoundError: No module named 'PIL'`;
-- a correção de dependência foi puxada e `pip install -e .` instalou com sucesso `pillow-12.3.0` dentro da `.venv`.
+- a correção de dependência foi puxada e `pip install -e .` instalou com sucesso `pillow-12.3.0` dentro da `.venv`;
+- a correção de detecção de processo zumbi foi puxada no computador alvo;
+- o processo do Painel foi encerrado com `Ctrl+C` e reiniciado pelo atalho da Área de trabalho;
+- após reiniciar com a correção nova, o Painel passou a mostrar corretamente **Robô local: Desligado**, enquanto **Central: Ligada**, **Desktop: Habilitado** e **Emergência: Normal** permanecem coerentes.
 
 Falhas observadas e diagnóstico atual:
 
-- depois da instalação do Pillow, o botão **Reiniciar Robô** respondeu `O Robô já está online.` em vez de comprovar uma nova execução;
-- o botão **Parar Robô** mostrou `Sinal de parada enviado para o Robô.`, mas o cartão permaneceu `Ligado` por vários minutos;
-- ao tentar ligar novamente, o Painel respondeu `O Robô já está online.`;
-- novas tarefas `capturar tela` permaneceram em `queued`, `aguardando Robô`, tentativa 0, mostrando que nenhum executor funcional estava buscando a fila;
-- o comportamento é compatível com um processo encerrado em estado Linux zumbi ainda sendo considerado vivo porque a versão local antiga verificava somente PID + start ticks;
-- `main` foi corrigido para rejeitar estado `Z` e limpar esse registro, mas essa correção ainda precisa ser puxada e o processo do Painel precisa ser reiniciado no computador alvo antes do reteste;
+- antes da correção de processo zumbi, o botão **Parar Robô** enviava o sinal, mas o cartão continuava `Ligado`; novas tarefas ficavam em `queued` porque o processo já não executava trabalho;
+- a causa foi um processo Linux encerrado em estado `Z`, ainda presente em `/proc`, sendo tratado como vivo pela versão antiga;
+- a correção foi fisicamente confirmada pela mudança do cartão para **Desligado** após reiniciar o Painel;
+- existem tarefas `capturar tela` antigas ainda em `queued`; elas permanecem aguardando enquanto o Robô está desligado e não devem ser usadas como evidência de nova falha;
 - `abrir google.com e pesquisar inteligencia artificial` continua documentado como limite do planner determinístico de uma ação por comando, não falha de rede.
 
 Ainda precisam ser validados fisicamente pelo Painel:
 
-- puxar a correção de detecção de processo zumbi e reiniciar o Painel;
-- confirmar que **Parar Robô** muda o estado para desligado e **Ligar/Reiniciar Robô** inicia uma execução funcional;
-- repetir `capturar tela` com Pillow instalado;
+- ligar o Robô novamente pelo botão **Ligar Robô** e confirmar que ele volta a buscar a fila;
+- repetir `capturar tela` com Pillow instalado e Robô funcional;
 - leitura da janela ativa;
 - mouse;
 - teclado;
