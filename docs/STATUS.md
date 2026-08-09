@@ -2,21 +2,21 @@
 
 ## Objetivo atual
 
-Construir um agente autônomo capaz de operar o computador do usuário como um operador digital, sempre dentro das permissões concedidas pelo usuário e pelo sistema operacional.
+Construir um operador digital local capaz de usar navegador e desktop dentro das permissões concedidas pelo usuário e pelo sistema operacional.
 
-O objetivo final continua incluindo mouse, teclado, aplicativos, navegador, sites, sessões autenticadas, percepção da tela, câmera autorizada, tarefas compostas e controle remoto por Web, WhatsApp, Telegram e Instagram.
+O objetivo final continua incluindo sites, sessões autenticadas sem entregar credenciais ao modelo, mouse, teclado, aplicativos, percepção da tela, câmera autorizada, tarefas compostas e controle remoto futuro por Web, WhatsApp, Telegram e Instagram.
 
 ## Estado verificável agora
 
 O branch `main` contém o **MVP 0.3** em código.
 
-O projeto possui três processos separados:
+O sistema possui três processos separados:
 
 - **Painel do Robô** — interface local de operação e aprendizado;
 - **Central** — recebe, persiste e distribui tarefas;
 - **Robô local** — executa ações permitidas no computador.
 
-## Painel do Robô — implementado e em validação física
+## Painel do Robô
 
 Implementado em `src/context_anchor/dashboard.py` e iniciado por:
 
@@ -28,50 +28,48 @@ Por padrão escuta somente `127.0.0.1:8765`.
 
 Capacidades atuais:
 
-- estado visual da Central, Robô, Desktop e emergência;
+- estado visual de Central, Robô, Desktop e emergência;
 - ligar/parar Central;
 - ligar/parar/reiniciar Robô;
-- alterar `CONTEXT_ANCHOR_DESKTOP_ENABLED` pelo painel;
+- alterar `CONTEXT_ANCHOR_DESKTOP_ENABLED`;
 - diagnóstico local;
 - tarefas recentes;
 - envio de tarefas sem digitar token no navegador;
 - logs de Central e Robô quando gerenciados pelo Painel;
-- laboratório de comandos guiados;
+- Laboratório de comandos guiados;
 - áreas Visão geral, Configurações e Laboratório.
 
-O laboratório não executa shell arbitrário. Comandos desconhecidos são apenas explicados como não catalogados.
+O Laboratório não oferece shell arbitrário.
 
 ## Gerenciamento de processos
 
 Implementado em `src/context_anchor/process_registry.py`.
 
-- registros de processo guardam PID e tempo de início no Linux;
-- a identidade é verificada antes de encerrar um processo;
-- a Central registra `runtime/central.pid`;
-- o Robô registra `runtime/local_agent.pid`;
-- o Painel administra processos compatíveis com esses registros;
-- a detecção em `main` consulta também o estado Linux do processo e considera estado `Z` (zumbi) como desligado, em vez de confiar apenas na existência do PID em `/proc`.
+- registros guardam PID e tempo de início do processo no Linux;
+- a identidade é verificada antes de encerrar processos;
+- a Central usa `runtime/central.pid`;
+- o Robô usa `runtime/local_agent.pid`;
+- processos Linux em estado `Z` (zumbi) são considerados desligados.
 
-## Comandos humanos atuais
+Essa correção resolveu o caso em que o Painel mostrava o Robô como ligado mesmo sem ele executar tarefas.
 
-- `painel-robo` — Painel do Robô;
-- `central` — Central;
-- `robo` — Robô local;
-- `parar-robo` — parada de emergência;
-- `diagnostico-robo` — diagnóstico.
+## Desktop
 
-Aliases técnicos antigos permanecem por compatibilidade.
+Implementado em `src/context_anchor/desktop.py`.
 
-## Central e tarefas
+Ações tipadas atuais:
 
-- FastAPI;
-- autenticação separada para usuário e Robô;
-- SQLite como fila e histórico;
-- polling HTTP autenticado;
-- estados `queued`, `running`, `succeeded` e `failed`;
-- leases com token de propriedade;
-- recuperação de tarefas interrompidas e limite de tentativas;
-- `TaskStore.list_recent()` para tarefas recentes no Painel.
+- capturar screenshot;
+- consultar janela ativa via `xdotool`;
+- mover mouse;
+- clique esquerdo e direito;
+- digitar texto limitado;
+- pressionar teclas permitidas;
+- abrir aplicativos de allowlist fixa.
+
+Aplicativos são iniciados com `shell=False`; nomes recebidos remotamente não viram comandos arbitrários.
+
+`Pillow` passou a ser dependência explícita porque `pyscreeze` precisa de `PIL` para screenshots.
 
 ## Navegador
 
@@ -80,102 +78,85 @@ Aliases técnicos antigos permanecem por compatibilidade.
 - verificação de URL final, título e status HTTP;
 - bloqueio de localhost, `.local`, IPs privados/loopback e esquemas não HTTP(S).
 
-## Desktop
+## Planner
 
-Implementado em `src/context_anchor/desktop.py` com PyAutoGUI carregado somente quando necessário.
+O `DeterministicPlanner` continua ativo.
 
-Ações tipadas atuais:
+Comandos suportados atualmente incluem:
 
-- screenshot;
-- janela ativa via `xdotool`;
-- mover mouse;
-- clique esquerdo e direito;
-- digitar texto limitado;
-- teclas permitidas;
-- abrir aplicativos de allowlist fixa.
+- `capturar tela`;
+- `janela ativa`;
+- `mover mouse X Y`;
+- `clicar` / `clique direito`;
+- `digitar <texto>`;
+- `tecla <tecla>`;
+- `abrir aplicativo <app>`;
+- `pesquisar <termo>`;
+- `abrir <site>`.
 
-Aplicativos são iniciados com `shell=False`; nomes remotos não viram comandos arbitrários.
-
-A dependência `Pillow` foi adicionada explicitamente ao `pyproject.toml` porque `pyscreeze` importa `PIL` para screenshots e a instalação anterior não trouxe esse módulo para a `.venv` do computador alvo.
+Existe contrato provider-agnostic em `src/context_anchor/planner.py`, mas nenhum provedor de IA real está conectado ainda.
 
 ## Parada de emergência
 
 Implementada em `src/context_anchor/emergency_stop.py`.
 
 - marcador persistente `runtime/EMERGENCY_STOP`;
-- Robô se recusa a iniciar enquanto o marcador existir;
-- PID + identidade de processo verificados antes de `SIGTERM`;
+- Robô não inicia enquanto o marcador existir;
+- PID + identidade são verificados antes de `SIGTERM`;
 - independente do planner/modelo;
 - PyAutoGUI mantém `FAILSAFE` habilitado.
 
 ## Diagnóstico
 
-`diagnostico-robo` e o Painel verificam Python, sistema, sessão gráfica, `DISPLAY`/Wayland, PyAutoGUI, `xdotool`, `scrot` e aplicativos permitidos.
-
-O diagnóstico agora também informa se `Pillow (PIL)` e `pyscreeze` estão instalados, porque ambos participam do caminho de screenshot via PyAutoGUI.
-
-## Planner
-
-- planner determinístico continua ativo;
-- contrato provider-agnostic em `src/context_anchor/planner.py`;
-- saída estruturada aceita somente ações conhecidas;
-- não existe ação `shell` no esquema;
-- toda ação continua passando pela Policy Layer;
-- nenhum provedor de IA real foi ativado ainda.
+`diagnostico-robo` e o Painel verificam Python, sistema, sessão gráfica, `DISPLAY`/Wayland, PyAutoGUI, Pillow/PIL, pyscreeze, `xdotool`, `scrot` e aplicativos permitidos.
 
 ## Validação automatizada
 
-- GitHub Actions instala dependências, compila e executa `pytest`;
-- CI do commit `3bffd1bf8bca5093d399ce2f98b26a27eceadc48`, contendo o Painel, endpoints tipados e testes do laboratório, concluiu com sucesso;
-- testes verificam a ausência de endpoint genérico `/api/shell`;
-- testes anteriores de Central, desktop, emergency stop, planner, política e leases continuam no pipeline;
-- foi adicionado teste para os campos de diagnóstico de `Pillow` e `pyscreeze`;
-- foram adicionados testes específicos para garantir que registros de processo em estado Linux `Z` não sejam tratados como Robô online.
+GitHub Actions instala dependências, compila e executa `pytest`.
+
+Os testes cobrem Central, desktop, planner, política, leases, emergência, Painel, ausência de endpoint `/api/shell`, diagnóstico e detecção de processo zumbi.
 
 ## Validação física — Linux real
 
-Já confirmado no computador alvo:
+Confirmado no computador alvo:
 
-- sessão `X11` e `DISPLAY=:0.0`;
+- sessão `X11`;
+- `DISPLAY=:0.0`;
 - `xdotool` e `scrot` instalados;
 - Firefox, Chrome/Chromium, Xed, VS Code, calculadora e LibreOffice detectados;
 - Central em `127.0.0.1:8000` funcionando;
-- Robô fez polling autenticado durante testes anteriores;
+- Robô fazendo polling autenticado quando ligado;
 - `abrir example.com` executado fisicamente com sucesso;
 - `pesquisar inteligência artificial` executado fisicamente com sucesso;
-- comandos `central`, `robo` e `painel-robo` instalados dentro da `.venv`;
-- `.env` local está com `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`;
-- `painel-robo` iniciou fisicamente em `127.0.0.1:8765`;
-- Visão geral, Configurações e Laboratório abriram corretamente no navegador;
-- foi criado localmente um atalho `.desktop` em `/home/leo/Área de trabalho/Painel do Robo.desktop` e ele inicia o Painel;
-- uma tarefa `capturar tela` chegou ao Robô e falhou inicialmente porque `Pillow/PIL` não estava instalado;
-- a leitura direta da tarefa no SQLite mostrou `PyAutoGUIException: PyAutoGUI was unable to import pyscreeze`;
-- o teste direto `python -c "import pyscreeze"` revelou `ModuleNotFoundError: No module named 'PIL'`;
-- a correção de dependência foi puxada e `pip install -e .` instalou com sucesso `pillow-12.3.0` dentro da `.venv`;
-- a correção de detecção de processo zumbi foi puxada no computador alvo;
-- o processo do Painel foi encerrado com `Ctrl+C` e reiniciado pelo atalho da Área de trabalho;
-- após reiniciar com a correção nova, o Painel passou a mostrar corretamente **Robô local: Desligado**, enquanto **Central: Ligada**, **Desktop: Habilitado** e **Emergência: Normal** permanecem coerentes.
+- comandos `central`, `robo` e `painel-robo` instalados na `.venv`;
+- `.env` local com `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`;
+- Painel funcionando em `127.0.0.1:8765`;
+- Visão geral, Configurações e Laboratório funcionando;
+- atalho `/home/leo/Área de trabalho/Painel do Robo.desktop` inicia o Painel;
+- correção de processo zumbi puxada e validada fisicamente: o Painel passou a mostrar o Robô como **Desligado** quando o processo não estava executando trabalho;
+- botão **Ligar Robô** iniciou uma nova execução e o cartão mudou para **Ligado**;
+- Pillow `12.3.0` foi instalado dentro da `.venv`;
+- duas tarefas `capturar tela` que estavam em `queued` foram buscadas pelo novo processo do Robô e terminaram como **`succeeded`**;
+- isso confirma fisicamente que a captura de tela funciona após a correção de Pillow e do estado de processo.
 
-Falhas observadas e diagnóstico atual:
+## Falhas já diagnosticadas
 
-- antes da correção de processo zumbi, o botão **Parar Robô** enviava o sinal, mas o cartão continuava `Ligado`; novas tarefas ficavam em `queued` porque o processo já não executava trabalho;
-- a causa foi um processo Linux encerrado em estado `Z`, ainda presente em `/proc`, sendo tratado como vivo pela versão antiga;
-- a correção foi fisicamente confirmada pela mudança do cartão para **Desligado** após reiniciar o Painel;
-- existem tarefas `capturar tela` antigas ainda em `queued`; elas permanecem aguardando enquanto o Robô está desligado e não devem ser usadas como evidência de nova falha;
-- `abrir google.com e pesquisar inteligencia artificial` continua documentado como limite do planner determinístico de uma ação por comando, não falha de rede.
+- screenshot falhava inicialmente com `ModuleNotFoundError: No module named 'PIL'`; corrigido adicionando Pillow e reinstalando o projeto;
+- o Painel tratava processo zumbi como Robô online; corrigido verificando o estado Linux `Z`;
+- `abrir google.com e pesquisar inteligencia artificial` é interpretado como uma única URL inválida pelo planner determinístico; é um limite atual de uma ação por comando, não falha de rede.
 
-Ainda precisam ser validados fisicamente pelo Painel:
+## Ainda precisa de validação física
 
-- ligar o Robô novamente pelo botão **Ligar Robô** e confirmar que ele volta a buscar a fila;
-- repetir `capturar tela` com Pillow instalado e Robô funcional;
-- leitura da janela ativa;
-- mouse;
-- teclado;
+- `janela ativa`;
+- movimento do mouse;
+- clique do mouse;
+- digitação;
+- teclas permitidas;
 - abertura de aplicativo permitido;
 - diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
-- ligar/parar Central e Robô pelo Painel em sequência completa.
+- ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais.
 
 ## Ainda não implementado
 
@@ -186,7 +167,7 @@ Ainda precisam ser validados fisicamente pelo Painel:
 - planner conectado a IA real;
 - loop autônomo multietapa orientado a objetivo;
 - confirmação humana completa para ações sensíveis;
-- Central/Painel publicados para Internet;
+- publicação segura da Central/Painel para Internet;
 - TLS, pareamento e autenticação forte para acesso remoto;
 - WhatsApp;
 - Telegram;
