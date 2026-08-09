@@ -1,6 +1,6 @@
 # NEXT
 
-## 1. Fechar configuração e limites dos três provedores iniciais
+## 1. Fechar configuração dos três provedores iniciais
 
 A direção agora é multi-provider: **Z.AI/GLM + Cloudflare Workers AI + Google Gemini**.
 
@@ -9,15 +9,18 @@ Estado verificável:
 - conta e API key do **Z.AI** já foram criadas;
 - a tela real de Rate Limits da conta mostrou `GLM-4.7-Flash` com **concurrency 1**;
 - a documentação/pesquisa confirma `GLM-4.7-Flash` com preço zero atual, reasoning, tools e structured output;
+- token personalizado do **Cloudflare Workers AI** já foi criado com permissões **Read + Edit** e guardado localmente pelo usuário;
+- o token Cloudflare está atualmente com escopo **Todas as contas**; antes da integração, preferir restringi-lo à conta específica e obter o `Account ID`;
 - Google/Gemini já está disponível para o usuário, mas seus limites efetivos devem ser lidos no projeto do AI Studio;
-- Cloudflare Workers AI ainda precisa ter credencial/configuração local preparada para o projeto;
+- nenhuma credencial dos provedores foi adicionada ao Git;
 - SiliconFlow permanece opcional até que um modelo gratuito atual e seus limites reais sejam comprovados.
 
 Próximos passos:
 
-1. criar/configurar a credencial do Cloudflare Workers AI sem colocar segredo no Git;
+1. restringir o token Cloudflare à conta específica, se possível, e obter o `Account ID`;
 2. registrar os limites efetivos do projeto Gemini no AI Studio;
-3. manter contadores locais para Z.AI, Cloudflare e Gemini onde o provedor não expuser telemetria completa de quota.
+3. colocar as três credenciais somente no `.env` local quando os adaptadores forem implementados;
+4. manter contadores locais para Z.AI, Cloudflare e Gemini onde o provedor não expuser telemetria completa de quota.
 
 ## 2. Implementar o roteador inteligente multi-provider
 
