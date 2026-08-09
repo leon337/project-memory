@@ -2,12 +2,9 @@
 
 ## Terminologia usada
 
-Para facilitar operação e aprendizado:
-
 - **Painel do Robô** = gerenciador local de operação, configuração, diagnóstico e aprendizado;
 - **Central** = processo técnico `Control Plane`;
-- **Robô local** = processo técnico `local agent`;
-- **Central Web antiga** = interface simples ainda servida pela Central em `127.0.0.1:8000`, mantida por compatibilidade durante a transição.
+- **Robô local** = processo técnico `local agent`.
 
 ## Arquitetura implementada no MVP 0.3
 
@@ -30,8 +27,10 @@ HTTP polling autenticado
 Robô local
           ↓
 Planner
-  ├─ Determinístico ativo
-  └─ Contrato provider-agnostic para IA
+  ├─ DeterministicPlanner ativo
+  └─ ProviderPlanner provider-agnostic
+          ↓
+StructuredAction
           ↓
 Policy Layer
   ├─ navegador
@@ -44,108 +43,32 @@ Executores
 Verificação
           ↓
 Central / Painel do Robô
-
-Painel ─┐
-Central ├─→ runtime/logs/{panel,central,robot}.log ─→ Painel
-Robô ───┘
 ```
 
-Painel, Central e Robô são processos separados.
-
-A separação permite que o Painel continue disponível para diagnosticar ou religar os outros dois processos.
+Painel, Central e Robô são processos separados para que o Painel continue disponível mesmo quando Central ou Robô forem reiniciados.
 
 ## 1. Painel do Robô
 
 Implementado em `src/context_anchor/dashboard.py`.
 
-Comando humano:
+Comando humano: `painel-robo`.
 
-```text
-painel-robo
-```
-
-Bind padrão:
-
-```text
-127.0.0.1:8765
-```
+Bind padrão: `127.0.0.1:8765`.
 
 Responsabilidades atuais:
 
 - mostrar estado de Central, Robô, Desktop e emergência;
-- oferecer controles de Central, Robô e emergência cujo texto, cor e ação refletem o estado real atual;
-- distinguir quando a Central está ligada mas foi iniciada fora do Painel;
 - iniciar/parar Central;
 - iniciar/parar/reiniciar Robô;
-- alterar a configuração local de Desktop;
+- alterar configurações locais explicitamente suportadas;
 - executar diagnóstico de leitura;
-- mostrar tarefas recentes com representação diferente de `queued`, `running`, `succeeded` e `failed`;
-- mostrar telemetria real de Painel, Central e Robô;
-- enviar tarefas à Central usando o token local já configurado no servidor;
+- mostrar tarefas recentes e telemetria real;
+- enviar tarefas à Central;
 - explicar comandos de desenvolvimento no Laboratório.
 
 O Painel não possui endpoint de shell arbitrário.
 
-O campo de tarefa envia texto ao planner do Robô. O Laboratório de comandos é uma interface separada: comandos conhecidos recebem explicações; comandos desconhecidos não são executados automaticamente.
-
-### 1.1 Controles orientados por estado
-
-Os controles de operação não são botões estáticos de comando.
-
-A cada atualização de `/api/status`, o Painel recalcula:
-
-- estado atual da Central;
-- se a Central é gerenciada pelo Painel ou foi iniciada externamente;
-- estado atual do Robô;
-- estado da parada de emergência;
-- próxima ação válida para cada componente.
-
-Exemplos:
-
-- Central desligada → ação exibida: **Ligar Central**;
-- Central ligada e gerenciada → ação exibida: **Parar Central**;
-- Central ligada externamente → estado **Ligada fora do Painel**, sem fingir que o Painel consegue encerrá-la;
-- Robô desligado com emergência ativa → início bloqueado visualmente;
-- emergência normal → ação **Ativar emergência**;
-- emergência ativa → ação **Liberar emergência**.
-
-## 2. Registro e controle de processos
-
-Implementado em `src/context_anchor/process_registry.py`.
-
-Um registro de processo contém:
-
-- PID;
-- tempo de início obtido de `/proc/<pid>/stat`.
-
-Antes de enviar um sinal de encerramento, PID e tempo de início precisam coincidir. Isso reduz o risco de agir sobre outro processo caso o Linux reutilize um PID antigo.
-
-Registros atuais:
-
-- Central: `runtime/central.pid`;
-- Robô: `runtime/local_agent.pid`.
-
-A Central nova registra sua identidade quando inicia. O Robô já possuía registro por causa da parada de emergência.
-
-## 2.1 Telemetria e logs de runtime
-
-Implementada em `src/context_anchor/runtime_log.py` e usada diretamente por Painel, Central e Robô.
-
-Arquivos estruturados:
-
-- `runtime/logs/panel.log`;
-- `runtime/logs/central.log`;
-- `runtime/logs/robot.log`.
-
-Cada linha contém timestamp com timezone, nível e evento operacional. Esses eventos são gravados pelo próprio componente, portanto não dependem de o processo ter sido iniciado pelo Painel.
-
-O Painel lê os arquivos, combina os eventos e permite filtrar por **Todos / Painel / Central / Robô**.
-
-Quando o Painel inicia Central ou Robô, `stdout/stderr` bruto desses subprocessos é separado em `central-process.log` e `robot-process.log`; isso evita confundir saída bruta do processo com os eventos estruturados apresentados na interface.
-
-A telemetria estruturada registra ids de tarefas, estados, falhas e transições operacionais. Credenciais não são registradas, e o logger de runtime não grava o texto bruto dos comandos enviados pelo usuário.
-
-## 3. Central
+## 2. Central
 
 Implementada em `src/context_anchor/control_plane.py`.
 
@@ -157,13 +80,11 @@ Responsabilidades:
 - entrega de tarefa ao Robô;
 - emissão de lease;
 - recepção de resultado protegido pelo lease;
-- emissão de eventos estruturados de criação, entrega, conclusão e rejeição de resultado.
+- registro de eventos operacionais.
 
 Bind padrão: `127.0.0.1:8000`.
 
-Comando humano: `central`.
-
-## 4. Persistência e leases
+## 3. Persistência e leases
 
 Implementada em `src/context_anchor/store.py` com SQLite.
 
@@ -177,11 +98,9 @@ running
 succeeded | failed
 ```
 
-Tarefa abandonada pode retornar à fila após expiração do lease. Há limite de tentativas e resultado atrasado com lease antigo é rejeitado.
+Tarefa abandonada pode retornar à fila após expiração do lease. Resultados atrasados com lease antigo são rejeitados.
 
-`list_recent()` fornece ao Painel uma visão recente da fila/histórico sem alterar propriedade das tarefas.
-
-## 5. Robô local
+## 4. Robô local
 
 Implementado em `src/context_anchor/local_agent.py`.
 
@@ -196,31 +115,27 @@ Fluxo:
 7. executa;
 8. verifica;
 9. envia resultado;
-10. registra eventos operacionais reais sem expor credenciais.
+10. registra telemetria.
 
-Comando humano: `robo`.
-
-## 6. Planner
+## 5. Planner
 
 Contrato em `src/context_anchor/planner.py`.
 
 Estado atual:
 
-- `DeterministicPlanner` ativo;
-- `StructuredAction` fechado para ações conhecidas;
-- `ProviderPlanner` preparado para integração externa;
-- nenhum provedor externo está executando tarefas ainda.
+- `DeterministicPlanner` é o planner ativo;
+- `StructuredAction` aceita apenas ações conhecidas;
+- `ProviderPlanner` existe para integração externa;
+- nenhum provedor externo está ativo ainda.
 
-A primeira integração escolhida é **Cerebras** com o modelo **`gpt-oss-120b`**.
-
-A arquitetura não deve acoplar o Robô diretamente à Cerebras. O caminho previsto é:
+A arquitetura deve permanecer **provider-agnostic**. O caminho previsto para qualquer provedor é:
 
 ```text
 pedido do usuário
       ↓
 ProviderPlanner
       ↓
-adaptador Cerebras
+adaptador do provedor selecionado
       ↓
 resposta estruturada
       ↓
@@ -231,22 +146,30 @@ Policy Layer
 executor permitido
 ```
 
-O adaptador de provedor deverá ser substituível. Uma eventual troca para outro serviço não deve alterar a Policy Layer, os executores físicos, o FAILSAFE ou a parada de emergência.
+A seleção atual do primeiro provedor está em avaliação entre SiliconFlow, Z.AI/GLM, Cloudflare Workers AI e Groq. Essa avaliação não altera o contrato interno do planner.
 
-A chave de API da Cerebras deverá existir apenas em configuração local/variável de ambiente e não poderá ser enviada ao Git, aos logs ou ao prompt do modelo.
+Trocar de provedor não deve exigir alterações na Policy Layer, nos executores físicos, no FAILSAFE ou na parada de emergência.
 
-Não há campo de shell, código livre, caminho de executável arbitrário ou credenciais no contrato.
+O adaptador do provedor deverá tratar erros, rate limits e respostas inválidas sem derrubar o Robô.
 
-Google/Gemini pode futuramente ser conectado como fallback, mas não existe roteamento multi-provider implementado no MVP 0.3.
+## 6. Credenciais de provedores
+
+Chaves de API não entram em código, Git, logs ou prompts.
+
+Quando um provedor for escolhido, sua chave será consumida somente por variável de ambiente/configuração local do adaptador.
+
+Contas e chaves já foram criadas externamente para SiliconFlow e Z.AI, mas nenhuma foi integrada ao código até o momento.
 
 ## 7. Policy Layer
 
 Implementada em `src/context_anchor/policy.py`.
 
+Toda ação produzida por planner determinístico ou por IA futura passa pela mesma camada de política.
+
 ### Navegador
 
-- HTTP/HTTPS;
-- localhost, `.local`, IPs privados/loopback/link-local/reservados bloqueados.
+- apenas HTTP/HTTPS;
+- localhost, `.local`, IPs privados, loopback, link-local e reservados permanecem bloqueados.
 
 ### Desktop
 
@@ -261,8 +184,6 @@ Implementada em `src/context_anchor/policy.py`.
 
 Implementado em `src/context_anchor/actions.py` com Playwright/Chromium.
 
-Verifica URL solicitada, URL final, título, status HTTP e `verified`.
-
 Preferência arquitetural:
 
 ```text
@@ -276,51 +197,33 @@ API/DOM
 
 Backend em `src/context_anchor/desktop.py`.
 
-Capacidades em código:
+Capacidades atuais:
 
 - screenshot;
-- janela ativa por `xdotool`;
+- janela ativa via `xdotool`;
 - mover mouse;
 - clique esquerdo/direito;
 - digitar texto;
 - teclas permitidas;
 - abrir aplicativos permitidos.
 
-Backend físico inicial: Linux/X11. Wayland não validado.
+Backend físico inicial: Linux/X11.
 
-### 9.1 FAILSAFE explícito de entrada física
+### FAILSAFE explícito
 
-O backend mantém `pyautogui.FAILSAFE = True`, mas não depende dele como única proteção porque esse mecanismo falhou no primeiro teste físico real.
+Além de `pyautogui.FAILSAFE = True`, o backend verifica a posição atual do ponteiro antes de qualquer entrada física.
 
-Antes das ações `move_mouse`, `click_mouse`, `type_text` e `press_key`, o backend executa uma verificação própria da posição atual do ponteiro.
-
-Uma margem de 20 pixels nos quatro cantos da tela forma a zona de segurança:
-
-```text
-ponteiro em canto seguro
-        ↓
-DesktopFailsafeTriggered
-        ↓
-nenhum movimento/clique/tecla é enviado
-        ↓
-Robô reporta tarefa como failed
-        ↓
-telemetria registra a falha
-```
-
-O FAILSAFE explícito é uma interrupção imediata da próxima entrada física. Ele não substitui a parada de emergência persistente, que encerra o processo do Robô e impede reinício até liberação consciente.
+Uma margem de 20 pixels nos quatro cantos funciona como zona de interrupção. Se o ponteiro estiver nessa zona, a ação gera `DesktopFailsafeTriggered` antes de mover, clicar ou digitar.
 
 ## 10. Aplicativos
 
-Ids conhecidos são mapeados para executáveis permitidos.
+Ids conhecidos são mapeados para executáveis permitidos e abertos com `shell=False`.
 
-A abertura usa `subprocess.Popen(..., shell=False)`.
-
-O Robô não aceita caminho de executável ou linha de shell arbitrária recebida da tarefa.
+O Robô não aceita linha de shell arbitrária recebida da tarefa.
 
 ## 11. Percepção
 
-Primeiro slice em código:
+Primeiro slice implementado:
 
 - screenshot;
 - janela ativa.
@@ -333,43 +236,32 @@ Implementada em `src/context_anchor/emergency_stop.py`.
 
 - sentinel persistente;
 - PID + identidade Linux;
-- `SIGTERM` quando a identidade confere;
-- bloqueia reinício até limpeza consciente;
-- independente do planner e das credenciais do Robô.
+- encerramento independente do planner;
+- bloqueio de reinício até liberação consciente.
 
-Comando humano: `parar-robo`.
+## 13. Diagnóstico e telemetria
 
-O Painel também possui controles para ativar e limpar o estado de emergência.
+Diagnóstico em `src/context_anchor/doctor.py`.
 
-## 13. Diagnóstico
+Telemetria estruturada em `src/context_anchor/runtime_log.py`:
 
-`src/context_anchor/doctor.py` observa o ambiente sem executar ações físicas.
+- `runtime/logs/panel.log`;
+- `runtime/logs/central.log`;
+- `runtime/logs/robot.log`.
 
-Comando humano: `diagnostico-robo`.
+Credenciais não são registradas.
 
-O mesmo coletor de diagnóstico é reutilizado pelo Painel.
+## 14. Gerenciamento de processos
 
-## 14. Configuração local
+Implementado em `src/context_anchor/process_registry.py`.
 
-`.env` permanece fora do Git.
+Registros guardam PID e tempo de início para evitar agir sobre PID reutilizado. Processos Linux em estado `Z` são tratados como desligados.
 
-O Painel pode alterar apenas configurações explicitamente suportadas. No MVP 0.3, a alteração visual implementada é `CONTEXT_ANCHOR_DESKTOP_ENABLED`.
-
-Outras configurações deverão ser expostas individualmente, nunca por edição arbitrária de arquivo via interface.
-
-## 15. Credenciais
-
-Credenciais não devem ser colocadas em código, prompts, logs ou Git.
-
-Painel e Central continuam locais. O Painel usa internamente a credencial local configurada para enviar tarefas à Central, evitando exigir que o usuário cole o token em cada tarefa.
-
-A chave do primeiro provedor de IA seguirá a mesma regra: somente configuração local/variável de ambiente consumida pelo adaptador do planner.
-
-## 16. Acesso remoto — futuro
+## 15. Acesso remoto — futuro
 
 Antes de publicar Painel ou Central na Internet serão necessários TLS, autenticação forte, pareamento, revogação, rate limiting, proteção contra replay, auditoria e confirmação para ações sensíveis.
 
-## 17. Canais — futuro
+## 16. Canais — futuro
 
 ```text
 Web remoto
@@ -386,6 +278,6 @@ Robô local
 
 Nenhum adaptador de mensageria foi implementado ainda.
 
-## 18. Princípio local-first
+## 17. Princípio local-first
 
-O controle físico continua no Robô local. Painel, serviços externos ou canais futuros enviam intenção e recebem resultado; nenhuma camada externa acessa diretamente mouse, teclado, câmera ou aplicativos sem passar pelo Robô e pela Policy Layer.
+O controle físico permanece no Robô local. Painel, serviços externos e canais futuros enviam intenção e recebem resultado; nenhuma camada externa acessa diretamente mouse, teclado, câmera ou aplicativos sem passar pelo Robô e pela Policy Layer.
