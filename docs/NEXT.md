@@ -1,36 +1,25 @@
 # NEXT
 
-## 1. Validar telemetria real do Robô
+## 1. Validar FAILSAFE físico
 
-A terceira revisão do Painel já está carregada no computador alvo. Os **Controles de estado** foram validados fisicamente para Central, Robô e Emergência.
+Painel, Central e Robô já produziram telemetria real identificada por origem no computador alvo. Os **Controles de estado** também acompanharam as principais transições observadas, incluindo a Central passando de externa para desligada e depois para gerenciada pelo Painel, além do reinício real do Robô pelo próprio Painel.
 
-Já foi confirmado no computador real:
+Próximo passo:
 
-- log real do **Painel**;
-- transição da **Central** de ligada fora do Painel para desligada;
-- início da Central pelo próprio Painel;
-- Central passando a **Ligada e gerenciada pelo Painel**;
-- eventos reais `[PAINEL]` e `[CENTRAL]` aparecendo em **Logs reais da aplicação**.
+1. validar fisicamente o `FAILSAFE` do PyAutoGUI em uma ação controlada, confirmando que o mecanismo de segurança interrompe a ação quando o ponteiro é levado ao canto configurado.
 
-Próximos passos, em ordem:
+Critério de conclusão: o FAILSAFE deve interromper a ação de desktop de forma observável e sem deixar o Robô em estado enganoso.
 
-1. usar **Reiniciar** no controle do **Robô local** para carregar o código novo;
-2. confirmar que o Robô volta a **Ligado** após a reinicialização;
-3. validar em **Logs reais da aplicação** eventos identificados como `[ROBÔ]`, preferencialmente usando o filtro **Robô**;
-4. observar se o controle de estado acompanha corretamente a transição durante a reinicialização.
+## 2. Concluir parada de emergência e ciclo operacional
 
-Critério de conclusão: Painel, Central e Robô devem produzir telemetria real identificada por origem, e os controles devem refletir corretamente as transições observadas.
+Depois do FAILSAFE:
 
-## 2. Concluir segurança e operação física
-
-Depois da validação da telemetria do Robô:
-
-- validar o `FAILSAFE` físico;
-- validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
-- completar o ciclo ligar/parar/reiniciar Central e Robô pelo Painel;
-- confirmar estados corretos após cada transição;
+- validar a parada de emergência real pelo Painel;
+- confirmar que o Robô é encerrado e o bloqueio persistente fica visível;
+- liberar conscientemente a emergência;
+- validar a sequência **Parar Robô → Desligado → Ligar Robô → Ligado**;
 - testar o Laboratório com um comando conhecido;
-- reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local.
+- confirmar que o fluxo diário pode ser feito pelo atalho `Painel do Robô` e pela interface Web local, sem dependência normal de terminais separados.
 
 Critério de conclusão: mecanismos de parada, operação, diagnóstico e telemetria devem funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
 
