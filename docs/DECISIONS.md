@@ -50,11 +50,13 @@ Playwright com Chromium é o primeiro executor de navegador.
 
 Automação estruturada tem prioridade sobre coordenadas visuais quando DOM/API apropriada estiver disponível.
 
-## D-010 — Planner antes do LLM
+## D-010 — Planner determinístico permanece como caminho local e fallback
 
-O planner ativo permanece determinístico até a validação física do caminho de execução.
+O `DeterministicPlanner` permanece disponível mesmo com o planner multi-provider ativo.
 
-Foi criado um contrato provider-agnostic de saída estruturada para preparar a integração futura, mas nenhum modelo de IA está ativado ainda.
+Pedidos que já pertencem ao vocabulário determinístico devem ser resolvidos localmente antes de chamar uma API externa. Isso reduz latência, economiza quota e mantém um caminho previsível de teste e recuperação.
+
+Pedidos que o parser determinístico não entende podem seguir para o `MultiProviderPlanner`, desde que as credenciais necessárias estejam configuradas localmente.
 
 ## D-011 — Web primeiro
 
@@ -102,9 +104,9 @@ Uma tarefa em execução pertence temporariamente a uma execução específica p
 
 Resultados só são aceitos enquanto esse lease ainda for o proprietário atual. Tarefas abandonadas podem voltar para a fila e existe limite de tentativas para impedir loop infinito.
 
-## D-018 — Contrato estruturado para planners futuros
+## D-018 — Contrato estruturado para planners de IA
 
-Um provedor de IA futuro deverá devolver somente uma ação pertencente ao esquema estruturado conhecido pelo sistema.
+Um provedor de IA deve devolver somente uma ação pertencente ao esquema estruturado conhecido pelo sistema.
 
 O esquema não possui ação de shell nem campos livres para comandos de ferramenta. Mesmo uma ação estruturalmente válida continua sujeita à Policy Layer antes da execução.
 
@@ -128,7 +130,7 @@ Na comunicação com o usuário e na interface visível, os nomes principais dev
 
 - `Control Plane` será apresentado como **Central**.
 - `local agent` será apresentado como **Robô local** ou apenas **Robô**.
-- o painel Web terá o título **Central do Robô**.
+- a interface principal será apresentada como **Painel do Robô**.
 
 Os comandos principais para uso humano são:
 
@@ -143,14 +145,14 @@ Os nomes técnicos internos podem continuar existindo no código e na documenta�
 
 ## D-021 — Painel do Robô como centro de operação e aprendizado
 
-Antes de ampliar os testes manuais de desktop, será criado um **Painel do Robô** local e independente da Central.
+O **Painel do Robô** local e independente da Central é o centro de operação e aprendizado.
 
-O painel terá duas funções simultâneas:
+O painel tem duas funções simultâneas:
 
 1. operar e configurar o sistema sem depender de vários terminais;
 2. ensinar o usuário o que cada configuração, comando e processo faz.
 
-O Painel do Robô deverá, progressivamente, oferecer:
+O Painel do Robô deve oferecer progressivamente:
 
 - status visual da Central, Robô, desktop e parada de emergência;
 - botões para ligar, desligar e reiniciar Central e Robô;
@@ -165,7 +167,7 @@ O Painel do Robô deverá, progressivamente, oferecer:
 
 O campo de comandos do painel não será um shell remoto irrestrito. Ele deverá executar somente operações locais explicitamente suportadas pelo modo de desenvolvimento, ou apresentar o comando para cópia/execução manual quando estiver fora dessa lista.
 
-O Painel do Robô será um processo local separado da Central para continuar disponível mesmo quando a Central ou o Robô forem desligados ou reiniciados.
+O Painel do Robô permanece um processo local separado da Central para continuar disponível mesmo quando a Central ou o Robô forem desligados ou reiniciados.
 
 ## D-022 — Sequências de desktop devem esperar prontidão e foco observáveis
 
@@ -207,13 +209,13 @@ Esse mecanismo complementa, mas não substitui, a parada de emergência persiste
 
 ## D-026 — Planner por IA será multi-provider com roteamento inteligente e consciente de quota
 
-O primeiro planner por IA não dependerá de um único provedor. A arquitetura seguirá desde o início um modelo **multi-provider**, com um roteador local responsável por escolher o provedor/modelo adequado a cada chamada.
+O planner por IA não dependerá de um único provedor. A arquitetura segue um modelo **multi-provider**, com um roteador local responsável por escolher o provedor/modelo adequado a cada chamada.
 
 O conjunto inicial escolhido é:
 
-- **Z.AI / GLM-4.7-Flash** — principal candidato para reasoning e decisões mais complexas, por oferecer preço zero atual, contexto amplo e suporte a reasoning, tools e structured output;
+- **Z.AI / GLM-4.7-Flash** — principal candidato para reasoning e decisões mais complexas;
 - **Cloudflare Workers AI** — principal candidato para decisões simples, frequentes e bursts, usando modelos eficientes para preservar o budget diário de neurons;
-- **Google Gemini** — provedor complementar para multimodalidade, visão, capacidades próprias do ecossistema e fallback quando apropriado.
+- **Google Gemini** — provedor complementar para planejamento textual, futura multimodalidade/visão e fallback quando apropriado.
 
 A distribuição não será round-robin nem balanceamento igual. O roteador deverá considerar, no mínimo:
 
@@ -231,16 +233,18 @@ O roteador seleciona apenas o **planner**. Ele não pode contornar a Policy Laye
 
 Fallback de provedor deve acontecer antes da execução física ou depois de uma falha comprovadamente anterior à execução. Uma ação física já executada não deve ser repetida automaticamente apenas porque a chamada seguinte de IA falhou; verificação e idempotência continuam obrigatórias.
 
-O `DeterministicPlanner` permanece disponível como fallback técnico e para testes.
+O `DeterministicPlanner` permanece disponível como caminho local e fallback técnico.
 
 SiliconFlow continua como candidato opcional futuro, mas não entra no conjunto inicial até que os limites reais dos modelos gratuitos sejam comprovados na conta.
 
 Todas as chaves de API permanecerão somente em configuração local/variáveis de ambiente e nunca em código, Git, logs ou prompts.
 
-## D-027 — Gemini usa a Interactions API para structured output
+## D-027 — Gemini usa o SDK oficial `google-genai`
 
-A integração vigente do Gemini no planner usa a **Interactions API** (`/v1beta/interactions`) em vez do endpoint legado `generateContent`.
+A integração vigente do Gemini no planner usa o SDK oficial **`google-genai`** e `client.models.generate_content(...)`, em vez de construir manualmente o payload REST.
 
-O motivo é operacional e verificável: no teste físico, `generateContent` primeiro rejeitou o formato usado com HTTP 400 e, após uma adaptação intermediária, respondeu texto que não chegou como JSON válido ao contrato do planner. A documentação atual do Google recomenda Interactions API para os modelos Gemini atuais e define structured output por `response_format` com `type=text`, `mime_type=application/json` e o JSON Schema.
+Essa decisão foi tomada depois de comparar o `project-memory` com o repositório `leon337/meu_primeiro_agente`, onde esse padrão já está implementado e usado com `gemini-3.6-flash`.
 
-O adaptador deve extrair apenas a saída textual do último `model_output`, converter o JSON e ainda validar o resultado com `StructuredAction`. A migração de endpoint não reduz nenhuma proteção local e não permite que texto livre execute ações diretamente.
+O modelo padrão do planner Gemini é `gemini-3.6-flash`. O SDK recebe `GenerateContentConfig` com instrução do sistema, `response_mime_type=application/json` e o `ACTION_SCHEMA` do projeto.
+
+A resposta do SDK, seja por `parsed` ou texto JSON, continua obrigada a validar como `StructuredAction`. O uso do SDK não dá ao Gemini acesso direto a ferramentas, mouse, teclado, navegador ou shell; a ação proposta ainda passa pela Policy Layer, FAILSAFE e demais proteções locais.
