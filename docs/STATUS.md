@@ -16,34 +16,55 @@ O branch `main` contém o **MVP 0.3** com três processos separados:
 
 Implementado em `src/context_anchor/dashboard.py`, iniciado por `painel-robo` e disponível por padrão apenas em `127.0.0.1:8765`.
 
-O Painel mostra o estado de Central, Robô, Desktop e emergência; permite ligar/parar Central, ligar/parar/reiniciar Robô, alterar a habilitação do Desktop, executar diagnóstico, ver tarefas recentes, enviar tarefas e usar o Laboratório de comandos guiados. O Laboratório não oferece shell arbitrário.
+O Painel mostra estado, configuração, diagnóstico, fila, telemetria e controles locais. O Laboratório não oferece shell arbitrário.
 
-### Revisão visual
+### Revisão visual e operacional
 
-O tema claro original foi rejeitado em uso real por causar desconforto visual. A primeira revisão em dark mode melhorou a luminosidade, mas ainda foi considerada simples, com pouco contraste entre superfícies, textos secundários pequenos/apagados e espaço mal aproveitado.
+O tema claro original foi rejeitado em uso real por causar desconforto visual. Uma primeira revisão dark melhorou a luminosidade, mas ainda foi considerada simples. A segunda revisão ultra escura foi carregada e confirmada fisicamente nas telas **Visão geral**, **Configurações** e **Laboratório**.
 
-O usuário definiu que, entre alternativas aceitáveis, **quanto mais escuro melhor**, desde que a leitura continue clara.
+O usuário não encerrou a revisão visual como aprovada. Na avaliação seguinte apontou dois problemas funcionais de interface:
 
-A segunda revisão visual ultra escura está implementada no `main` e foi carregada no computador alvo:
+1. os antigos **Controles rápidos** disparavam ações, mas não permitiam entender pelo próprio controle o estado atual de Central/Robô/emergência;
+2. a área **Logs ao vivo** não representava de forma confiável logs reais da aplicação quando os processos tinham sido iniciados fora do Painel.
 
-- tema `data-theme="ultra-dark"`;
-- fundo principal próximo de preto (`#02050a`) e cards escuros (`#07101a`);
-- tipografia e textos secundários com contraste maior;
-- hierarquia visual reforçada nos títulos e seções;
-- cards de status redesenhados;
-- fila de tarefas com leitura mais clara;
-- controles rápidos, comando e logs reorganizados;
-- Configurações com layout específico para permissões, emergência e diagnóstico;
-- Laboratório com dicas rápidas, fluxo visual e área de explicação mais estruturada;
-- títulos/subtítulos específicos por tela;
-- responsividade mantida.
+Uma terceira revisão já está implementada no `main`:
 
-Commits principais:
+- fundo ainda mais escuro (`#010308`);
+- **Controles de estado** para Central, Robô e Emergência;
+- texto, cor e ação de cada controle mudam conforme `/api/status`;
+- Central distingue **desligada**, **ligada e gerenciada** e **ligada fora do Painel**;
+- quando a Central está ligada externamente, o Painel não finge possuir capacidade de parada e informa a situação;
+- Robô bloqueado por emergência não oferece ação de início;
+- emergência alterna visualmente entre estado **Normal** e **ATIVA**;
+- tarefas recentes diferenciam `queued`, `running`, `succeeded` e `failed` em vez de usar sempre um ✓ verde;
+- a área foi renomeada para **Logs reais da aplicação** e possui filtros **Todos / Painel / Central / Robô**.
 
-- `f885579181f3406e8719c816b243a049bdb1876c` — redesign ultra escuro;
-- `1433a6884472da04ae6e88395e31028baffd7cb7` — testes do dashboard.
+### Telemetria real
 
-O CI concluiu com **success**. A nova versão foi baixada por `git pull`, o Painel foi reiniciado pelo atalho do desktop e as três telas **Visão geral**, **Configurações** e **Laboratório** foram confirmadas visualmente no computador real com a nova revisão carregada. Falta apenas a confirmação subjetiva final do usuário sobre conforto visual antes de encerrar essa revisão.
+Foi criado `src/context_anchor/runtime_log.py`.
+
+Painel, Central e Robô agora gravam eventos estruturados próprios em:
+
+- `runtime/logs/panel.log`;
+- `runtime/logs/central.log`;
+- `runtime/logs/robot.log`.
+
+Cada evento possui timestamp com timezone, nível e mensagem operacional. Esses logs são produzidos pelo próprio componente, portanto não dependem de o processo ter sido iniciado pelo Painel.
+
+Eventos estruturados registram ids de tarefas, estados, transições e erros. Credenciais não são registradas e o logger de runtime não copia o texto bruto das tarefas para o log.
+
+Quando o Painel inicia Central ou Robô, `stdout/stderr` bruto é separado em `central-process.log` e `robot-process.log`.
+
+Commits principais desta rodada:
+
+- `2aec014c2c7e55570e818a748394ad044e77717f` — logger persistente de runtime;
+- `4936badd931091d596a8036786090238916b2ca7` — eventos reais da Central;
+- `5dfa6e685bc84885afb5dbe4c87497801bdeabc3` — eventos reais do Robô;
+- `c7962d092625f60743cb50393833a2c0c247b3de` — controles orientados por estado e UI de logs reais;
+- `823715419db91206dfac455b3af2b47c29b4b618` — testes do novo Painel;
+- `fd5192628c7c1e6c4d3e58a00dbc09693265b4f2` — testes do logger de runtime.
+
+O CI do código desta rodada concluiu com **success**. A terceira revisão **ainda não foi puxada nem validada fisicamente no computador alvo**.
 
 ## Gerenciamento de processos
 
@@ -53,7 +74,7 @@ Implementado em `src/context_anchor/process_registry.py`.
 - a identidade é verificada antes de encerrar processos;
 - processos Linux em estado `Z` (zumbi) são considerados desligados.
 
-Essa correção resolveu o caso em que o Painel mostrava o Robô como ligado mesmo sem ele executar tarefas.
+A correção de processo zumbi já foi validada fisicamente.
 
 ## Desktop
 
@@ -69,13 +90,7 @@ Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
 `Pillow` é dependência explícita porque o caminho de screenshot usa `PIL` por meio de `pyscreeze`.
 
-A sincronização de foco foi reforçada e validada fisicamente:
-
-- ao abrir aplicativo, o backend espera a janela ativa mudar;
-- a janela focada é registrada como alvo esperado para teclado;
-- digitação e tecla recusam execução se o foco mudar para outra janela;
-- clique atualiza a janela esperada;
-- resultados de teclado registram id e título da janela ativa.
+A sincronização de foco foi reforçada e validada fisicamente: abrir aplicativo seguido de digitação funciona sem atraso artificial intermediário, e teclado recusa execução quando o foco observado não corresponde ao alvo esperado.
 
 ## Navegador
 
@@ -100,20 +115,11 @@ Confirmado no computador alvo:
 - `.env` local com `CONTEXT_ANCHOR_DESKTOP_ENABLED=true`;
 - Painel funcionando em `127.0.0.1:8765`;
 - atalho `/home/leo/Área de trabalho/Painel do Robo.desktop` inicia o Painel;
-- correção de processo zumbi validada fisicamente;
-- botão **Ligar Robô** inicia uma nova execução funcional;
-- Pillow `12.3.0` instalado na `.venv`;
-- `capturar tela` concluído como `succeeded`;
-- `janela ativa` concluída como `succeeded`;
-- movimento físico do mouse validado;
-- clique físico validado visualmente ao minimizar uma janela;
-- abertura de aplicativo validada com o Xed;
-- digitação física validada no Xed;
-- encadeamento `abrir aplicativo editor` → `digitar teste do robo` validado após correção de foco;
-- tecla **Enter** validada em sequência com duas linhas distintas no Xed;
+- movimento e clique físicos do mouse validados;
+- abertura do Xed, digitação e tecla **Enter** validadas;
+- encadeamento abrir editor → digitar validado após correção de foco;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
-- primeira versão dark avaliada e rejeitada como ainda insuficiente;
-- segunda revisão ultra escura carregada e visualmente confirmada nas telas Visão geral, Configurações e Laboratório.
+- segunda revisão ultra escura carregada e confirmada visualmente nas três telas.
 
 ## Falhas já diagnosticadas
 
@@ -121,15 +127,19 @@ Confirmado no computador alvo:
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
-- tema claro original causava desconforto visual; primeira revisão dark ainda foi insuficiente; segunda revisão ultra escura está carregada e aguarda apenas aprovação subjetiva final.
+- tema claro original causava desconforto visual; revisões dark foram aplicadas;
+- controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e aguardando validação física;
+- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada produzida por cada componente e aguardando validação física.
 
 ## Ainda precisa de validação física
 
-- confirmar conforto visual final da segunda revisão ultra escura;
-- `FAILSAFE` físico;
-- parada de emergência real pelo Painel;
-- ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
-- Laboratório de comandos guiados no uso real.
+- puxar a terceira revisão e reiniciar o Painel;
+- confirmar visualmente que **Controles de estado** refletem Central, Robô e Emergência corretamente;
+- validar que a Central atualmente iniciada fora do Painel aparece explicitamente como externa, se esse ainda for o estado real;
+- reiniciar Central e Robô com o código novo e confirmar eventos reais aparecendo nos filtros de log;
+- validar `FAILSAFE` físico;
+- validar parada de emergência real e liberação consciente;
+- concluir ciclo completo de gerenciamento sem dependência normal de terminais.
 
 ## Ainda não implementado
 
