@@ -18,6 +18,7 @@ ActionName = Literal[
     "type_text",
     "press_key",
     "open_app",
+    "finish",
 ]
 PlannerRoute = Literal["fast", "reasoning"]
 
@@ -25,8 +26,8 @@ PlannerRoute = Literal["fast", "reasoning"]
 class StructuredAction(BaseModel):
     """Provider-neutral action contract.
 
-    Model output is intentionally small: no shell, executable path, Python code,
-    credentials or free-form tool calls are part of this schema.
+    The model selects one implemented action at a time. `finish` is internal and
+    means that the original objective is fully complete based on verified history.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -84,19 +85,16 @@ _PROVIDER_APP_ALIASES = {
     "code": "vscode",
     "gnome calculator": "calculadora",
     "mate calc": "calculadora",
+    "brave": "brave-browser",
+    "brave browser": "brave-browser",
+    "navegador brave": "brave-browser",
 }
 
 
 def _normalize_provider_app_target(value: str) -> str:
-    """Map common model wording to an existing fixed local app id.
-
-    This does not add capabilities. It only canonicalizes aliases to ids that are
-    already enforced by the Policy Layer and the desktop executor allowlist.
-    """
-
     normalized = value.strip().casefold().replace("_", " ").replace("-", " ")
     normalized = " ".join(normalized.split())
-    return _PROVIDER_APP_ALIASES.get(normalized, canonical_app_id(normalized))
+    return _PROVIDER_APP_ALIASES.get(normalized, canonical_app_id(value))
 
 
 def plan_from_structured(payload: Mapping[str, Any]) -> Plan:
@@ -242,7 +240,6 @@ class MultiProviderPlanner:
         self.last_errors[name] = f"{type(exc).__name__}: {exc}"
 
     def plan(self, objective: str) -> Plan:
-        # Preserve all previously validated deterministic commands and spend no API quota.
         try:
             plan = self.deterministic.plan(objective)
         except (ValueError, TypeError):
@@ -267,7 +264,7 @@ class MultiProviderPlanner:
             try:
                 payload = candidate.provider.generate_plan(objective)
                 plan = plan_from_structured(payload)
-            except Exception as exc:  # provider boundary: fallback must survive malformed/failed providers
+            except Exception as exc:
                 finished = time.monotonic()
                 self._record_failure(name, exc, finished, (finished - started) * 1000.0)
                 continue
