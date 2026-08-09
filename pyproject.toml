@@ -9,6 +9,7 @@ description = "Robô operador local com Painel do Robô, Central Web, navegador 
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.116,<1",
+  "google-genai>=1.0,<2.0",
   "httpx>=0.28,<1",
   "pillow>=10.4,<13",
   "playwright>=1.54,<2",
