@@ -109,13 +109,13 @@ A sincronização de foco foi reforçada e validada fisicamente: abrir aplicativ
 
 A primeira validação física do FAILSAFE nativo do PyAutoGUI **falhou**: com o ponteiro colocado no canto superior esquerdo, a tarefa `mover mouse 200 200` foi marcada como `succeeded`, o ponteiro foi movido e a telemetria registrou execução com sucesso.
 
-A correção já foi implementada no `main`:
+A correção foi implementada no `main`:
 
 - `pyautogui.FAILSAFE = True` continua habilitado como defesa adicional;
-- o backend agora verifica diretamente a posição atual do ponteiro antes de `move_mouse`, `click_mouse`, `type_text` e `press_key`;
+- o backend verifica diretamente a posição atual do ponteiro antes de `move_mouse`, `click_mouse`, `type_text` e `press_key`;
 - existe uma zona de segurança de 20 pixels nos quatro cantos da tela;
 - quando o ponteiro está nessa zona, o backend levanta `DesktopFailsafeTriggered` antes de enviar qualquer entrada física;
-- a exceção sobe pelo fluxo normal do Robô e deve fazer a tarefa terminar como `failed`, com o tipo do erro registrado na telemetria;
+- a exceção sobe pelo fluxo normal do Robô e faz a tarefa terminar como `failed`, com o tipo do erro registrado na telemetria;
 - testes automatizados cobrem os quatro cantos, mouse, clique, digitação, tecla e execução normal fora da zona.
 
 Commits desta correção:
@@ -126,7 +126,7 @@ Commits desta correção:
 
 O CI do commit `4f398f4f745fbd996db13c710601fa83b3da5c37` concluiu com **success**.
 
-**Ainda não há validação física da correção nova.** O próximo teste real precisa sincronizar o computador alvo, reiniciar o Robô e repetir `mover mouse 200 200` com o ponteiro no canto superior esquerdo.
+A correção foi **revalidada fisicamente no computador alvo em dois cantos da tela**. Em ambos os testes com `mover mouse 200 200`, a tarefa terminou como `failed` e a telemetria do Robô registrou `DesktopFailsafeTriggered` com a mensagem de que o ponteiro foi detectado na zona de segurança e a entrada física foi recusada antes da execução. Portanto, a proteção explícita cumpriu o critério físico que havia falhado com o FAILSAFE nativo do PyAutoGUI.
 
 ## Navegador
 
@@ -161,7 +161,7 @@ Confirmado no computador alvo:
 - telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada;
 - reinício do Robô pelo Painel validado, com novo PID e retorno ao estado operacional;
 - telemetria real do Robô validada fisicamente com eventos `[ROBÔ]` e `[PAINEL]` coerentes com a reinicialização;
-- primeira tentativa de validar o FAILSAFE físico **não interrompeu** `mover mouse 200 200`; a tarefa terminou `succeeded`.
+- FAILSAFE explícito revalidado fisicamente em dois cantos: as duas tarefas `mover mouse 200 200` terminaram `failed` e os logs registraram `DesktopFailsafeTriggered` antes da entrada física.
 
 ## Falhas já diagnosticadas
 
@@ -172,11 +172,10 @@ Confirmado no computador alvo:
 - tema claro original causava desconforto visual; revisões dark foram aplicadas;
 - controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
 - logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel, Central e Robô já foram validados fisicamente;
-- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física no primeiro teste real; uma proteção explícita própria foi implementada e passou no CI, mas ainda precisa de revalidação física.
+- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física no primeiro teste real; foi substituído como proteção principal por uma verificação explícita própria nos cantos, que passou no CI e foi revalidada fisicamente em dois cantos.
 
 ## Ainda precisa de validação física
 
-- sincronizar o código novo, reiniciar o Robô e repetir o teste do `FAILSAFE` explícito;
 - validar parada de emergência real e liberação consciente;
 - validar a transição explícita **Parar Robô → Desligado → Ligar Robô → Ligado** pelo Painel;
 - testar o Laboratório com um comando conhecido;
