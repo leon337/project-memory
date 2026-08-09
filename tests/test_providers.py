@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
+from google import genai
 
 from context_anchor.planner import ProviderGenerationError
 from context_anchor.providers import CloudflareWorkersAIProvider, GeminiProvider, ZAIProvider
@@ -69,67 +72,77 @@ def test_cloudflare_provider_uses_json_schema_and_accepts_object_response(
     assert captured["json"]["response_format"]["type"] == "json_schema"
 
 
-def test_gemini_provider_uses_interactions_structured_output(
+def test_gemini_provider_uses_official_sdk_structured_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict = {}
 
-    def fake_post(url: str, **kwargs):
-        captured["url"] = url
-        captured["json"] = kwargs["json"]
-        return _response(
-            url,
-            200,
-            {
-                "status": "completed",
-                "steps": [
-                    {
-                        "type": "model_output",
-                        "content": [
-                            {"type": "text", "text": '{"action":"active_window","target":"active"}'}
-                        ],
-                    }
-                ],
-            },
-        )
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            captured["request"] = kwargs
+            return SimpleNamespace(
+                parsed=None,
+                text='{"action":"active_window","target":"active"}',
+            )
 
-    monkeypatch.setattr(httpx, "post", fake_post)
-    provider = GeminiProvider("secret", model="gemini-3.5-flash")
+    class FakeClient:
+        def __init__(self, *, api_key, http_options):
+            captured["api_key"] = api_key
+            captured["http_options"] = http_options
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    provider = GeminiProvider("secret", model="gemini-3.6-flash")
 
     result = provider.generate_plan("qual janela está ativa?")
 
     assert result == {"action": "active_window", "target": "active"}
-    assert captured["url"].endswith("/v1beta/interactions")
-    assert captured["json"]["model"] == "gemini-3.5-flash"
-    assert captured["json"]["response_format"]["type"] == "text"
-    assert captured["json"]["response_format"]["mime_type"] == "application/json"
-    assert captured["json"]["response_format"]["schema"]["type"] == "object"
+    assert captured["api_key"] == "secret"
+    request = captured["request"]
+    assert request["model"] == "gemini-3.6-flash"
+    assert request["contents"] == "qual janela está ativa?"
+    config = request["config"]
+    assert config.response_mime_type == "application/json"
+    assert config.response_schema["type"] == "object"
 
 
 def test_gemini_provider_accepts_fenced_json_without_skipping_structured_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_post(url: str, **kwargs):
-        return _response(
-            url,
-            200,
-            {
-                "status": "completed",
-                "steps": [
-                    {
-                        "type": "model_output",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "```json\n{\"action\":\"open_app\",\"target\":\"editor\"}\n```",
-                            }
-                        ],
-                    }
-                ],
-            },
-        )
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            return SimpleNamespace(
+                parsed=None,
+                text="```json\n{\"action\":\"open_app\",\"target\":\"editor\"}\n```",
+            )
 
-    monkeypatch.setattr(httpx, "post", fake_post)
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    provider = GeminiProvider("secret")
+
+    result = provider.generate_plan("abra o editor")
+
+    assert result == {"action": "open_app", "target": "editor"}
+
+
+def test_gemini_provider_accepts_sdk_parsed_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            return SimpleNamespace(
+                parsed={"action": "open_app", "target": "editor"},
+                text=None,
+            )
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
     provider = GeminiProvider("secret")
 
     result = provider.generate_plan("abra o editor")
