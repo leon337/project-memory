@@ -6,11 +6,13 @@
 - **Central** = processo técnico `Control Plane`;
 - **Robô local** = processo técnico `local agent`.
 
-## Arquitetura vigente e direção de migração
+## Estado de branches
 
-O MVP continua operacional com Painel, Central e Robô separados. A nova fundação cognitiva está sendo introduzida incrementalmente sem substituir de uma vez o fluxo físico já validado.
+`main` mantém o MVP anterior estável.
 
-Arquitetura alvo:
+A arquitetura abaixo está implementada na branch `codex/goal-runtime-wip` e ainda precisa passar a bateria física integrada antes de merge em `main`.
+
+## Arquitetura vigente na branch WIP
 
 ```text
 Usuário
@@ -21,204 +23,250 @@ Central — FastAPI :8000
   ↓
 SQLite — fila, histórico e leases
   ↓
-HTTP polling autenticado
+HTTP polling autenticado + lease heartbeat
   ↓
 Robô local
   ↓
-Goal Runtime universal
-  ├─ Goal Contract
-  ├─ estado operacional / blackboard
-  ├─ subobjetivos e dependências
-  ├─ artefatos produzidos
+Session Context curto
+  ↓
+SemanticGoalInterpreter
+  ├─ intent local tipado quando a cobertura é inequívoca
+  └─ GENERIC → decomposição estruturada completa por provider
+  ↓
+GoalContract + GoalRunState
+  ├─ subobjetivos / DAG
+  ├─ critérios obrigatórios
+  ├─ artefatos/dataflow
   ├─ Evidence Ledger
-  └─ budgets/tentativas
+  └─ budgets / guards / progresso
   ↓
-Resolução da próxima etapa
-  ├─ fast path / skill determinística quando inequívoco
-  └─ MultiProviderPlanner quando há semântica, condição, ambiguidade ou replanejamento
-       ├─ Cloudflare Workers AI
-       ├─ Z.AI / GLM
-       └─ Google Gemini
+Capability Resolver quando necessário
+  ├─ PATH
+  ├─ XDG .desktop
+  ├─ categorias
+  └─ aliases/hints
   ↓
-Plan / StructuredAction
+Plan / operação estruturada
   ↓
-Policy Layer local permissiva por padrão
+Policy Layer
   ↓
-Executores
+LeaseGuardedExecutor
   ├─ Playwright / Chromium
-  └─ Desktop Linux / PyAutoGUI / subprocess
+  └─ Desktop Linux / subprocess / PyAutoGUI
   ↓
-Execution Receipt
+ExecutionReceipt
   ↓
-Observação / percepção
+Percepção independente
+  ├─ browser DOM/URL/status/resultados
+  ├─ X11/processo/WM_CLASS
+  └─ AT-SPI/readback
   ↓
 EvidenceRecord
   ↓
-Goal Verifier
-  ├─ critérios completos → succeeded
-  └─ critérios pendentes → replanejar / continuar
+GoalVerifier
+  ├─ critérios + subobjetivos comprovados → succeeded
+  └─ pendência/falha → continuar, fallback limitado ou failed
+  ↓
+Resultado sanitizado
+  ↓
+ACK da Central
+  ↓
+commit do contexto entre tasks
 ```
 
-## 1. Processos existentes que permanecem
+## 1. Processos preservados
 
-### Painel
+Painel, Central e Robô continuam processos separados.
 
-`src/context_anchor/dashboard.py`, bind padrão `127.0.0.1:8765`.
-
-### Central
-
-`src/context_anchor/control_plane.py`, bind padrão `127.0.0.1:8000`.
-
-Fluxo persistido atual:
+A fila persiste em SQLite e mantém o ciclo:
 
 ```text
 queued → running → succeeded | failed
 ```
 
-A direção é que o `succeeded` final passe a representar um verdict estruturado de objetivo, não simplesmente o retorno positivo de uma ação.
+Na branch WIP, `succeeded` só deve ser enviado pelo Robô depois de um verdict comprovado do Goal Runtime.
 
-### Robô local
+## 2. Goal Runtime universal
 
-`src/context_anchor/local_agent.py` continua sendo o processo coordenador físico. A refatoração pesada para tornar o Goal Runtime universal ainda não foi feita.
+Módulos principais:
 
-## 2. Fundação do Goal Runtime — implementada isoladamente
+- `goal_runtime.py` — contratos, critérios, subobjetivos, evidências, steps, budgets e verifier;
+- `goal_execution.py` — orquestração de uma execução completa;
+- `local_agent.py` — integra o Goal Runtime ao fluxo real do Robô.
 
-Novo módulo:
+Todo comando entra em `execute_goal()` na branch WIP.
 
-`src/context_anchor/goal_runtime.py`
+Fast paths e decomposição por provider são fontes diferentes de steps, mas não possuem semânticas diferentes de conclusão.
 
-Contratos existentes:
-
-- `GoalContract` — objetivo original, critérios, subobjetivos e artefatos;
-- `GoalCriterion` — efeito obrigatório/opcional a comprovar;
-- `GoalSubgoal` — unidade de progresso e dependências;
-- `GoalRunState` — estado vivo de uma execução;
-- `EvidenceRecord` — evidência ligada a um critério;
-- `EvidenceKind` — diferencia receipt, observação, readback e assertion;
-- `GoalVerdict` — resultado do verifier;
-- `GoalVerifier` — autoridade determinística mínima de conclusão.
-
-Essa fundação ainda não intercepta o `local_agent` atual.
-
-## 3. Regra fundamental de evidência
-
-A arquitetura separa quatro conceitos:
+## 3. Regra de evidência e conclusão
 
 ```text
-Planner       → propõe próxima etapa
-Executor      → produz Execution Receipt
-Perception    → observa estado real
-Evidence      → relaciona observação ao critério
-Goal Verifier → decide conclusão
+Planner/Interpreter → propõe/decompõe
+Executor            → executa
+ExecutionReceipt    → comprova somente execução técnica
+Perception          → observa efeito
+EvidenceRecord      → liga observação a critério
+GoalVerifier        → decide conclusão
 ```
 
-`EvidenceKind.EXECUTION_RECEIPT` nunca prova sozinho um efeito do objetivo, mesmo quando o executor informa sucesso técnico.
+`EvidenceKind.EXECUTION_RECEIPT` nunca satisfaz sozinho um critério final.
 
-Observação/readback marcada como verificada pode satisfazer um critério. Todos os critérios obrigatórios precisam de prova antes de `GoalVerifier` produzir `SUCCEEDED`.
+O verifier exige todos os critérios obrigatórios e subobjetivos dependentes satisfeitos antes de `SUCCEEDED`.
 
-Isso trava em código a distinção entre:
+## 4. Interpretação e cobertura de objetivo
 
-```text
-ação executada ≠ objetivo concluído
-```
+`SemanticGoalInterpreter` reconhece localmente conceitos inequívocos como:
 
-## 4. Fast paths
+- edição de texto;
+- cálculo/ferramenta de cálculo;
+- VS Code/code editing;
+- busca web;
+- pesquisa em navegador nomeado;
+- informação/pesquisa+leitura;
+- pesquisa→resultado→editor;
+- condicional de acessibilidade de site.
 
-Fast paths determinísticos continuam desejáveis para preservar quota e latência.
+A classificação local é fail-closed: um fast path só é aceito quando consegue representar todas as ações/entidades materiais do pedido.
 
-Na arquitetura alvo eles deixam de possuir uma semântica paralela de conclusão e passam a funcionar como skills/otimizações dentro do Goal Run.
+Pedidos `GENERIC` exigem decomposição estruturada completa antes da primeira ação física.
 
-Exemplo:
+## 5. Grounding de URL em busca com navegador nomeado
 
-```text
-Abra o editor de texto e escreva Olá mundo
-```
+Fast path permitido:
 
-pode continuar usando duas ações locais, mas o Goal Contract deve representar os efeitos finais e o verifier deve fechar o objetivo.
+- `No Brave, pesquise gatos`;
+- `Abra o Brave, acesse google.com e pesquise gatos`;
+- equivalentes usando Bing ou DuckDuckGo.
 
-## 5. MultiProviderPlanner
+Uma URL explícita não reconhecida como mecanismo de busca, como `example.com`, não pode ser descartada. Esse caso vai para `GENERIC`/fail-closed antes da execução.
 
-`src/context_anchor/planner.py` continua com Z.AI, Gemini e Cloudflare como serviços de raciocínio intercambiáveis.
+## 6. Capability Resolver
 
-Providers não são autoridade de conclusão. O planner pode sugerir uma próxima ação ou indicar que acredita não haver mais trabalho; o Goal Verifier continua responsável pelo verdict.
+`capabilities.py` separa necessidade de aplicativo concreto.
 
-## 6. StructuredAction
-
-As ações físicas tipadas atuais permanecem como nível de executor. Não transformar o Goal Contract em comandos de mouse/clique.
-
-Ações atualmente existentes incluem navegação, captura, janela ativa, mouse, teclado, aplicativo e `finish` legado do loop por IA.
-
-Durante a migração, `finish` deixa de ser autoridade final e passa no máximo a ser um sinal do planner para o verifier avaliar o estado.
-
-## 7. Policy Layer e perfil local
-
-A Policy Layer permanece antes do executor e o perfil local continua permissivo por padrão, com bloqueios futuros por exceção.
-
-FAILSAFE, proteção de foco e Emergency Stop permanecem fora do raciocínio e não devem ser enfraquecidos pela migração.
-
-## 8. Resolução de capacidades — próxima camada depois do runtime
-
-A abstração alvo é:
-
-```text
-necessidade do objetivo
-→ capability
-→ provider local dessa capability
-→ aplicativo/executor
-```
-
-Exemplos futuros:
+Capabilities atuais:
 
 - `text.edit`;
 - `calculate`;
+- `web.search`;
+- `web.read`;
 - `browser.navigate`;
-- `browser.search`;
-- `browser.read`;
-- `desktop.observe`.
+- `code.edit`.
 
-Aliases continuam como hints/cache, não como mecanismo principal de inteligência.
+A descoberta usa executáveis realmente instalados e metadados XDG. Perfis/aliases são preferências e hints, não uma allowlist absoluta.
 
-## 9. Percepção
+Hints explícitos podem operar em modo estrito para impedir trocar silenciosamente o aplicativo pedido.
 
-Prioridade de percepção no browser:
+## 7. Percepção
 
-1. URL/status/título;
-2. DOM/texto útil;
-3. links/headings/inputs/tabelas;
-4. accessibility/ARIA;
-5. extração semântica;
-6. screenshot;
-7. visão multimodal como fallback.
+### Browser
 
-No desktop Linux/X11:
+`actions.py` expõe observação estruturada via Playwright, incluindo:
 
-1. janela/processo;
-2. accessibility/AT-SPI;
-3. árvore compacta da UI;
-4. screenshot;
-5. OCR/visão como fallback.
+- URL final;
+- status HTTP;
+- título;
+- texto visível;
+- resultados estruturados;
+- primeiro resultado/título/URL.
 
-## 10. Contexto operacional futuro
+### Desktop
 
-Session Context curto e tipado para referências entre tasks, como último assunto, browser/session, site, editor/documento e artefatos recentes.
+`desktop.py` usa:
 
-Não usar histórico bruto como memória operacional.
+- processo/PID;
+- janela ativa;
+- X11/`WM_CLASS`;
+- argumentos observáveis quando possível;
+- AT-SPI/readback para texto.
 
-## 11. Recovery futuro
+Screenshot continua disponível, mas não é a prova padrão para fluxos que possuem observadores estruturados.
 
-Recovery Manager deve trabalhar com falhas tipadas, budgets, detector de falta de progresso e estratégias alternativas, evitando repetir indefinidamente o mesmo estado/ação.
+## 8. Dataflow e artefatos
 
-## 12. Controles preservados
+`GoalContract.artifacts` carrega valores produzidos por etapas e consumidos posteriormente.
 
-Durante toda a migração permanecem:
+Exemplo crítico:
 
-- processos Painel/Central/Robô separados;
-- SQLite + leases;
+```text
+pesquisa
+→ first_result_title
+→ abrir editor
+→ escrever ${first_result_title}
+→ readback exato
+```
+
+Uma etapa estruturada não pode declarar produção de artifact sem realmente materializá-lo.
+
+## 9. Contexto operacional entre tasks
+
+`session_context.py` persiste somente artefatos tipados e limitados:
+
+- subject;
+- location;
+- site;
+- browser;
+- editor;
+- result.
+
+Possui TTL, limites de tamanho/quantidade, proveniência por task, lock e escrita atômica.
+
+Referências suportadas incluem `lá`, `nesse navegador`, `nesse site`, `nesse editor`, `aquele resultado` e `esse assunto`.
+
+O contexto produzido por uma task só é commitado depois do ACK final da Central.
+
+## 10. Leases e execução física
+
+`lease.py` adiciona heartbeat e `LeaseGuardedExecutor`.
+
+Ações e observações são protegidas contra perda de posse da task. A conclusão da Central também valida o lease vigente.
+
+Ações físicas não idempotentes não são repetidas cegamente após erro/observação inconclusiva.
+
+## 11. Providers
+
+Z.AI, Gemini e Cloudflare continuam como serviços intercambiáveis de raciocínio/decomposição.
+
+Providers não são autoridade de conclusão.
+
+Fast paths locais evitam provider quando a intenção é inequívoca; objetivos `GENERIC` dependem de decomposição estruturada por provider disponível.
+
+## 12. Recovery e budgets
+
+`GoalRunState` limita:
+
+- número de steps;
+- retries por estratégia;
+- repetições;
+- passos sem progresso.
+
+Buscas possuem fallback limitado entre mecanismos. O replanning estruturado após toda falha física ainda é limitado e permanece área de evolução posterior.
+
+## 13. Privacidade e telemetria
+
+`redaction.py` sanitiza resultados/logs/contexto e remove padrões sensíveis. Conteúdo digitado não é persistido integralmente em evidências públicas.
+
+## 14. Controles preservados
+
+Permanecem obrigatórios:
+
 - Policy Layer;
-- executores atuais;
 - `shell=False`;
 - foco observável;
 - FAILSAFE dos quatro cantos;
 - Emergency Stop persistente;
-- credenciais fora de código/prompts/logs;
+- credenciais fora do Git/logs/prompts;
 - localhost por padrão.
+
+## 15. Gate para merge em main
+
+A branch WIP não pode ser considerada pronta apenas por testes mockados.
+
+Antes do merge são obrigatórios:
+
+- bateria física integrada de `docs/CODEX_GOAL_RUNTIME_MISSION.md`;
+- correção de falhas reais encontradas;
+- suíte completa verde;
+- compilação/checks;
+- `git diff --check`;
+- documentação final coerente com o estado verificado.
