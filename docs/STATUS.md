@@ -68,7 +68,7 @@ Eventos estruturados registram ids de tarefas, estados, transições e erros. Cr
 
 Quando o Painel inicia Central ou Robô, `stdout/stderr` bruto é separado em `central-process.log` e `robot-process.log`.
 
-Commits principais desta rodada:
+Commits principais da rodada do Painel e telemetria:
 
 - `2aec014c2c7e55570e818a748394ad044e77717f` — logger persistente de runtime;
 - `4936badd931091d596a8036786090238916b2ca7` — eventos reais da Central;
@@ -77,7 +77,7 @@ Commits principais desta rodada:
 - `823715419db91206dfac455b3af2b47c29b4b618` — testes do novo Painel;
 - `fd5192628c7c1e6c4d3e58a00dbc09693265b4f2` — testes do logger de runtime.
 
-O CI do código desta rodada concluiu com **success**.
+O CI dessa rodada concluiu com **success**.
 
 ## Gerenciamento de processos
 
@@ -105,7 +105,28 @@ Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
 A sincronização de foco foi reforçada e validada fisicamente: abrir aplicativo seguido de digitação funciona sem atraso artificial intermediário, e teclado recusa execução quando o foco observado não corresponde ao alvo esperado.
 
-O backend configura `pyautogui.FAILSAFE = True`, mas a primeira validação física do FAILSAFE **falhou**: com o ponteiro colocado no canto superior esquerdo, a tarefa `mover mouse 200 200` foi marcada como `succeeded`, o ponteiro foi movido e a telemetria registrou execução com sucesso. Portanto, o FAILSAFE nativo do PyAutoGUI não é considerado proteção suficiente neste ambiente e precisa ser reforçado no código do Robô antes de ser aprovado.
+### FAILSAFE explícito
+
+A primeira validação física do FAILSAFE nativo do PyAutoGUI **falhou**: com o ponteiro colocado no canto superior esquerdo, a tarefa `mover mouse 200 200` foi marcada como `succeeded`, o ponteiro foi movido e a telemetria registrou execução com sucesso.
+
+A correção já foi implementada no `main`:
+
+- `pyautogui.FAILSAFE = True` continua habilitado como defesa adicional;
+- o backend agora verifica diretamente a posição atual do ponteiro antes de `move_mouse`, `click_mouse`, `type_text` e `press_key`;
+- existe uma zona de segurança de 20 pixels nos quatro cantos da tela;
+- quando o ponteiro está nessa zona, o backend levanta `DesktopFailsafeTriggered` antes de enviar qualquer entrada física;
+- a exceção sobe pelo fluxo normal do Robô e deve fazer a tarefa terminar como `failed`, com o tipo do erro registrado na telemetria;
+- testes automatizados cobrem os quatro cantos, mouse, clique, digitação, tecla e execução normal fora da zona.
+
+Commits desta correção:
+
+- `8bcc59c7c03be8671a437c5a5a996e8b0dd332f7` — proteção explícita nos cantos;
+- `634b1b70db94e8c00c86821f36032bd6d81129f5` — adaptação dos testes de foco;
+- `4f398f4f745fbd996db13c710601fa83b3da5c37` — suíte específica do FAILSAFE.
+
+O CI do commit `4f398f4f745fbd996db13c710601fa83b3da5c37` concluiu com **success**.
+
+**Ainda não há validação física da correção nova.** O próximo teste real precisa sincronizar o computador alvo, reiniciar o Robô e repetir `mover mouse 200 200` com o ponteiro no canto superior esquerdo.
 
 ## Navegador
 
@@ -151,11 +172,11 @@ Confirmado no computador alvo:
 - tema claro original causava desconforto visual; revisões dark foram aplicadas;
 - controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
 - logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel, Central e Robô já foram validados fisicamente;
-- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física no primeiro teste real; precisa de proteção explícita adicional no backend de desktop.
+- FAILSAFE nativo do PyAutoGUI não interrompeu a ação física no primeiro teste real; uma proteção explícita própria foi implementada e passou no CI, mas ainda precisa de revalidação física.
 
 ## Ainda precisa de validação física
 
-- corrigir e repetir o teste do `FAILSAFE` físico;
+- sincronizar o código novo, reiniciar o Robô e repetir o teste do `FAILSAFE` explícito;
 - validar parada de emergência real e liberação consciente;
 - validar a transição explícita **Parar Robô → Desligado → Ligar Robô → Ligado** pelo Painel;
 - testar o Laboratório com um comando conhecido;
