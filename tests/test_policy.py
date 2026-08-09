@@ -1,6 +1,6 @@
 import pytest
 
-from context_anchor.policy import evaluate_plan, plan_command
+from context_anchor.policy import Plan, evaluate_plan, plan_command
 
 
 def test_plan_search() -> None:
@@ -15,16 +15,21 @@ def test_plan_open_adds_https() -> None:
     assert plan.target == "https://example.com"
 
 
-def test_policy_blocks_localhost() -> None:
+def test_deterministic_open_only_claims_targets_that_look_like_urls() -> None:
+    with pytest.raises(ValueError, match="não parece uma URL"):
+        plan_command("abrir o navegador brave")
+
+
+def test_policy_allows_localhost_in_trusted_local_profile() -> None:
     plan = plan_command("abrir http://localhost:8000")
     decision = evaluate_plan(plan)
-    assert decision.allowed is False
+    assert decision.allowed is True
 
 
-def test_policy_blocks_private_ip() -> None:
+def test_policy_allows_private_ip_in_trusted_local_profile() -> None:
     plan = plan_command("abrir http://192.168.1.10")
     decision = evaluate_plan(plan)
-    assert decision.allowed is False
+    assert decision.allowed is True
 
 
 def test_policy_allows_public_https() -> None:
@@ -33,7 +38,7 @@ def test_policy_allows_public_https() -> None:
     assert decision.allowed is True
 
 
-def test_desktop_is_disabled_by_default() -> None:
+def test_desktop_is_disabled_when_explicitly_off() -> None:
     plan = plan_command("capturar tela")
     decision = evaluate_plan(plan)
     assert plan.action == "capture_screen"
@@ -57,18 +62,22 @@ def test_plan_type_text_does_not_allow_newline() -> None:
     assert evaluate_plan(plan, desktop_enabled=True).allowed is False
 
 
-def test_open_app_uses_fixed_allowlist() -> None:
-    allowed = plan_command("abrir aplicativo firefox")
-    denied = plan_command("abrir aplicativo bash")
-    assert evaluate_plan(allowed, desktop_enabled=True).allowed is True
-    assert evaluate_plan(denied, desktop_enabled=True).allowed is False
+def test_open_app_is_permitted_without_registration() -> None:
+    brave = Plan("open_app", "brave-browser")
+    custom = Plan("open_app", "meu-aplicativo-local")
+    assert evaluate_plan(brave, desktop_enabled=True).allowed is True
+    assert evaluate_plan(custom, desktop_enabled=True).allowed is True
 
 
-def test_key_allowlist() -> None:
+def test_press_key_is_permissive_for_printable_key_names() -> None:
     assert evaluate_plan(plan_command("tecla enter"), desktop_enabled=True).allowed is True
-    assert evaluate_plan(plan_command("tecla delete"), desktop_enabled=True).allowed is False
+    assert evaluate_plan(plan_command("tecla delete"), desktop_enabled=True).allowed is True
 
 
-def test_unknown_command_is_rejected() -> None:
+def test_finish_is_internal_and_allowed() -> None:
+    assert evaluate_plan(Plan("finish", "objetivo concluído"), desktop_enabled=True).allowed is True
+
+
+def test_unknown_command_is_rejected_by_deterministic_parser() -> None:
     with pytest.raises(ValueError):
         plan_command("apague todos os arquivos")
