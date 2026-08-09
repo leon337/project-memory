@@ -1,33 +1,49 @@
 # NEXT
 
-## 1. Integrar Cerebras como primeiro planner por IA
+## 1. Medir limites reais de SiliconFlow e Z.AI
 
-A validação operacional do MVP 0.3 foi concluída no Linux real: FAILSAFE explícito, parada de emergência, ciclo normal parar/ligar Robô, telemetria e Laboratório já foram testados fisicamente.
+A validação operacional do MVP 0.3 foi concluída no Linux real e a escolha anterior por Cerebras foi reaberta porque a pesquisa atualizada mostrou que o serviço não possui mais free tier recorrente.
 
-A escolha vigente para a primeira integração de IA é **Cerebras** com o modelo **`gpt-oss-120b`**.
+Estado atual:
 
-Próximos passos:
+- conta e API key do **SiliconFlow** já foram criadas;
+- conta e API key do **Z.AI** já foram criadas;
+- nenhuma chave foi armazenada no Git ou enviada ao código do projeto;
+- nenhum dos dois provedores está integrado ao Robô ainda.
 
-1. criar/obter a chave de API da Cerebras;
-2. armazenar a chave somente no `.env`/variável de ambiente local;
-3. conectar Cerebras ao contrato provider-agnostic existente em `src/context_anchor/planner.py`;
-4. exigir saída compatível com `StructuredAction`;
-5. manter toda saída passando pela Policy Layer;
-6. manter `DeterministicPlanner` como fallback e para testes;
-7. testar primeiro uma única ação simples em linguagem natural pelo mesmo caminho físico já validado.
+Próximas verificações manuais:
 
-Critério de conclusão: um pedido simples em linguagem natural deve ser interpretado por Cerebras, convertido em uma única ação estruturada conhecida, validado pela Policy Layer, executado pelo Robô e registrado na telemetria sem expor credenciais.
+1. no SiliconFlow, abrir **Higher Limits** e identificar limites atuais por conta/modelo; verificar também **Payments** apenas para saldo/créditos, sem adicionar pagamento;
+2. no Z.AI, abrir **Rate Limits** e registrar RPM/TPM/concurrency/quota dos modelos gratuitos/Flash disponíveis para a conta;
+3. comparar esses números com Cloudflare Workers AI e Groq, usando a pesquisa de agosto de 2026 como referência;
+4. não assumir que um modelo é gratuito apenas porque aparece no catálogo — confirmar preço zero e natureza recorrente do plano.
 
-Uma pesquisa paralela está buscando outros provedores gratuitos com limites maiores. Se surgir uma opção claramente superior, a escolha pode ser revisada, mas isso deve gerar uma nova decisão explícita em `DECISIONS.md`; até lá, Cerebras + `gpt-oss-120b` é o alvo vigente.
+Critério de conclusão: obter dados suficientes para dizer, sem suposição, quais candidatos oferecem gratuidade recorrente e qual volume real de uso está disponível para um planner iterativo.
 
-## 2. Evoluir para planejamento multietapa orientado a objetivo
+## 2. Escolher o primeiro provedor de IA
 
-Depois que uma ação única por IA estiver estável, evoluir o planner para receber um objetivo e produzir/acompanhar múltiplas etapas com verificação de resultado entre elas.
+Depois das medições, escolher explicitamente o primeiro provedor/modelo considerando em conjunto:
 
-O loop deve reutilizar as proteções existentes e nunca transformar a resposta do modelo em shell ou execução livre.
+- gratuidade recorrente;
+- RPM e TPM;
+- RPD/TPD ou budget diário equivalente;
+- Structured Outputs / JSON Schema;
+- function/tool calling;
+- reasoning;
+- latência;
+- estabilidade do free tier.
 
-## 3. Preparar acesso remoto seguro e canais
+A decisão escolhida deverá ser registrada em `DECISIONS.md` antes da integração.
 
-Somente depois do planner por IA funcionar dentro das proteções atuais, preparar a camada de acesso remoto seguro antes de qualquer exposição à Internet.
+## 3. Integrar o provedor escolhido ao planner
 
-Esse bloco deverá anteceder Telegram, WhatsApp e Instagram e incluir autenticação forte, TLS, pareamento/revogação, auditoria e confirmação para ações sensíveis.
+Conectar o provedor vencedor ao contrato provider-agnostic em `src/context_anchor/planner.py`.
+
+Requisitos:
+
+- saída compatível com `StructuredAction`;
+- nenhuma ação de shell;
+- nenhuma credencial enviada ao modelo;
+- toda saída passa pela Policy Layer;
+- `DeterministicPlanner` permanece como fallback e para testes;
+- primeiro teste usa uma única ação simples em linguagem natural pelo mesmo caminho físico já validado.
