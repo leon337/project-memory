@@ -14,59 +14,9 @@ O `main` contém o MVP 0.3 com três processos separados:
 
 Painel e Central continuam locais por padrão. Publicação remota ainda não foi implementada.
 
-## Capacidades já validadas fisicamente
+## Capacidades físicas já validadas
 
-No Linux/X11 real já foram validados:
-
-- ligar, parar e reiniciar Central e Robô pelo Painel;
-- parada de emergência persistente e liberação consciente;
-- FAILSAFE explícito nos cantos da tela;
-- screenshot;
-- movimento e clique de mouse;
-- abertura de aplicativos;
-- digitação Unicode e tecla Enter;
-- proteção de foco entre ações de teclado;
-- telemetria real de Painel, Central e Robô;
-- planner multi-provider com fallback;
-- sequência local `abrir editor + escrever` sem provider externo;
-- navegação genérica `abrir navegador + acessar site` sem provider externo;
-- navegação com navegador específico `abrir Brave + acessar site` sem provider externo;
-- sequência local `Brave + Google + pesquisar` sem provider externo.
-
-## Providers
-
-O modo `multi` possui adaptadores para:
-
-- **Z.AI / GLM**;
-- **Google Gemini** via SDK oficial `google-genai`;
-- **Cloudflare Workers AI**, ainda sem `Account ID` configurado no ambiente real.
-
-Estado observado nos testes recentes:
-
-- Z.AI pode retornar `429/1305` ou resposta sem JSON válido;
-- Gemini retornou `429 RESOURCE_EXHAUSTED` por quota;
-- tarefas determinísticas conhecidas não devem depender desses providers.
-
-## Testes físicos já relevantes para o novo runtime
-
-### `Abra o editor de texto e escreva Olá mundo` — PASS
-
-- Xed abriu;
-- foco correto;
-- `Olá mundo` apareceu exatamente;
-- task `succeeded`;
-- rota local determinística;
-- nenhum provider externo necessário.
-
-### Objetivo multi-etapa com leitura de resultado — FALSO PASS histórico
-
-Pedido:
-
-`Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
-
-O Painel marcou `succeeded`, mas fisicamente apenas a pesquisa foi aberta com parte indevida do pedido embutida na consulta. O primeiro resultado não foi lido, o editor não foi aberto e o título não foi escrito.
-
-Esse caso é a regressão principal do Goal Runtime universal.
+No Linux/X11 real já foram validados controles de Painel/Central/Robô, Emergency Stop, FAILSAFE, screenshot, mouse, aplicativos, Unicode/teclado, proteção de foco, telemetria, planner multi-provider com fallback e fast paths locais de editor/escrita e navegação/pesquisa.
 
 ## Baseline físico de autonomia — conclusão
 
@@ -81,9 +31,17 @@ O executor físico e os fast paths já realizam ações úteis. Os principais FA
 
 Não é correto resolver autonomia adicionando regex por frase como estratégia principal.
 
+### Regressão crítica
+
+Pedido:
+
+`Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
+
+Houve um falso PASS histórico: apenas a pesquisa foi aberta; o primeiro resultado não foi lido, o editor não foi aberto e o título não foi escrito. Esse caso é a regressão principal da nova arquitetura.
+
 ## Decisão arquitetural vigente — Goal Runtime universal
 
-A direção adotada é um **Goal Runtime universal em ciclo fechado**:
+Foi adotado um **Goal Runtime universal em ciclo fechado**:
 
 ```text
 Goal Contract
@@ -111,7 +69,7 @@ Princípios:
 
 Foi criado `src/context_anchor/goal_runtime.py` como fundação isolada, ainda **não conectada ao fluxo físico atual**.
 
-Ela já define:
+Ela define:
 
 - `GoalContract`;
 - `GoalCriterion`;
@@ -122,20 +80,24 @@ Ela já define:
 - `GoalVerdict`;
 - `GoalVerifier`.
 
-Semântica já travada na fundação:
+Semântica já travada:
 
-- `ExecutionReceipt` pode registrar que uma ação ocorreu, mas não prova sozinho um efeito do objetivo;
+- `ExecutionReceipt` registra execução técnica, mas não prova sozinho um efeito do objetivo;
 - observação/readback verificado pode satisfazer um critério;
-- um critério obrigatório pendente mantém o Goal Run aberto;
-- apenas quando todos os critérios obrigatórios possuem prova válida o verifier produz `SUCCEEDED`.
+- critério obrigatório pendente mantém o Goal Run aberto;
+- apenas todos os critérios obrigatórios comprovados permitem `SUCCEEDED`.
 
-Foi criado `tests/test_goal_runtime_contract.py` com quatro regressões de contrato cobrindo esses pontos.
+Foi criado `tests/test_goal_runtime_contract.py` com quatro regressões de contrato. Antes da publicação, a sintaxe foi compilada e quatro checks equivalentes foram executados isoladamente com sucesso.
 
-Antes de publicar os arquivos, a sintaxe foi compilada e quatro checks equivalentes foram executados isoladamente com sucesso. A suíte completa do repositório ainda precisa ser executada pelo CI/local após a integração no `main`.
+Também foram atualizados:
 
-## O que não foi alterado ainda
+- `ARCHITECTURE.md` — pipeline alvo e scaffold existente;
+- `DECISIONS.md` — D-022 Goal Runtime universal e D-023 Execution Receipt não é evidência de efeito;
+- `NEXT.md` — integração pesada no `local_agent`, percepção e autonomia sem frases cadastradas.
 
-A fundação nova não substitui nem intercepta ainda:
+## O que deliberadamente não foi alterado ainda
+
+A fundação nova não intercepta ainda:
 
 - `local_agent.py`;
 - planner atual;
@@ -143,15 +105,19 @@ A fundação nova não substitui nem intercepta ainda:
 - execução física;
 - persistência final da Central.
 
-Isso é intencional para deixar o MVP estável enquanto a integração pesada é feita na próxima etapa.
+Isso mantém o MVP funcional enquanto a integração pesada é preparada.
 
 ## Próxima fronteira pesada
 
-A próxima mudança é migrar `local_agent` para que todo pedido crie/use o mesmo Goal Run, convertendo fast paths e planner por IA em fontes de steps, e fazendo o Goal Verifier ser a única autoridade de conclusão.
+Migrar `local_agent` para que todo pedido crie/use o mesmo Goal Run, convertendo fast paths e planner por IA em fontes de steps e fazendo o Goal Verifier ser a única autoridade de conclusão.
 
-Depois vêm percepção estruturada, capability resolver, Session Context e Recovery Manager.
+Depois: percepção estruturada, Capability Resolver, Session Context e Recovery Manager.
 
-## Controles que permanecem
+## Providers
+
+O modo `multi` possui adaptadores para Z.AI/GLM, Google Gemini e Cloudflare Workers AI; Cloudflare ainda precisa do `Account ID` no ambiente real. Z.AI e Gemini apresentaram 429/respostas inválidas nos testes recentes, portanto fast paths determinísticos continuam importantes para preservar quota.
+
+## Controles preservados
 
 - parada de emergência persistente;
 - FAILSAFE físico próprio nos quatro cantos;
