@@ -205,21 +205,26 @@ Se o ponteiro estiver nessa zona, a ação deve ser recusada antes de mover o mo
 
 Esse mecanismo complementa, mas não substitui, a parada de emergência persistente. O FAILSAFE serve para interromper a próxima entrada física imediatamente; a parada de emergência continua sendo o mecanismo para encerrar e bloquear o Robô até liberação consciente.
 
-## D-026 — Primeiro provedor de IA: Cerebras com `gpt-oss-120b`
+## D-026 — Primeiro provedor de IA deve atender gratuidade recorrente e será escolhido após medir os candidatos atuais
 
-Depois da conclusão da validação operacional do MVP 0.3, o primeiro provedor escolhido para integrar ao planner é **Cerebras**, usando inicialmente o modelo **`gpt-oss-120b`**.
+O primeiro provedor de IA não será acoplado ao Robô até que a opção escolhida atenda ao requisito atual de **gratuidade recorrente ou zero-cost estável**, além de oferecer volume suficiente para um planner iterativo.
 
-A escolha é do primeiro alvo de integração, não um acoplamento permanente da arquitetura. O contrato do planner continua provider-agnostic para permitir substituição do provedor sem reconstruir o caminho de execução do Robô.
+A escolha anterior por Cerebras deixa de ser vigente porque a pesquisa atualizada de agosto de 2026 encontrou que o serviço não possui mais um tier gratuito renovável; a oferta atual é tratada como trial/crédito temporário e, portanto, não satisfaz o critério definido para este projeto.
 
-A integração deve preservar obrigatoriamente:
+Os candidatos em investigação são, nesta ordem prática:
 
-- saída convertida para `StructuredAction` conhecida pelo sistema;
-- nenhuma execução de shell gerada pelo modelo;
-- passagem obrigatória pela Policy Layer;
-- FAILSAFE e parada de emergência independentes da IA;
-- `DeterministicPlanner` disponível como fallback e para testes;
-- chave da API somente em configuração local/variável de ambiente, nunca em código, Git, logs ou prompt enviado ao modelo.
+- **SiliconFlow** — conta e API key já criadas; falta confirmar quais modelos são realmente gratuitos e seus limites reais de RPM/TPM/RPD/TPD na conta;
+- **Z.AI / GLM** — conta e API key já criadas; falta confirmar limites reais da conta para os modelos Flash/zero-price;
+- **Cloudflare Workers AI** — referência com 300 RPM default para text generation, mas com budget diário em neurons que precisa ser considerado;
+- **Groq** — referência com limites gratuitos publicados por modelo e boa previsibilidade de RPM/RPD/TPM/TPD.
 
-O Google/Gemini já disponível não será removido e poderá ser usado futuramente como fallback, mas nenhum fallback multi-provider está implementado neste momento.
+A decisão final do primeiro provedor só será tomada depois de comparar, com dados verificáveis, gratuidade, RPM, TPM, limite diário, recursos agentic e estabilidade do plano.
 
-Uma pesquisa paralela por provedores gratuitos com limites maiores pode levar a uma nova decisão antes ou depois da primeira integração. Se isso acontecer, esta decisão deverá ser explicitamente substituída em `DECISIONS.md`; até lá, Cerebras + `gpt-oss-120b` é a escolha vigente.
+Independentemente do provedor escolhido:
+
+- a saída deverá ser convertida para `StructuredAction` conhecida pelo sistema;
+- não haverá execução de shell gerada pelo modelo;
+- toda ação continuará passando pela Policy Layer;
+- FAILSAFE e parada de emergência continuarão independentes da IA;
+- `DeterministicPlanner` permanecerá disponível como fallback e para testes;
+- chaves de API existirão somente em configuração local/variáveis de ambiente e nunca em código, Git, logs ou prompts.
