@@ -1,45 +1,44 @@
 # NEXT
 
-## 1. Integrar o Goal Runtime universal no Robô real
+## 1. Executar a bateria física integrada A–E
 
-Usar `docs/CODEX_GOAL_RUNTIME_MISSION.md` como contrato de execução.
+Usar `docs/CODEX_GOAL_RUNTIME_MISSION.md` como contrato.
 
-A fundação já existe em:
+Executar pelo fluxo real Painel → Central → Robô os 10 testes obrigatórios, incluindo:
 
-- `src/context_anchor/goal_runtime.py`;
-- `tests/test_goal_runtime_contract.py`.
+- editor + `Olá mundo`;
+- navegação e busca;
+- VS Code;
+- necessidade vaga de cálculo;
+- necessidade vaga de anotação;
+- significado de Josiel;
+- pesquisa → primeiro resultado → editor → escrita comprovada;
+- condicional de `example.com`;
+- contexto entre tasks com `lá`.
 
-Integrar essa fundação ao `local_agent.py` para que **todo** pedido — determinístico simples, sequência local ou IA — passe pelo mesmo `GoalRunState` e pelo mesmo `GoalVerifier` antes de poder terminar `succeeded`.
+Critério: cada PASS precisa de estado final observado/evidência do Goal Runtime, não apenas ausência de exceção.
 
-Critério de conclusão:
+## 2. Corrigir qualquer FAIL real e fechar validação técnica
 
-- nenhum caminho de `execute_command()` consegue marcar objetivo completo fora do verifier;
-- `ExecutionReceipt` isolado não prova conclusão;
-- `finish` do planner não encerra um Goal com critérios pendentes;
-- suíte completa verde.
+Para cada falha física, classificar a causa (interpretação, capability, provider, percepção, execução, evidência, contexto, lease ou progresso), corrigir e repetir o teste afetado.
 
-## 2. Completar percepção, capabilities e autonomia até passar os testes físicos da missão
+Depois rodar:
 
-Implementar o necessário para atingir os critérios A–E de `docs/CODEX_GOAL_RUNTIME_MISSION.md`, incluindo:
+- suíte completa;
+- compilação/check equivalente;
+- `git diff --check`;
+- revisão do diff;
+- CI da versão candidata quando houver push apropriado.
 
-- percepção estruturada de browser para ler resultados e extrair artefatos;
-- resolução de capacidades/ferramentas reais;
-- interpretação/decomposição semântica sem regex por frase como estratégia principal;
-- dataflow entre subobjetivos;
-- contexto operacional curto entre tasks;
-- replanning, budgets e detecção de falta de progresso.
+Não mergear enquanto existir FAIL obrigatório ou falso `succeeded` conhecido.
 
-Não considerar concluído apenas com testes mockados: executar e repetir os testes físicos no Linux/X11 até os critérios serem satisfeitos ou existir bloqueio externo comprovável.
+## 3. Fechar a missão e promover para `main`
 
-## 3. Fechar a missão com evidências e memória atualizada
+Quando todos os critérios passarem:
 
-Antes de encerrar:
-
-- regressões físicas antigas continuam PASS;
-- caso crítico `pesquise → leia primeiro resultado → editor → escreva título` passa de ponta a ponta;
-- objetivo condicional real passa;
-- continuidade contextual entre tasks passa;
-- nenhum falso `succeeded` conhecido;
-- suíte completa, compilação e `git diff --check` passam;
-- alterações corretas são commitadas e publicadas em `main`;
-- `STATUS.md`, `ARCHITECTURE.md`, `DECISIONS.md` e este `NEXT.md` refletem a realidade verificável final.
+- atualizar `STATUS.md`, `ARCHITECTURE.md`, `DECISIONS.md` e este `NEXT.md` para o estado final;
+- garantir que apenas código/testes/docs da missão entrem;
+- commit/push final;
+- merge/promover para `main`;
+- confirmar SHA remoto e CI;
+- registrar qualquer limitação real restante.
