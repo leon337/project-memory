@@ -85,7 +85,10 @@ Confirmado no navegador:
 - a tela real **Rate Limits** do Z.AI foi acessada;
 - para `GLM-4.7-Flash`, a conta mostrou **concurrency limit = 1**;
 - a mesma tela mostra limites de concorrência diferentes por modelo, confirmando que o uso precisa respeitar o modelo escolhido;
-- nenhuma chave de SiliconFlow ou Z.AI foi adicionada ao Git ou integrada ao código.
+- token personalizado do **Cloudflare Workers AI** criado com permissões **Workers AI: Read** e **Workers AI: Edit**;
+- o token Cloudflare foi copiado e guardado localmente pelo usuário, sem ser enviado ao Git ou ao código;
+- o token Cloudflare foi criado com escopo de recurso **Todas as contas**, que funciona, mas é mais amplo que o necessário e deve preferencialmente ser restringido à conta específica antes da integração;
+- nenhuma chave de SiliconFlow, Z.AI ou Cloudflare foi adicionada ao Git ou integrada ao código.
 
 SiliconFlow permanece candidato opcional futuro, mas não faz parte do conjunto inicial enquanto os limites reais de um modelo gratuito atual não forem comprovados.
 
@@ -93,7 +96,7 @@ SiliconFlow permanece candidato opcional futuro, mas não faz parte do conjunto 
 
 Antes da integração multi-provider funcionar, ainda falta:
 
-- criar/configurar a credencial do Cloudflare Workers AI localmente;
+- restringir preferencialmente o token Cloudflare à conta específica e obter o `Account ID`;
 - registrar os limites efetivos do projeto Gemini no AI Studio;
 - implementar contabilidade local de quota/latência/erros para os provedores que não expõem telemetria suficiente;
 - implementar o roteador e os adaptadores de Z.AI, Cloudflare e Gemini sobre o contrato provider-agnostic existente.
