@@ -142,6 +142,8 @@ Implementados em `src/context_anchor/providers.py` usando `httpx`, que já fazia
 - `response_format={"type":"json_object"}`;
 - resposta convertida e validada como `StructuredAction`.
 
+No primeiro teste real, a API devolveu `HTTP 429` com código `1305`, indicando rate limit/serviço temporariamente sobrecarregado. O router trata isso como falha anterior à execução e tenta outro provedor compatível.
+
 ### 7.2 Cloudflare Workers AI
 
 - REST API de Workers AI por `Account ID`;
@@ -152,10 +154,12 @@ Implementados em `src/context_anchor/providers.py` usando `httpx`, que já fazia
 
 ### 7.3 Gemini
 
-- REST `generateContent`;
+- endpoint vigente: REST **Interactions API** em `/v1beta/interactions`;
 - modelo padrão: `gemini-3.5-flash`;
 - autenticação por `x-goog-api-key`;
-- usa structured response format com o mesmo JSON Schema;
+- structured output enviado como `response_format` com `type=text`, `mime_type=application/json` e o mesmo JSON Schema de `StructuredAction`;
+- a resposta REST é lida a partir do último `model_output` textual em `steps`;
+- JSON eventualmente envolvido apenas em fence de código pode ser desempacotado, mas o conteúdo final continua obrigado a passar por `StructuredAction`;
 - RPM local configurável, inicialmente 20.
 
 O adaptador Gemini desta etapa é textual. Visão/multimodalidade ainda não foi ligada ao router.
