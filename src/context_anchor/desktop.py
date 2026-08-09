@@ -54,10 +54,21 @@ def canonical_app_id(value: str) -> str:
         return raw
 
     normalized = " ".join(raw.casefold().split())
-    for prefix in ("o navegador ", "navegador ", "browser ", "o aplicativo ", "aplicativo ", "app "):
+    for prefix in (
+        "o navegador ",
+        "navegador ",
+        "browser ",
+        "o aplicativo ",
+        "a aplicação ",
+        "aplicativo ",
+        "aplicação ",
+        "app ",
+    ):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):].strip()
             break
+    if normalized.startswith("o ") or normalized.startswith("a "):
+        normalized = normalized[2:].strip()
     return APP_ALIASES.get(normalized, normalized)
 
 
@@ -241,6 +252,38 @@ class PyAutoGuiDesktopBackend:
             )
         return current, self._window_title(current)
 
+    @staticmethod
+    def _type_text_with_unicode(gui: Any, text: str) -> str:
+        """Type printable text while preserving Unicode on Linux/X11.
+
+        PyAutoGUI's write() handles ordinary keyboard characters well but can
+        silently lose characters such as á/ç. Non-ASCII code points therefore use
+        Linux Unicode input (Ctrl+Shift+U, hexadecimal code point, Enter). ASCII
+        chunks still use write() for speed and predictable keyboard behavior.
+        """
+
+        ascii_buffer: list[str] = []
+        used_unicode = False
+
+        def flush_ascii() -> None:
+            if ascii_buffer:
+                gui.write("".join(ascii_buffer), interval=0.01)
+                ascii_buffer.clear()
+
+        for char in text:
+            if ord(char) < 128:
+                ascii_buffer.append(char)
+                continue
+
+            flush_ascii()
+            gui.hotkey("ctrl", "shift", "u")
+            gui.write(f"{ord(char):x}", interval=0.01)
+            gui.press("enter")
+            used_unicode = True
+
+        flush_ascii()
+        return "linux-unicode-input" if used_unicode else "pyautogui-write"
+
     def capture_screen(self, output_path: Path) -> dict[str, Any]:
         gui = self._pyautogui()
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -302,10 +345,11 @@ class PyAutoGuiDesktopBackend:
         gui = self._pyautogui()
         self._assert_pointer_outside_failsafe_zone(gui)
         window_id, window_title = self._focused_window_for_input()
-        gui.write(text, interval=0.01)
+        input_method = self._type_text_with_unicode(gui, text)
         return {
             "action": "type_text",
             "characters": len(text),
+            "input_method": input_method,
             "window_id": window_id,
             "window_title": window_title,
             "verified": window_id is not None if self._xdotool_path() else True,
