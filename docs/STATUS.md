@@ -239,6 +239,48 @@ Não é correto continuar resolvendo autonomia por adição de frases/regex espe
 
 O próximo estágio precisa transformar objetivos naturais em uma representação operacional explícita, acompanhar estado e evidências entre etapas e só marcar `succeeded` quando o objetivo completo tiver critérios de conclusão satisfeitos.
 
+## Decisão arquitetural tomada — Goal Runtime universal
+
+Após o baseline e duas revisões arquiteturais independentes, foi adotada a direção de um **Goal Runtime universal em ciclo fechado**.
+
+A arquitetura alvo é:
+
+```text
+Goal Contract
+→ estado operacional / blackboard
+→ resolução de capacidade
+→ próxima etapa
+→ Policy Layer
+→ executor
+→ Execution Receipt
+→ observação
+→ evidência
+→ Goal Verifier
+→ replanejamento ou conclusão
+```
+
+Princípios já definidos:
+
+- fast paths determinísticos permanecem, mas como skills/otimizações dentro do mesmo Goal Run;
+- ação executada não equivale automaticamente a objetivo concluído;
+- planner não possui autoridade final para emitir `succeeded`;
+- somente o Goal Verifier pode fechar o objetivo quando todos os critérios obrigatórios estiverem comprovados;
+- a migração será incremental, sem reescrever Painel, Central, SQLite/fila/leases, executores, Policy Layer, FAILSAFE, Emergency Stop ou providers.
+
+## Trabalho preparatório iniciado nesta sessão
+
+Antes de delegar a refatoração pesada ao Codex, a documentação de arquitetura, decisões e próximos passos foi alinhada para eliminar trabalho de descoberta e decisão arquitetural.
+
+Ainda precisa ser implementada em código a fundação leve:
+
+- contratos tipados do Goal Contract;
+- estado do Goal Run;
+- Evidence Ledger;
+- Goal Verifier mínimo;
+- testes de contrato que impeçam falso `succeeded`.
+
+A refatoração pesada de `local_agent` e integração completa com percepção/executores ficará para a etapa seguinte depois dessa fundação.
+
 ## Lacuna principal para autonomia real
 
 A autonomia desejada exige que o usuário possa expressar algo como:
@@ -266,16 +308,6 @@ objetivo do usuário
 → concluir somente quando houver evidência suficiente
 ```
 
-São necessários, principalmente:
-
-1. **interpretação geral de objetivo** — sinônimos e frases naturais não podem depender de padrões exatos;
-2. **resolução de entidades/capacidades** — `VS Code`, `Visual Studio Code`, `editor`, `calculadora`, `navegador`, `internet`, `pesquisa` devem convergir para capacidades reais disponíveis;
-3. **decomposição de objetivo** — distinguir pesquisa, leitura, abertura de aplicativo, escrita e condições como partes separadas do mesmo objetivo;
-4. **memória operacional entre tarefas e etapas** — expressões como `agora`, `lá`, `nesse navegador`, `nesse site`, `depois` precisam referenciar o estado correto;
-5. **percepção mais rica** — URL atual, conteúdo DOM/texto de página, janela ativa, árvore de acessibilidade e posteriormente percepção visual;
-6. **verificador de objetivo** — `succeeded` deve significar objetivo completo comprovado, não apenas uma ação executada;
-7. **replanejamento por resultado** — se uma ação falha ou produz estado diferente, escolher outra estratégia.
-
 ## Caminhos determinísticos locais vigentes
 
 Continuam úteis como fast path para tarefas inequívocas:
@@ -289,7 +321,7 @@ Continuam úteis como fast path para tarefas inequívocas:
 
 Esses caminhos devem permanecer como atalhos confiáveis, não como linguagem obrigatória para o usuário.
 
-## Loop por IA
+## Loop por IA atual — em migração
 
 O loop já implementado continua sendo:
 
@@ -297,24 +329,7 @@ O loop já implementado continua sendo:
 ação → observação → nova decisão → ... → finish
 ```
 
-Mas o baseline mostrou que ainda falta um contrato explícito de **objetivo/subobjetivos/evidências/conclusão**, além de percepção suficiente para validar tarefas complexas.
-
-## Limitações atuais do loop autônomo
-
-- providers externos estão instáveis por quota/resposta inválida no ambiente real;
-- Cloudflare ainda não está ativo no router real;
-- observação semântica de páginas e desktop ainda é limitada;
-- não existe memória operacional explícita entre tarefas independentes;
-- resolução de nomes de aplicativos ainda não é geral;
-- existe risco de falso `succeeded` quando um fast path executa apenas parte de um pedido composto.
-
-## Validação automatizada
-
-A suíte cobre diversos fast paths já implementados, incluindo editor + escrita, Unicode, Brave, navegador + site e pesquisa estruturada.
-
-O baseline físico mostrou que cobertura de fast path não substitui validação de objetivos naturais compostos.
-
-GitHub Actions CI run `31307745802` terminou com **success** após a correção de pesquisa anterior.
+Mas o baseline mostrou que ainda falta um contrato explícito de objetivo/subobjetivos/evidências/conclusão, além de percepção suficiente para validar tarefas complexas. A decisão D-022 estabelece que esse loop deixará de ter uma semântica paralela de conclusão e será absorvido pelo Goal Runtime universal.
 
 ## Controles que permanecem
 
@@ -329,11 +344,12 @@ Continuam implementados:
 
 ## Ainda não validado/implementado para autonomia completa
 
+- fundação tipada do Goal Runtime;
 - camada geral de interpretação de objetivos;
 - decomposição em subobjetivos verificáveis;
 - resolução geral de aplicativos instalados e sinônimos;
 - persistência de contexto entre tarefas e navegadores;
-- verificador de conclusão do objetivo completo;
+- verificador de conclusão do objetivo completo integrado ao runtime real;
 - primeiro objetivo condicional real usando percepção + decisão + replanejamento;
 - Cloudflare ativo no router real;
 - percepção semântica de DOM/árvore de acessibilidade;
