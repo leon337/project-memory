@@ -166,3 +166,11 @@ O Painel do Robô deverá, progressivamente, oferecer:
 O campo de comandos do painel não será um shell remoto irrestrito. Ele deverá executar somente operações locais explicitamente suportadas pelo modo de desenvolvimento, ou apresentar o comando para cópia/execução manual quando estiver fora dessa lista.
 
 O Painel do Robô será um processo local separado da Central para continuar disponível mesmo quando a Central ou o Robô forem desligados ou reiniciados.
+
+## D-022 — Sequências de desktop devem esperar prontidão e foco observáveis
+
+A conclusão de uma ação de interface não pode significar apenas que um comando foi enviado ao sistema operacional.
+
+Ao encadear ações como `abrir aplicativo` seguido de `digitar`, o executor deve esperar a janela ficar pronta e ganhar foco suficiente para a próxima ação. Um atraso fixo curto pode ser usado apenas como fallback de MVP, não como evidência de prontidão.
+
+A digitação deve registrar em qual janela ativa foi executada e não deve ser tratada como verificada apenas porque as teclas foram enviadas. Quando o alvo esperado puder ser conhecido, foco e resultado devem ser confirmados antes de marcar a etapa como concluída.
