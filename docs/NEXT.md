@@ -1,25 +1,41 @@
 # NEXT
 
-## 1. Concluir parada de emergência e ciclo operacional
+## 1. Concluir o ciclo operacional normal pelo Painel
 
-O FAILSAFE explícito já foi aprovado no CI e revalidado fisicamente em dois cantos da tela. Em ambos os testes, `mover mouse 200 200` terminou como `failed` e a telemetria registrou `DesktopFailsafeTriggered` antes da entrada física.
+O FAILSAFE explícito e a parada de emergência já foram validados fisicamente.
 
-O próximo passo é validar o mecanismo independente de parada de emergência e o ciclo normal de operação pelo Painel:
+A parada de emergência foi testada em dois ciclos reais pelo Painel:
 
-1. com Central e Robô ligados, ativar **Emergência** pelo Painel;
-2. confirmar que o Robô é encerrado e que o estado persistente de emergência fica visível;
-3. tentar iniciar o Robô enquanto a emergência estiver ativa e confirmar que o início permanece bloqueado;
-4. liberar conscientemente a emergência pelo Painel;
-5. ligar novamente o Robô e confirmar retorno ao estado **Ligado**;
-6. validar também a sequência explícita **Parar Robô → Desligado → Ligar Robô → Ligado**;
-7. testar o Laboratório com um comando conhecido;
-8. confirmar que o fluxo diário pode ser feito pelo atalho `Painel do Robô` e pela interface Web local, sem dependência normal de terminais separados.
+- ativação colocou o estado em **ATIVA**;
+- o Robô foi encerrado e apareceu como **DESLIGADO**;
+- início e reinício ficaram bloqueados enquanto a emergência estava ativa;
+- a liberação devolveu o estado para **NORMAL** sem reiniciar automaticamente;
+- o Robô voltou a **LIGADO** somente depois de ação humana explícita;
+- os logs registraram ativação, liberação, solicitação de início, novo PID e inicialização do Robô.
 
-Critério de conclusão: parada de emergência, bloqueio persistente, liberação consciente, parada/início normal, diagnóstico e telemetria precisam funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
+Agora falta validar o caminho normal, sem usar a emergência:
 
-## 2. Ativar o primeiro planner por IA
+1. com o Robô ligado, clicar em **Parar Robô**;
+2. confirmar estado **DESLIGADO** e disponibilidade da ação **Ligar Robô**;
+3. clicar em **Ligar Robô**;
+4. confirmar retorno para **LIGADO** e novo evento de inicialização nos logs.
 
-Depois da validação física e operacional, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
+Critério de conclusão: **Parar Robô → Desligado → Ligar Robô → Ligado** deve funcionar integralmente pelo Painel, sem terminal e sem acionar a emergência.
+
+## 2. Validar Laboratório e operação diária sem terminal
+
+Depois do ciclo normal:
+
+1. abrir **Laboratório**;
+2. testar um comando conhecido, começando por `git pull`;
+3. confirmar que o Painel apenas explica a operação e não executa shell arbitrário;
+4. confirmar que o fluxo diário — abrir pelo atalho, ligar/parar Central e Robô, diagnóstico, envio de tarefa e consulta de logs — pode ser feito sem dependência normal de terminais separados.
+
+Critério de conclusão: o Painel deve ser suficiente para operação e diagnóstico cotidianos do MVP 0.3.
+
+## 3. Ativar o primeiro planner por IA
+
+Depois da validação operacional, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
 
 Requisitos:
 
