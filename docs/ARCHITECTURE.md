@@ -31,7 +31,7 @@ Robô local
           ↓
 Planner
   ├─ Determinístico ativo
-  └─ Contrato estruturado para IA futura
+  └─ Contrato provider-agnostic para IA
           ↓
 Policy Layer
   ├─ navegador
@@ -204,13 +204,40 @@ Comando humano: `robo`.
 
 Contrato em `src/context_anchor/planner.py`.
 
-Atual:
+Estado atual:
 
 - `DeterministicPlanner` ativo;
 - `StructuredAction` fechado para ações conhecidas;
-- `ProviderPlanner` preparado para provedor futuro.
+- `ProviderPlanner` preparado para integração externa;
+- nenhum provedor externo está executando tarefas ainda.
+
+A primeira integração escolhida é **Cerebras** com o modelo **`gpt-oss-120b`**.
+
+A arquitetura não deve acoplar o Robô diretamente à Cerebras. O caminho previsto é:
+
+```text
+pedido do usuário
+      ↓
+ProviderPlanner
+      ↓
+adaptador Cerebras
+      ↓
+resposta estruturada
+      ↓
+StructuredAction
+      ↓
+Policy Layer
+      ↓
+executor permitido
+```
+
+O adaptador de provedor deverá ser substituível. Uma eventual troca para outro serviço não deve alterar a Policy Layer, os executores físicos, o FAILSAFE ou a parada de emergência.
+
+A chave de API da Cerebras deverá existir apenas em configuração local/variável de ambiente e não poderá ser enviada ao Git, aos logs ou ao prompt do modelo.
 
 Não há campo de shell, código livre, caminho de executável arbitrário ou credenciais no contrato.
+
+Google/Gemini pode futuramente ser conectado como fallback, mas não existe roteamento multi-provider implementado no MVP 0.3.
 
 ## 7. Policy Layer
 
@@ -335,6 +362,8 @@ Outras configurações deverão ser expostas individualmente, nunca por edição
 Credenciais não devem ser colocadas em código, prompts, logs ou Git.
 
 Painel e Central continuam locais. O Painel usa internamente a credencial local configurada para enviar tarefas à Central, evitando exigir que o usuário cole o token em cada tarefa.
+
+A chave do primeiro provedor de IA seguirá a mesma regra: somente configuração local/variável de ambiente consumida pelo adaptador do planner.
 
 ## 16. Acesso remoto — futuro
 
