@@ -267,19 +267,15 @@ Princípios já definidos:
 - somente o Goal Verifier pode fechar o objetivo quando todos os critérios obrigatórios estiverem comprovados;
 - a migração será incremental, sem reescrever Painel, Central, SQLite/fila/leases, executores, Policy Layer, FAILSAFE, Emergency Stop ou providers.
 
-## Trabalho preparatório iniciado nesta sessão
+## Trabalho preparatório desta sessão
 
-Antes de delegar a refatoração pesada ao Codex, a documentação de arquitetura, decisões e próximos passos foi alinhada para eliminar trabalho de descoberta e decisão arquitetural.
+A documentação vigente já foi alinhada para a nova arquitetura:
 
-Ainda precisa ser implementada em código a fundação leve:
+- `DECISIONS.md` contém a decisão D-022 do Goal Runtime universal;
+- `ARCHITECTURE.md` descreve o pipeline alvo e separa planner, executor, percepção, evidência e verifier;
+- `NEXT.md` foi reduzido à fundação leve, migração pesada do `local_agent` e evolução posterior de percepção/capacidades/contexto.
 
-- contratos tipados do Goal Contract;
-- estado do Goal Run;
-- Evidence Ledger;
-- Goal Verifier mínimo;
-- testes de contrato que impeçam falso `succeeded`.
-
-A refatoração pesada de `local_agent` e integração completa com percepção/executores ficará para a etapa seguinte depois dessa fundação.
+A preparação de código ainda está em andamento nesta sessão. Nenhuma refatoração pesada do fluxo real foi declarada concluída.
 
 ## Lacuna principal para autonomia real
 
