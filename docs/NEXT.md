@@ -1,33 +1,47 @@
 # NEXT
 
-## 1. Revalidar fisicamente Brave + Google + pesquisa sem provider
+## 1. Executar baseline físico de linguagem natural
 
-Atualizar a cópia local, reiniciar o Robô e enviar exatamente:
+Testar frases com o mesmo objetivo, mas formulações progressivamente menos prescritivas, sem corrigir uma a uma durante o teste.
 
-`Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel`
+Registrar PASS/FAIL para cada caso e, quando falhar, classificar a causa em uma destas categorias:
 
-Critério de conclusão:
+- interpretação de intenção;
+- resolução de aplicativo/capacidade;
+- contexto entre tarefas;
+- percepção/observação;
+- provider/quota;
+- execução física.
 
-- Brave abre;
-- a página de resultados do Google para `o significado do nome Josiel` é carregada;
-- task termina `succeeded`;
-- rota é determinística/local;
-- nenhum provider externo é necessário.
+O objetivo é medir onde o Robô exige sintaxe específica antes de alterar a arquitetura.
 
-## 2. Revalidar pesquisa simples sem provider
+## 2. Implementar camada geral de interpretação + contexto operacional
 
-Enviar exatamente:
+Depois do baseline, introduzir uma camada que transforme linguagem natural variada em intenção/capacidades sem depender de `regex` por frase.
 
-`agora pesquise sobre inteligencia artificial`
+Ela deve incluir:
 
-Critério de conclusão:
+- normalização de sinônimos e entidades;
+- resolução geral de aplicativos/capacidades disponíveis;
+- contexto operacional curto entre tarefas (`agora`, `nesse navegador`, `nesse site`, `depois`);
+- preservação dos caminhos determinísticos atuais como fast path, não como linguagem obrigatória.
 
-- uma busca web por `sobre inteligencia artificial` é aberta;
-- task termina `succeeded`;
-- nenhum provider externo é necessário.
+Critério de conclusão: pedidos semanticamente equivalentes devem produzir o mesmo objetivo operacional sem exigir que o usuário especifique navegador, URL ou aplicativo quando isso puder ser inferido.
 
-Observação: neste estágio esse comando isolado usa a navegação estruturada. Ele ainda não garante reutilizar um Brave aberto em uma tarefa anterior. Se o comportamento esperado for continuidade no mesmo navegador, implementar persistência de contexto entre tarefas antes de considerar essa parte concluída.
+## 3. Evoluir percepção + replanejamento para primeiro objetivo realmente autônomo
 
-## 3. Preparar e testar o primeiro objetivo condicional real
+Depois da interpretação/contexto, ampliar observação de browser/desktop e testar um objetivo que exija:
 
-Depois das pesquisas locais passarem, garantir ao menos um provider disponível para raciocínio — preferencialmente ativando Cloudflare Workers AI com o `Account ID` ou após a quota do Gemini voltar — e testar um objetivo do tipo observar → decidir → agir → observar novamente.
+```text
+objetivo
+→ observar
+→ decidir
+→ agir
+→ verificar
+→ replanejar se necessário
+→ concluir
+```
+
+Priorizar observações estruturadas, como URL/título/conteúdo de página e janela ativa, antes de depender somente de visão por screenshot.
+
+Garantir ao menos um provider de raciocínio disponível no router para esse teste.
