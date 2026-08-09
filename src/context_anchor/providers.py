@@ -40,12 +40,24 @@ A resposta será validada novamente pela aplicação e pela Policy Layer antes d
 """
 
 
+def _decode_json_text(value: str, provider: str) -> Any:
+    text = value.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ProviderGenerationError(provider, "resposta não contém JSON válido") from exc
+
+
 def _validated_mapping(value: Any, provider: str) -> Mapping[str, Any]:
     if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except json.JSONDecodeError as exc:
-            raise ProviderGenerationError(provider, "resposta não contém JSON válido") from exc
+        value = _decode_json_text(value, provider)
 
     if not isinstance(value, Mapping):
         raise ProviderGenerationError(provider, "resposta estruturada não é um objeto JSON")
@@ -138,6 +150,30 @@ def _post_json(
     if not isinstance(payload, Mapping):
         raise ProviderGenerationError(provider, "resposta HTTP inesperada")
     return payload
+
+
+def _gemini_interaction_text(payload: Mapping[str, Any]) -> str:
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        raise ProviderGenerationError("gemini", "estrutura de resposta inesperada")
+
+    for step in reversed(steps):
+        if not isinstance(step, Mapping) or step.get("type") != "model_output":
+            continue
+        content = step.get("content")
+        if not isinstance(content, list):
+            continue
+        text_parts = [
+            item.get("text")
+            for item in content
+            if isinstance(item, Mapping)
+            and item.get("type") == "text"
+            and isinstance(item.get("text"), str)
+        ]
+        if text_parts:
+            return "".join(text_parts)
+
+    raise ProviderGenerationError("gemini", "resposta não contém saída textual")
 
 
 class ZAIProvider:
@@ -249,24 +285,25 @@ class GeminiProvider:
         prompt = f"{PLANNER_SYSTEM_PROMPT}\nPedido do usuário:\n{objective}"
         payload = _post_json(
             self.name,
-            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
             headers={
                 "x-goog-api-key": self.api_key,
                 "Content-Type": "application/json",
             },
             body={
-                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "responseJsonSchema": ACTION_SCHEMA,
+                "model": self.model,
+                "input": prompt,
+                "response_format": {
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": ACTION_SCHEMA,
+                },
+                "generation_config": {
                     "temperature": 0.1,
-                    "maxOutputTokens": 160,
+                    "max_output_tokens": 160,
                 },
             },
             timeout_seconds=self.timeout_seconds,
         )
-        try:
-            content = payload["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise ProviderGenerationError(self.name, "estrutura de resposta inesperada") from exc
+        content = _gemini_interaction_text(payload)
         return _validated_mapping(content, self.name)
