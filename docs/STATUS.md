@@ -91,7 +91,7 @@ Foram adicionados testes para:
 - parsing dos formatos de resposta de Z.AI, Cloudflare e Gemini sem acessar a rede;
 - preservação de `Retry-After` em erro 429.
 
-O commit de testes do roteador (`72596186a9038af5bcfe1ded23fb57254d9e73ed`) teve CI `success`. O run do commit que adiciona os testes dos adaptadores (`4d4f32b39efd16860d34c385f8a305de9f069064`) estava `queued` na última verificação e não deve ser tratado como aprovado até concluir.
+O commit de testes do roteador (`72596186a9038af5bcfe1ded23fb57254d9e73ed`) teve CI `success`. O commit de testes dos adaptadores (`4d4f32b39efd16860d34c385f8a305de9f069064`) também teve CI `success` no run `31298563811`.
 
 ## Próximo bloqueio real
 
