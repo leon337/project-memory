@@ -1,43 +1,42 @@
 # NEXT
 
-## 1. Criar a fundação do Goal Runtime universal
+## 1. Integrar a fundação do Goal Runtime ao `local_agent`
 
-A decisão arquitetural está tomada: todo pedido deverá usar a mesma semântica de objetivo/conclusão, seja resolvido por fast path determinístico ou por IA.
+A fundação isolada já existe em `src/context_anchor/goal_runtime.py` com contratos, Evidence Ledger básico e Goal Verifier determinístico. Os testes de contrato estão em `tests/test_goal_runtime_contract.py`.
 
-Preparar primeiro a fundação leve antes da refatoração pesada:
+Agora fazer a refatoração pesada:
 
-- contratos tipados para Goal Contract, subobjetivos, critérios, artefatos e evidências;
-- estado de execução do objetivo;
-- Goal Verifier mínimo e determinístico;
-- testes de contrato provando que ação executada não equivale a objetivo concluído;
-- manter compatibilidade com o MVP enquanto a migração não termina.
+- todo pedido cria um `GoalRunState`;
+- fast paths deixam de retornar sucesso diretamente e passam a produzir steps/evidências dentro do Goal Run;
+- planner por IA sugere próxima ação, mas não declara sucesso;
+- separar `ExecutionReceipt` de observação/evidência;
+- somente `GoalVerifier` autoriza o verdict final;
+- manter compatibilidade com quotas, fallback de providers, Policy Layer, FAILSAFE, Emergency Stop e telemetria.
 
-Regressão principal: um objetivo composto não pode ser `succeeded` se ainda houver critério obrigatório pendente.
-
-## 2. Migrar `local_agent` para usar o Goal Runtime em todos os caminhos
-
-Depois da fundação, substituir a bifurcação semântica atual por um runtime comum:
-
-- fast paths viram skills/etapas dentro do Goal Run;
-- planner por IA sugere próxima etapa, mas não declara sucesso;
-- Execution Receipt, observação e evidência ficam separados;
-- somente o Goal Verifier autoriza o verdict final;
-- manter quotas, fallback de providers, Policy Layer, FAILSAFE e Emergency Stop inalterados.
-
-Regressão física obrigatória:
+Regressão obrigatória:
 
 `Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
 
-Não pode concluir até pesquisar, obter o primeiro resultado, transferir o título ao editor e comprovar o resultado.
+Não pode concluir enquanto houver critério obrigatório pendente.
 
-## 3. Evoluir percepção, capacidades e contexto operacional
+## 2. Adicionar percepção estruturada suficiente para provar efeitos
 
-Após o runtime comum estar estável:
+Prioridade:
 
-- browser: DOM/texto/links/resultados estruturados;
-- desktop: accessibility/AT-SPI antes de visão multimodal;
-- capability resolver (`text.edit`, `calculate`, `browser.search`, `browser.read` etc.);
-- descoberta dinâmica de aplicativos;
+- browser: URL, status, título, DOM/texto, links e resultados de busca estruturados;
+- desktop: janela/processo e depois accessibility/AT-SPI para readback de conteúdo;
+- ligar observações a `EvidenceRecord`;
+- evitar screenshot/visão multimodal como caminho padrão quando DOM/acessibilidade bastarem.
+
+Critério físico principal: pesquisar um termo, obter o título real do primeiro resultado, transferi-lo ao editor e comprovar o conteúdo escrito.
+
+## 3. Evoluir autonomia sem depender de frases cadastradas
+
+Depois do runtime/verificação:
+
+- Capability Catalog/Resolver (`text.edit`, `calculate`, `browser.search`, `browser.read`, etc.);
+- descoberta dinâmica de aplicativos por PATH, `.desktop`, MIME e metadados;
+- interpretação/decomposição semântica de linguagem natural;
 - Session Context curto entre tasks;
-- Recovery Manager com budgets, no-progress e estratégias alternativas;
-- primeiro objetivo condicional real com evidência de branch.
+- Recovery Manager com budgets, no-progress e estratégia alternativa;
+- primeiro objetivo condicional real com branch comprovada por evidência.
