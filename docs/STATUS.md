@@ -72,7 +72,8 @@ Confirmado no computador alvo:
 - Pillow `12.3.0` instalado na `.venv`;
 - tarefas `capturar tela` concluíram como **`succeeded`**;
 - tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`;
-- movimento físico do mouse validado pelo Painel: comandos `mover mouse 200 200`, `mover mouse 600 200`, `mover mouse 600 350` e `mover mouse 600 355` concluíram como **`succeeded`**, com deslocamento visível do ponteiro para as coordenadas solicitadas.
+- movimento físico do mouse validado pelo Painel: comandos `mover mouse 200 200`, `mover mouse 600 200`, `mover mouse 600 350` e `mover mouse 600 355` concluíram como **`succeeded`**, com deslocamento visível do ponteiro para as coordenadas solicitadas;
+- ação física de clique validada pelo Painel: comando `clicar` concluiu como **`succeeded`** enquanto o ponteiro estava sobre uma área branca vazia, portanto sem efeito visual esperado na interface.
 
 ## Falhas já diagnosticadas
 
@@ -82,7 +83,6 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- clique do mouse;
 - digitação;
 - teclas permitidas;
 - abertura de aplicativo permitido;
