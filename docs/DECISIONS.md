@@ -225,3 +225,11 @@ Fast paths determinísticos permanecem como otimizações/skills dentro desse ru
 O planner pode sugerir que não há mais trabalho, mas não possui autoridade final para declarar o objetivo concluído. Apenas o verificador de objetivo, usando critérios e evidências, pode autorizar o verdict final.
 
 No primeiro incremento, o Goal Contract deve permanecer pequeno: objetivo original, subobjetivos, critérios, artefatos produzidos e evidências. Não criar microserviços nem reescrever Painel, Central, fila, executores, FAILSAFE, parada de emergência ou providers.
+
+## D-023 — Execution Receipt não é evidência de efeito
+
+O sucesso técnico de uma chamada ao executor prova somente que uma ação foi enviada/executada conforme seu contrato técnico.
+
+Um `Execution Receipt` não satisfaz sozinho um critério final de objetivo.
+
+Para fechar um critério obrigatório, o Goal Runtime precisa de evidência posterior verificável, preferencialmente observação estruturada ou readback do estado produzido. Enquanto essa evidência não existir, o critério permanece pendente e o objetivo não pode ser marcado como `succeeded`.
