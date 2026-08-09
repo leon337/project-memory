@@ -1,19 +1,22 @@
 # NEXT
 
-## 1. Ativar o planner multi-provider no Linux real
+## 1. Ativar o planner multi-provider no Linux real com credenciais não expostas
 
-O router e os adaptadores de **Z.AI, Cloudflare Workers AI e Gemini** já estão implementados no `main`, mas ainda não foram testados com as credenciais reais.
+O router e os adaptadores de **Z.AI, Cloudflare Workers AI e Gemini** já estão implementados no `main`, e a cópia local já foi atualizada com `git pull --ff-only`.
+
+Durante a edição do `.env`, partes das chaves Z.AI e Gemini ficaram visíveis em um screenshot compartilhado na conversa. Antes do teste real, essas duas credenciais devem ser rotacionadas/substituídas localmente.
 
 Próximos passos:
 
-1. executar `git pull --ff-only` na cópia local;
-2. no `.env`, manter as chaves somente localmente e configurar pelo menos:
+1. revogar/substituir as chaves Z.AI e Gemini expostas no screenshot;
+2. atualizar o `.env` local, sem enviar screenshot do arquivo, mantendo:
    - `CONTEXT_ANCHOR_PLANNER_MODE=multi`;
-   - `CONTEXT_ANCHOR_ZAI_API_KEY=...`;
-   - `CONTEXT_ANCHOR_GEMINI_API_KEY=...`;
-3. reiniciar o Robô pelo Painel;
-4. enviar uma intenção simples que o parser determinístico não entenda, por exemplo `Por favor abra o editor de texto para mim`;
-5. confirmar em tarefa/log que o resultado registra `planner_provider` e `planner_route` e que a ação continua passando pela Policy Layer.
+   - `CONTEXT_ANCHOR_ZAI_API_KEY=<nova chave>`;
+   - `CONTEXT_ANCHOR_GEMINI_API_KEY=<nova chave>`;
+3. salvar o `.env`;
+4. reiniciar o Robô pelo Painel;
+5. enviar uma intenção simples que o parser determinístico não entenda, por exemplo `Por favor abra o editor de texto para mim`;
+6. confirmar em tarefa/log que o resultado registra `planner_provider` e `planner_route` e que a ação continua passando pela Policy Layer.
 
 Critério de conclusão: uma intenção em linguagem natural deve ser planejada por uma API real, convertida para uma única `StructuredAction`, executada pelo caminho físico já validado e registrada sem expor credenciais.
 
