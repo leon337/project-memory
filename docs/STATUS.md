@@ -45,10 +45,12 @@ Validação física desta revisão:
 - depois que a Central externa foi encerrada no terminal, o Painel atualizou automaticamente para **Desligada** e passou a oferecer apenas **Ligar Central**;
 - a Central foi então iniciada pelo próprio Painel e passou a aparecer como **LIGADA — Em execução e gerenciada pelo Painel**, oferecendo **Parar Central**;
 - **Robô local** aparece como **Ligado**, com ações **Parar Robô** e **Reiniciar** disponíveis;
+- o Robô foi reiniciado pelo próprio Painel e voltou ao estado operacional, com os controles continuando coerentes;
 - **Emergência** aparece como **Normal**, com a ação **Ativar emergência** disponível;
 - as telas **Configurações** e **Laboratório** continuam renderizando corretamente após a revisão;
 - a seção **Logs reais da aplicação** exibiu evento real do Painel com timestamp e origem `[PAINEL]` logo após sua inicialização;
-- após iniciar a Central pelo Painel, a seção exibiu eventos reais separados de `[PAINEL]` e `[CENTRAL]`, incluindo solicitação de início, inicialização da Central em `127.0.0.1:8000` e registro do PID criado pelo Painel.
+- após iniciar a Central pelo Painel, a seção exibiu eventos reais separados de `[PAINEL]` e `[CENTRAL]`, incluindo solicitação de início, inicialização da Central em `127.0.0.1:8000` e registro do PID criado pelo Painel;
+- após reiniciar o Robô pelo Painel, a seção exibiu a sequência real de solicitação de reinício, parada, novo início e eventos `[ROBÔ]` informando `agente=desktop-principal` e `desktop=habilitado`.
 
 ### Telemetria real
 
@@ -131,9 +133,11 @@ Confirmado no computador alvo:
 - encadeamento abrir editor → digitar validado após correção de foco;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
 - segunda revisão ultra escura carregada e confirmada visualmente nas três telas;
-- terceira revisão carregada e validada fisicamente para controles de estado e log real do Painel;
+- terceira revisão carregada e validada fisicamente para controles de estado;
 - transição real da Central de **Ligada fora do Painel** → **Desligada** → **Ligada e gerenciada pelo Painel** refletida corretamente;
-- telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada.
+- telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada;
+- reinício do Robô pelo Painel validado, com novo PID e retorno ao estado operacional;
+- telemetria real do Robô validada fisicamente com eventos `[ROBÔ]` e `[PAINEL]` coerentes com a reinicialização.
 
 ## Falhas já diagnosticadas
 
@@ -143,15 +147,15 @@ Confirmado no computador alvo:
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
 - tema claro original causava desconforto visual; revisões dark foram aplicadas;
 - controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
-- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel e Central já foram validados fisicamente; o Robô ainda precisa ser reiniciado com o código novo para validar seus próprios eventos.
+- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel, Central e Robô já foram validados fisicamente.
 
 ## Ainda precisa de validação física
 
-- reiniciar o Robô com o código novo e confirmar eventos reais no filtro **Robô**;
-- validar demais transições dos **Controles de estado** ao parar/reiniciar componentes pelo próprio Painel;
 - validar `FAILSAFE` físico;
 - validar parada de emergência real e liberação consciente;
-- concluir ciclo completo de gerenciamento sem dependência normal de terminais.
+- validar a transição explícita **Parar Robô → Desligado → Ligar Robô → Ligado** pelo Painel;
+- testar o Laboratório com um comando conhecido;
+- concluir o uso diário sem dependência normal de terminais separados.
 
 ## Ainda não implementado
 
