@@ -44,7 +44,7 @@ Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
 `Pillow` é dependência explícita porque o caminho de screenshot usa `PIL` por meio de `pyscreeze`.
 
-A sincronização de foco foi reforçada em `main` após o teste físico de digitação:
+A sincronização de foco foi reforçada e validada fisicamente:
 
 - ao abrir aplicativo, o backend espera a janela ativa mudar em vez de confiar apenas em um `sleep` curto;
 - a janela que recebeu foco é registrada como alvo esperado para teclado;
@@ -83,7 +83,9 @@ Confirmado no computador alvo:
 - movimento físico do mouse validado pelo Painel;
 - clique físico validado visualmente ao minimizar uma janela;
 - abertura de aplicativo permitida validada fisicamente com o Xed;
-- capacidade física de digitação validada: o Xed recebeu o texto `teste do robo` em um segundo encadeamento.
+- capacidade física de digitação validada: o Xed recebeu o texto `teste do robo`;
+- o encadeamento direto `abrir aplicativo editor` → `digitar teste do robo` foi repetido após a correção de foco, sem movimento do mouse nem clique intermediário, e funcionou corretamente;
+- as duas tarefas do reteste foram registradas como **`succeeded`**, com o texto aparecendo no Xed.
 
 ## Falhas já diagnosticadas
 
@@ -91,24 +93,24 @@ Confirmado no computador alvo:
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - o primeiro encadeamento `abrir aplicativo editor` → `digitar teste do robo` marcou as duas tarefas como `succeeded`, mas o editor inicialmente permaneceu sem o texto esperado;
-- o segundo encadeamento funcionou quando uma ação intermediária de movimento do mouse adicionou tempo antes da digitação;
-- isso confirmou uma condição de corrida de prontidão/foco e também mostrou que `succeeded` não pode significar apenas “teclas enviadas”.
+- um segundo encadeamento funcionou quando uma ação intermediária adicionou tempo antes da digitação, revelando uma condição de corrida de prontidão/foco;
+- a condição de corrida foi corrigida com espera observável de foco e proteção de teclado e depois validada fisicamente em novo reteste direto.
 
-## Correção em validação
+## Correção validada
 
-- `src/context_anchor/desktop.py` foi alterado para esperar foco observável e proteger teclado contra mudança de janela;
+- `src/context_anchor/desktop.py` espera foco observável e protege teclado contra mudança de janela;
 - `tests/test_desktop_focus.py` cobre rastreamento da janela focada, recusa de digitação quando o foco muda, registro da janela de destino e atualização de foco por clique;
-- o CI do commit `f0d424df42df1f67272d051106a326ce86319f07` concluiu com **success**;
-- a correção ainda precisa ser puxada para o computador alvo e retestada fisicamente com `abrir aplicativo editor` seguido de `digitar teste do robo`, sem ação intermediária artificial.
+- o CI do commit de testes concluiu com **success**;
+- o computador alvo recebeu a correção por `git pull`, o Robô foi reiniciado e o reteste físico direto passou.
 
 ## Ainda precisa de validação física
 
-- retestar sincronização/foco entre `abrir aplicativo` e `digitar` com a correção nova;
 - teclas permitidas;
 - diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
-- ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais.
+- ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
+- Laboratório de comandos guiados no uso real.
 
 ## Ainda não implementado
 
