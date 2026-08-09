@@ -1,22 +1,25 @@
 # NEXT
 
-## 1. Revalidar o planner multi-provider com Gemini Interactions
+## 1. Revalidar o planner multi-provider com Gemini via SDK oficial
 
 Dois testes reais com Z.AI + Gemini já ocorreram. O roteador fez fallback corretamente antes da execução física, mas ainda não houve uma `StructuredAction` bem-sucedida por API real.
 
 Estado atual:
 
-- Z.AI está retornando `HTTP 429 / código 1305`, classificado pelo próprio provedor como rate limit/indisponibilidade transitória;
-- o adaptador Gemini foi migrado para a **Interactions API** atual;
-- os testes automatizados dessa migração passaram no CI.
+- Z.AI está retornando `HTTP 429 / código 1305`, indicando rate limit/indisponibilidade transitória;
+- o adaptador Gemini foi substituído pelo padrão já usado no repositório `leon337/meu_primeiro_agente`: SDK oficial `google-genai` + `client.models.generate_content(...)`;
+- o modelo padrão Gemini agora é `gemini-3.6-flash`;
+- a dependência `google-genai>=1.0,<2.0` foi adicionada ao `pyproject.toml`;
+- instalação, compilação e testes dessa migração passaram no CI.
 
 Próximos passos:
 
 1. executar `git pull --ff-only` na cópia local;
-2. reiniciar o Robô pelo Painel;
-3. repetir exatamente `Por favor abra o editor de texto para mim`;
-4. confirmar se, após eventual `429` do Z.AI, Gemini gera `open_app → editor` e o Xed abre;
-5. verificar nos logs `planner_provider`, `planner_route` e provedores que falharam.
+2. dentro do `.venv` do `project-memory`, executar uma vez `pip install -e .` para instalar a nova dependência;
+3. reiniciar o Robô pelo Painel;
+4. repetir exatamente `Por favor abra o editor de texto para mim`;
+5. confirmar se, após eventual `429` do Z.AI, Gemini gera `open_app → editor` e o Xed abre;
+6. verificar nos logs `planner_provider`, `planner_route` e provedores que falharam.
 
 Critério de conclusão: pelo menos um provedor real deve gerar uma única `StructuredAction`, a ação deve passar pela Policy Layer e ser executada pelo caminho físico já validado.
 
