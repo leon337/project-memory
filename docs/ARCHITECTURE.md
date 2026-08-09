@@ -15,9 +15,10 @@ Para facilitar operação e aprendizado:
 Usuário
   ↓
 Painel do Robô — FastAPI :8765
-  ├─ status / configuração / diagnóstico / aprendizado
-  ├─ gerenciamento local de processos
-  ├─ tarefas recentes e logs
+  ├─ estado real / configuração / diagnóstico / aprendizado
+  ├─ controles de processo orientados pelo estado atual
+  ├─ tarefas recentes
+  ├─ telemetria real de Painel / Central / Robô
   └─ envio de tarefa
           ↓
 Central — FastAPI :8000
@@ -43,6 +44,10 @@ Executores
 Verificação
           ↓
 Central / Painel do Robô
+
+Painel ─┐
+Central ├─→ runtime/logs/{panel,central,robot}.log ─→ Painel
+Robô ───┘
 ```
 
 Painel, Central e Robô são processos separados.
@@ -68,18 +73,41 @@ Bind padrão:
 Responsabilidades atuais:
 
 - mostrar estado de Central, Robô, Desktop e emergência;
+- oferecer controles de Central, Robô e emergência cujo texto, cor e ação refletem o estado real atual;
+- distinguir quando a Central está ligada mas foi iniciada fora do Painel;
 - iniciar/parar Central;
 - iniciar/parar/reiniciar Robô;
 - alterar a configuração local de Desktop;
 - executar diagnóstico de leitura;
-- mostrar tarefas recentes;
-- mostrar logs de processos iniciados pelo Painel;
+- mostrar tarefas recentes com representação diferente de `queued`, `running`, `succeeded` e `failed`;
+- mostrar telemetria real de Painel, Central e Robô;
 - enviar tarefas à Central usando o token local já configurado no servidor;
 - explicar comandos de desenvolvimento no Laboratório.
 
 O Painel não possui endpoint de shell arbitrário.
 
 O campo de tarefa envia texto ao planner do Robô. O Laboratório de comandos é uma interface separada: comandos conhecidos recebem explicações; comandos desconhecidos não são executados automaticamente.
+
+### 1.1 Controles orientados por estado
+
+Os controles de operação não são botões estáticos de comando.
+
+A cada atualização de `/api/status`, o Painel recalcula:
+
+- estado atual da Central;
+- se a Central é gerenciada pelo Painel ou foi iniciada externamente;
+- estado atual do Robô;
+- estado da parada de emergência;
+- próxima ação válida para cada componente.
+
+Exemplos:
+
+- Central desligada → ação exibida: **Ligar Central**;
+- Central ligada e gerenciada → ação exibida: **Parar Central**;
+- Central ligada externamente → estado **Ligada fora do Painel**, sem fingir que o Painel consegue encerrá-la;
+- Robô desligado com emergência ativa → início bloqueado visualmente;
+- emergência normal → ação **Ativar emergência**;
+- emergência ativa → ação **Liberar emergência**.
 
 ## 2. Registro e controle de processos
 
@@ -99,6 +127,24 @@ Registros atuais:
 
 A Central nova registra sua identidade quando inicia. O Robô já possuía registro por causa da parada de emergência.
 
+## 2.1 Telemetria e logs de runtime
+
+Implementada em `src/context_anchor/runtime_log.py` e usada diretamente por Painel, Central e Robô.
+
+Arquivos estruturados:
+
+- `runtime/logs/panel.log`;
+- `runtime/logs/central.log`;
+- `runtime/logs/robot.log`.
+
+Cada linha contém timestamp com timezone, nível e evento operacional. Esses eventos são gravados pelo próprio componente, portanto não dependem de o processo ter sido iniciado pelo Painel.
+
+O Painel lê os arquivos, combina os eventos e permite filtrar por **Todos / Painel / Central / Robô**.
+
+Quando o Painel inicia Central ou Robô, `stdout/stderr` bruto desses subprocessos é separado em `central-process.log` e `robot-process.log`; isso evita confundir saída bruta do processo com os eventos estruturados apresentados na interface.
+
+A telemetria estruturada registra ids de tarefas, estados, falhas e transições operacionais. Credenciais não são registradas, e o logger de runtime não grava o texto bruto dos comandos enviados pelo usuário.
+
 ## 3. Central
 
 Implementada em `src/context_anchor/control_plane.py`.
@@ -110,7 +156,8 @@ Responsabilidades:
 - persistência;
 - entrega de tarefa ao Robô;
 - emissão de lease;
-- recepção de resultado protegido pelo lease.
+- recepção de resultado protegido pelo lease;
+- emissão de eventos estruturados de criação, entrega, conclusão e rejeição de resultado.
 
 Bind padrão: `127.0.0.1:8000`.
 
@@ -148,7 +195,8 @@ Fluxo:
 6. valida na Policy Layer;
 7. executa;
 8. verifica;
-9. envia resultado.
+9. envia resultado;
+10. registra eventos operacionais reais sem expor credenciais.
 
 Comando humano: `robo`.
 
