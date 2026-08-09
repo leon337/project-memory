@@ -10,6 +10,13 @@ def test_plan_search() -> None:
     assert "FastAPI+agentes" in plan.target
 
 
+def test_natural_search_variant_routes_locally() -> None:
+    plan = plan_command("agora pesquise sobre inteligencia artificial")
+    assert plan.action == "open_url"
+    assert "duckduckgo.com" in plan.target
+    assert "sobre+inteligencia+artificial" in plan.target
+
+
 def test_plan_open_adds_https() -> None:
     plan = plan_command("abrir example.com")
     assert plan.target == "https://example.com"
@@ -40,6 +47,24 @@ def test_browser_navigation_accepts_natural_variant_with_site_word() -> None:
 def test_named_browser_navigation_preserves_requested_browser() -> None:
     plan = plan_command("abra o navegador brave e acesse globo.com")
     assert plan == Plan("open_app", "brave-browser https://globo.com")
+
+
+def test_named_browser_google_search_routes_locally() -> None:
+    plan = plan_command(
+        "Abra o navegador brave e acesse o site google.com e pesquise o significado do nome Josiel"
+    )
+    assert plan == Plan(
+        "open_app",
+        "brave-browser https://www.google.com/search?q=o+significado+do+nome+Josiel",
+    )
+
+
+def test_generic_browser_google_search_routes_locally() -> None:
+    plan = plan_command("Abra o navegador e acesse google.com e pesquise inteligência artificial")
+    assert plan == Plan(
+        "open_url",
+        "https://www.google.com/search?q=intelig%C3%AAncia+artificial",
+    )
 
 
 def test_local_sequence_preserves_exact_unicode_text() -> None:
