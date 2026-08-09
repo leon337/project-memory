@@ -49,6 +49,8 @@ def collect_diagnostics() -> dict[str, Any]:
             "wayland_display": wayland_display,
             "x11_detected": bool(display) and session_type != "wayland",
             "pyautogui_installed": importlib.util.find_spec("pyautogui") is not None,
+            "pillow_installed": importlib.util.find_spec("PIL") is not None,
+            "pyscreeze_installed": importlib.util.find_spec("pyscreeze") is not None,
             "xdotool": shutil.which("xdotool"),
             "scrot": shutil.which("scrot"),
             "screenshot_dir": str(cfg.screenshot_dir),
@@ -57,6 +59,7 @@ def collect_diagnostics() -> dict[str, Any]:
         "notes": [
             "O backend físico inicial foi projetado para Linux/X11.",
             "Wayland ainda exige validação antes de habilitar controle real.",
+            "Pillow (PIL) e PyScreeze são necessários para screenshots via PyAutoGUI.",
             "O diagnóstico não executa cliques, teclas nem abre aplicativos.",
         ],
     }
