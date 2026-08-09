@@ -16,15 +16,13 @@ Checkpoint inicial:
 
 `f73abddc23b676c990755011621a3a4b1db7b4f7`
 
-Correção P0 mais recente:
+Correção P0 de grounding de URL:
 
 `5894f98c0a1004a76bc10326a04a58e08b9807e0`
 
-A branch está à frente de `main` e contém código/testes da missão sem incluir PNGs, PDFs, arquivos pessoais ou `egg-info`.
+A branch contém a implementação e os testes da missão sem incluir PNGs, PDFs, arquivos pessoais ou `egg-info`.
 
-## Arquitetura nova já implementada na branch WIP
-
-O fluxo local novo já está conectado:
+## Arquitetura nova implementada na branch WIP
 
 ```text
 pedido
@@ -42,7 +40,7 @@ pedido
 → continuar/falhar/succeeded
 ```
 
-Componentes novos relevantes:
+Componentes principais:
 
 - `src/context_anchor/goal_execution.py` — orquestrador universal de Goal Runs;
 - `src/context_anchor/capabilities.py` — resolução de capacidades para aplicativos instalados;
@@ -52,9 +50,9 @@ Componentes novos relevantes:
 - `src/context_anchor/redaction.py` — sanitização de resultados/logs/contexto;
 - `src/context_anchor/goal_runtime.py` — contratos, evidências, budgets e `GoalVerifier`.
 
-`src/context_anchor/local_agent.py` já encaminha todo comando para `execute_goal()` na branch WIP.
+`src/context_anchor/local_agent.py` encaminha todo comando para `execute_goal()` na branch WIP.
 
-## Regra de conclusão já travada em código
+## Regra de conclusão implementada
 
 - `ExecutionReceipt` registra execução, mas não prova sozinho o efeito do objetivo;
 - critérios obrigatórios precisam de observação/readback compatível;
@@ -63,64 +61,168 @@ Componentes novos relevantes:
 - `finish`/planner não possuem autoridade para encerrar objetivo incompleto;
 - `GoalVerifier` é a autoridade final para `SUCCEEDED`.
 
-## Autonomia já implementada em código
+## P0 de cobertura de URL — corrigido
 
-A branch WIP possui caminhos para:
+O caso:
 
-- `Abra o VS Code` → capability `code.edit`;
-- `Preciso fazer algumas contas.` → capability `calculate`;
-- `Quero fazer uma anotação...` → capability `text.edit`;
-- `Quero saber o significado do nome Josiel.` → busca + leitura estruturada;
-- busca simples sem provider externo;
-- busca em navegador explicitamente solicitado;
-- pesquisa → observar primeiro resultado → extrair título → abrir editor → escrever → readback;
-- objetivo condicional com observação de site e branch;
-- contexto entre tasks, incluindo resolução de `lá` por artefato anterior.
+`Abra o Brave, acesse example.com e pesquise gatos`
 
-A interpretação local continua conceitual/lexical e tipada; pedidos fora desse vocabulário vão para decomposição estruturada por provider. Não há pretensão de entendimento semântico aberto totalmente local nesta etapa.
+podia perder a URL explícita e virar busca em outro mecanismo.
 
-## Regressão crítica histórica
+O commit `5894f98c0a1004a76bc10326a04a58e08b9807e0` corrigiu isso:
+
+- navegador nomeado sem site explícito continua fast path;
+- Google/Bing/DuckDuckGo explícitos continuam fast path;
+- site explícito não reconhecido como mecanismo de busca vai para `GENERIC`/fail-closed antes de ação física;
+- teste de runtime exige `executor.executed == []` no caso incorreto.
+
+O Codex reportou `10 passed` nos testes focados.
+
+## Testes automatizados
+
+No checkpoint anterior à correção P0, o Codex reportou suíte local completa:
+
+`333 passed, 1 warning`
+
+Depois da correção P0 foram reportados `10 passed` nos testes diretamente relacionados.
+
+Ainda não existe execução de GitHub Actions para a branch WIP; a suíte completa deve ser repetida antes do merge.
+
+## Bateria física integrada — 2026-08-09
+
+Os testes abaixo foram executados pelo fluxo real Painel → Central → Robô usando o código da branch WIP no commit de código `5894f98c0a1004a76bc10326a04a58e08b9807e0`. O `git pull` posterior trouxe somente atualizações documentais, portanto não invalida esses resultados físicos.
+
+### 1. Editor + Unicode — PASS
+
+Pedido:
+
+`Abra o editor de texto e escreva Olá mundo`
+
+Resultado observado:
+
+- editor real abriu;
+- `Olá mundo` apareceu exatamente;
+- Painel marcou `succeeded`;
+- logs mostraram Goal Runtime concluído.
+
+### 2. VS Code por alias — PASS
+
+Pedido:
+
+`Abra o VS Code`
+
+Resultado observado:
+
+- Visual Studio Code abriu fisicamente;
+- Painel marcou `succeeded`.
+
+### 3. Necessidade vaga de cálculo — PASS
+
+Pedido:
+
+`Preciso fazer algumas contas.`
+
+Resultado observado:
+
+- calculadora real abriu;
+- Painel marcou `succeeded`.
+
+Esse teste comprova resolução da necessidade para capability de cálculo; não comprova ainda execução de uma operação matemática solicitada.
+
+### 4. Necessidade natural de informação — PASS
+
+Pedido:
+
+`Quero saber o significado do nome Josiel.`
+
+Resultado observado:
+
+- busca correta foi aberta;
+- página apresentou resultados sobre o significado de Josiel;
+- Painel marcou `succeeded`.
+
+### 5. Regressão crítica pesquisa → título → editor — PASS
 
 Pedido:
 
 `Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
 
-O falso PASS histórico é coberto agora por critérios separados de pesquisa, resultados, primeiro título, editor e readback do texto final. Automatizado, esse fluxo está implementado; validação física integrada pelo Painel/Central/Robô ainda é obrigatória antes do merge em `main`.
+Resultado observado:
 
-## P0 de cobertura de objetivo — corrigido
+- DuckDuckGo pesquisou apenas `inteligência artificial`;
+- resultados reais foram exibidos;
+- primeiro resultado observado foi `Inteligência artificial - Wikipédia, a enciclopédia livre`;
+- editor real abriu;
+- exatamente esse título foi escrito no editor;
+- Painel marcou `succeeded`.
 
-Foi encontrado um caso em que:
+Esse teste elimina fisicamente o falso PASS histórico para esse caso específico.
 
-`Abra o Brave, acesse example.com e pesquise gatos`
+### 6. Condicional example.com — FAIL com progresso parcial
 
-poderia perder a URL explícita e virar uma busca em outro mecanismo.
+Pedido:
 
-O commit `5894f98c0a1004a76bc10326a04a58e08b9807e0` corrigiu isso:
+`Verifique se example.com está acessível. Se estiver, abra um editor e escreva "site acessível". Se não estiver, escreva "site indisponível".`
 
-- pesquisa em navegador nomeado sem site explícito continua fast path;
-- Google/Bing/DuckDuckGo explícitos continuam fast path;
-- site explícito não reconhecido como mecanismo de busca vai para `GENERIC`/fail-closed antes de qualquer ação física;
-- regressão automatizada exige `executor.executed == []` no caso incorreto.
+Resultado observado:
 
-O Codex reportou `10 passed` nos testes focados dessa correção.
+- `example.com` abriu e estava acessível;
+- o branch acessível foi escolhido;
+- editor abriu;
+- texto final ficou incorreto, visualmente dividido como `SITE ACESSO` / `VEL` em vez de `site acessível`;
+- task terminou `failed`;
+- log: `GoalVerifier recusou conclusão: critérios pendentes: text_present`.
 
-## Testes automatizados
+Classificação: execução parcial correta, conclusão final FAIL. O verifier evitou falso `succeeded`.
 
-No checkpoint anterior à correção P0, o Codex reportou suíte local completa com:
+### 7. Informações sobre São Lourenço da Mata — FAIL de percepção estruturada
 
-`333 passed, 1 warning`
+Pedido:
 
-Também foram reportadas várias suítes focadas verdes.
+`Pesquise informações sobre São Lourenço da Mata.`
 
-Depois da correção P0 foram reportados `10 passed` nos testes diretamente relacionados.
+Resultado observado:
 
-Ainda não existe execução de GitHub Actions para a branch WIP; portanto o estado da suíte completa dessa branch ainda precisa ser repetido antes do merge.
+- DuckDuckGo abriu com a consulta correta;
+- resultados reais sobre São Lourenço da Mata ficaram visíveis;
+- task terminou `failed`;
+- log: `RuntimeError: duckduckgo não produziu resultados estruturados verificáveis`.
 
-## Testes físicos integrados
+Classificação: ação de busca fisicamente útil, mas critério de percepção/evidência não foi satisfeito.
 
-Pelos critérios estritos de `docs/CODEX_GOAL_RUNTIME_MISSION.md`, a nova branch ainda não possui a bateria A–E totalmente aprovada pelo fluxo real Painel → Central → Robô.
+### 8. Contexto entre tasks com `lá` — FAIL
 
-Há provas físicas parciais/diretas de editor/readback, navegação, busca, fluxo pesquisa→título→editor, condicional e contexto, mas isso não substitui a validação integrada obrigatória.
+Pedido após o teste 7:
+
+`Agora pesquise a previsão do tempo de lá.`
+
+Resultado observado:
+
+- `lá` não foi resolvido para São Lourenço da Mata;
+- a consulta física virou `a previsão do tempo de inteligência artificial`;
+- task terminou `failed`.
+
+Causa observável provável:
+
+- o teste 7 falhou, portanto seu contexto não foi publicado;
+- o `SessionContext` caiu para um artefato anterior de `SUBJECT` (`inteligência artificial`);
+- o fallback de `lá` para `SUBJECT` mostrou-se semanticamente inseguro.
+
+Esse comportamento deve ser corrigido para falhar fechado ou usar apenas um artefato compatível com referência locativa, em vez de substituir `lá` por assunto arbitrário.
+
+## Situação da autonomia física após a bateria
+
+PASS confirmados: 5.
+
+FAIL confirmados: 3.
+
+Os FAILs atuais estão concentrados em:
+
+1. escrita/readback da string acentuada no branch condicional;
+2. extração/percepção estruturada de resultados do DuckDuckGo em busca informacional;
+3. resolução contextual de `lá` quando não existe `LOCATION` válido da task anterior.
+
+Importante: nos testes 6 e 7 o sistema falhou em vez de declarar sucesso sem evidência, o que confirma que o GoalVerifier está protegendo contra falso `succeeded` nesses casos.
 
 ## Providers
 
@@ -141,4 +243,4 @@ O modo multi continua com Z.AI/GLM, Google Gemini e Cloudflare Workers AI. Cloud
 
 A missão **não está concluída** e a branch WIP **não deve ser mergeada em `main` ainda**.
 
-O principal trabalho restante é validação física integrada, correção de qualquer falha real encontrada, repetição da suíte completa/checks e fechamento documental/merge somente após os critérios obrigatórios passarem.
+O próximo trabalho é corrigir os três FAILs físicos acima, repetir a bateria afetada e então executar suíte completa/checks antes de qualquer promoção para `main`.
