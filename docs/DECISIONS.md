@@ -174,3 +174,11 @@ A conclusão de uma ação de interface não pode significar apenas que um coman
 Ao encadear ações como `abrir aplicativo` seguido de `digitar`, o executor deve esperar a janela ficar pronta e ganhar foco suficiente para a próxima ação. Um atraso fixo curto pode ser usado apenas como fallback de MVP, não como evidência de prontidão.
 
 A digitação deve registrar em qual janela ativa foi executada e não deve ser tratada como verificada apenas porque as teclas foram enviadas. Quando o alvo esperado puder ser conhecido, foco e resultado devem ser confirmados antes de marcar a etapa como concluída.
+
+## D-023 — Conforto visual é requisito do Painel
+
+O tema visual atual do Painel do Robô, com grandes áreas claras, foi considerado cansativo para uso prolongado e não deve ser tratado como design final.
+
+Antes de considerar o Painel concluído para uso diário, o design deverá ser revisado para reduzir brilho e fadiga visual, melhorar hierarquia e contraste e oferecer uma aparência de baixa luminosidade, como tema escuro ou solução equivalente.
+
+A melhoria visual deve preservar legibilidade dos estados, botões de segurança e mensagens de erro. O resultado final do design precisa ser validado visualmente pelo usuário no computador real.
