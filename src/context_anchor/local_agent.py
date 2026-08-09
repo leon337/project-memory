@@ -15,7 +15,7 @@ from .planner import (
     Planner,
     ProviderCandidate,
 )
-from .policy import Plan, evaluate_plan
+from .policy import Plan, evaluate_plan, plan_local_sequence
 from .providers import CloudflareWorkersAIProvider, GeminiProvider, ZAIProvider
 from .runtime_log import write_runtime_log
 from .schemas import AgentTask
@@ -32,6 +32,7 @@ _OBSERVATION_KEYS = (
     "window_title",
     "verified",
     "characters",
+    "input_method",
     "key",
     "x",
     "y",
@@ -160,6 +161,53 @@ def _execute_one(executor: ActionExecutor, plan: Plan) -> dict[str, Any]:
     return result
 
 
+def _execute_local_sequence(
+    executor: ActionExecutor,
+    plans: tuple[Plan, ...],
+) -> dict[str, Any]:
+    steps: list[dict[str, Any]] = []
+    planner_trace: list[dict[str, Any]] = []
+
+    for index, plan in enumerate(plans, start=1):
+        result = _execute_one(executor, plan)
+        verified = result.get("verified")
+        steps.append(
+            {
+                "step": index,
+                "action": plan.action,
+                "target": plan.target,
+                "verified": verified,
+                "observation": _compact_observation(result),
+            }
+        )
+        planner_trace.append(
+            {
+                "decision": index,
+                "provider": "deterministic",
+                "route": "local-sequence",
+                "fallbacks": [],
+                "action": plan.action,
+                "target": plan.target,
+            }
+        )
+        if verified is False:
+            raise RuntimeError(
+                f"A etapa local {index} ({plan.action}) não foi verificada; o objetivo não será marcado como concluído."
+            )
+
+    return {
+        "action": "goal",
+        "goal_completed": True,
+        "completion": "Sequência local conhecida concluída.",
+        "steps": steps,
+        "verified": all(step["verified"] is not False for step in steps),
+        "planner_provider": "deterministic",
+        "planner_route": "local-sequence",
+        "planner_fallbacks": [],
+        "planner_trace": planner_trace,
+    }
+
+
 def _execute_goal_loop(
     executor: ActionExecutor,
     objective: str,
@@ -240,6 +288,10 @@ def execute_command(
     planner: Planner | None = None,
     max_goal_steps: int = 8,
 ) -> dict[str, Any]:
+    local_sequence = plan_local_sequence(command)
+    if local_sequence:
+        return _execute_local_sequence(executor, local_sequence)
+
     active_planner = planner or DeterministicPlanner()
     plan = active_planner.plan(command)
 
