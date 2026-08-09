@@ -162,7 +162,8 @@ O adaptador vigente segue o mesmo padrão técnico já usado com sucesso no repo
 - cliente `genai.Client`;
 - chamada por `client.models.generate_content(...)`;
 - modelo padrão: `gemini-3.6-flash`;
-- `GenerateContentConfig` define `system_instruction`, `response_mime_type=application/json`, `response_schema=ACTION_SCHEMA`, temperatura e limite de output;
+- `GenerateContentConfig` define `system_instruction`, `response_mime_type=application/json`, `response_json_schema=ACTION_SCHEMA`, temperatura e limite de output;
+- `response_json_schema` é usado porque `ACTION_SCHEMA` é JSON Schema padrão e inclui `additionalProperties`; o primeiro teste físico com `response_schema` foi rejeitado pelo Gemini com `400 INVALID_ARGUMENT`;
 - timeout mínimo de 10,5 s e retry para erros transitórios configurados no cliente;
 - resposta `parsed`, quando fornecida pelo SDK, ou texto JSON é convertida e validada como `StructuredAction`;
 - exceções do SDK são normalizadas em `ProviderGenerationError` sem incluir a chave de API;
