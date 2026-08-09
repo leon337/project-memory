@@ -20,11 +20,11 @@ Foram validados fisicamente no computador alvo:
 
 - Central iniciada, parada e reconhecida corretamente pelo Painel;
 - Robô iniciado, parado e reiniciado pelo Painel;
-- ciclo normal **Parar Robô → Desligado → Ligar Robô → Ligado**;
+- ciclo **Parar Robô → Desligado → Ligar Robô → Ligado**;
 - parada de emergência em dois ciclos reais, com bloqueio persistente e liberação consciente;
 - FAILSAFE explícito em dois cantos da tela, gerando `DesktopFailsafeTriggered` antes da entrada física;
 - screenshot, mouse, clique, Xed, digitação e tecla Enter;
-- proteção de foco para sequências como abrir aplicativo → digitar;
+- proteção de foco para sequências abrir aplicativo → digitar;
 - navegador com Playwright/Chromium;
 - diagnóstico de Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
 - telemetria real de Painel, Central e Robô;
@@ -44,12 +44,11 @@ Foi implementada no `main` a primeira versão do modo **multi-provider**:
 
 - `MultiProviderPlanner` em `src/context_anchor/planner.py`;
 - adaptadores em `src/context_anchor/providers.py` para **Z.AI**, **Cloudflare Workers AI** e **Gemini**;
-- configuração em `LocalAgentSettings` para modo do planner, timeout, cooldown, modelos e credenciais locais;
 - `local_agent.py` constrói dinamicamente o roteador usando somente provedores configurados no `.env`;
 - comandos que o planner determinístico já entende continuam sendo resolvidos localmente antes da IA, sem consumir quota externa;
-- pedidos simples priorizam Cloudflare → Z.AI → Gemini quando esses provedores estiverem disponíveis;
+- pedidos simples priorizam Cloudflare → Z.AI → Gemini quando disponíveis;
 - pedidos com marcadores de análise/condição priorizam Z.AI → Gemini → Cloudflare;
-- falha de um provedor pode acionar outro provedor antes da execução física;
+- falha de um provedor pode acionar outro antes da execução física;
 - toda saída continua validada como `StructuredAction` e depois passa pela Policy Layer.
 
 ## Testes reais do planner multi-provider
@@ -60,75 +59,94 @@ Pedido usado nos testes:
 
 `Por favor abra o editor de texto para mim`
 
-### Primeiro teste
+### Teste 1
 
-Resultado observado:
-
-- o Robô iniciou em `planner=multi` com `providers=zai,gemini`;
-- a tarefa entrou na Central e foi entregue normalmente ao Robô;
+- Robô iniciou em `planner=multi` com `providers=zai,gemini`;
 - Z.AI respondeu `HTTP 429`;
 - o roteador tentou Gemini;
-- Gemini respondeu `HTTP 400` com o formato então usado no adaptador;
+- Gemini respondeu `HTTP 400` com o formato REST então usado;
+- tarefa terminou `failed`;
+- nenhuma ação física foi executada.
+
+Esse teste comprovou que o fallback acontece antes da execução física.
+
+### Teste 2
+
+Após melhorar o diagnóstico HTTP:
+
+- Z.AI respondeu `HTTP 429: 1305: The service may be temporarily overloaded, please try again later`;
+- Gemini respondeu HTTP com sucesso, porém o texto retornado não chegou como JSON válido;
+- erro `gemini: resposta não contém JSON válido`;
+- tarefa `failed`;
+- nenhuma ação física executada.
+
+O código `1305` do Z.AI é tratado como limitação/indisponibilidade transitória.
+
+### Migração para o SDK oficial do Gemini
+
+Foi inspecionado o repositório `leon337/meu_primeiro_agente`, onde o Gemini já funciona via:
+
+- `google-genai`;
+- `genai.Client(...)`;
+- `client.models.generate_content(...)`;
+- modelo `gemini-3.6-flash`.
+
+O `project-memory` foi migrado para o mesmo padrão. A dependência `google-genai>=1.0,<2.0` foi adicionada, o modelo padrão passou a `gemini-3.6-flash` e os testes automatizados da migração passaram no CI.
+
+### Teste 3 — SDK oficial no Linux real
+
+O usuário atualizou a cópia local, instalou a nova dependência e repetiu o pedido real.
+
+Resultado observado no Painel:
+
+- Robô iniciou em `planner=multi` com `providers=zai,gemini`;
+- Z.AI continuou indisponível/limitado e o roteador fez fallback;
+- Gemini foi chamado pelo SDK oficial;
+- Gemini devolveu `400 INVALID_ARGUMENT`;
+- a mensagem do servidor apontou `Unknown name "additional_properties" at 'generation_config.response_schema'`;
 - a tarefa terminou `failed`;
 - nenhuma ação física foi executada.
 
-Esse teste comprovou que o fallback ocorre antes da execução física.
-
-### Segundo teste após melhorar diagnóstico HTTP
-
-O mesmo pedido foi repetido depois de atualizar e reiniciar o Robô.
-
-Resultado observado no log real:
-
-- Z.AI respondeu `HTTP 429: 1305: The service may be temporarily overloaded, please try again later`;
-- o roteador tentou Gemini como fallback;
-- Gemini respondeu HTTP com sucesso, porém o texto retornado não chegou como JSON válido ao parser;
-- o erro registrado foi `gemini: resposta não contém JSON válido`;
-- a tarefa terminou `failed`;
-- novamente nenhuma ação física foi executada.
-
-A documentação oficial do Z.AI classifica o código `1305` como rate limit; portanto o erro observado é uma indisponibilidade/limitação transitória do provedor, não falha da Policy Layer nem do executor.
+O problema foi localizado no adaptador: `ACTION_SCHEMA`, que é JSON Schema padrão e contém `additionalProperties`, estava sendo passado por `response_schema`. Segundo a documentação do SDK, JSON Schema padrão deve ser enviado por `response_json_schema`.
 
 ## Correção vigente do Gemini
 
-Foi inspecionado o repositório `leon337/meu_primeiro_agente`, onde o Gemini já funciona usando o SDK oficial `google-genai`, `genai.Client(...)` e `client.models.generate_content(...)`. O projeto também usa `gemini-3.6-flash` na configuração/testes locais.
+O `GeminiProvider` agora usa:
 
-Com base nessa implementação real já funcional, o adaptador Gemini do `project-memory` foi migrado de REST manual para o mesmo padrão de SDK:
+- SDK oficial `google-genai`;
+- `client.models.generate_content(...)`;
+- modelo padrão `gemini-3.6-flash`;
+- `response_mime_type="application/json"`;
+- `response_json_schema=ACTION_SCHEMA`;
+- validação final obrigatória com `StructuredAction`;
+- normalização segura de erros sem registrar a chave.
 
-- dependência `google-genai>=1.0,<2.0` adicionada ao projeto;
-- `GeminiProvider` usa `genai.Client`;
-- chamada por `client.models.generate_content(...)`;
-- modelo padrão: `gemini-3.6-flash`;
-- `GenerateContentConfig` exige `response_mime_type=application/json` e o mesmo `ACTION_SCHEMA`;
-- timeout mínimo de 10,5 s e configuração de retry transitório seguem o padrão já usado no outro projeto;
-- resposta `parsed` ou texto JSON ainda precisa validar como `StructuredAction`;
-- erro do SDK é convertido para `ProviderGenerationError` sem copiar a chave para telemetria.
+O teste automatizado agora também confirma que `response_schema` fica vazio e que `response_json_schema` preserva `additionalProperties=False`.
 
-O SDK não dá acesso direto ao computador: a saída continua passando pelo mesmo `StructuredAction` → Policy Layer → executor.
+O commit de teste dessa correção é `6efd18d55454749d75833db00948b8728115e146`; as etapas Install, Compile e Test do CI passaram com `success` no run `31300271373`.
 
-O commit de testes dessa migração (`1f17fce507c9be7bd5f534e32895df9d6ec40a48`) concluiu instalação, compilação e testes com `success` no CI.
-
-Ainda falta validar fisicamente essa versão com a API real no Linux alvo.
+Ainda falta a revalidação física dessa correção no Linux real.
 
 ## Provedores e credenciais — estado atual
 
-- **Z.AI / `glm-4.7-flash`**: conta e API key criadas; tela real de Rate Limits mostrou `concurrency limit = 1`; chave configurada localmente no `.env`; chamadas reais atualmente podem retornar `429/1305`;
-- **Google Gemini / `gemini-3.6-flash`**: chave configurada localmente no `.env`; adaptador vigente usa o SDK oficial `google-genai`;
-- **Cloudflare Workers AI**: token personalizado com Workers AI Read/Edit criado e guardado localmente; ainda falta `Account ID` no `.env` para ativar o adaptador;
+- **Z.AI / `glm-4.7-flash`**: conta e API key configuradas localmente; tela real de Rate Limits mostrou `concurrency limit = 1`; chamadas reais podem retornar `429/1305`;
+- **Google Gemini / `gemini-3.6-flash`**: chave configurada localmente; adaptador usa SDK oficial e `response_json_schema`;
+- **Cloudflare Workers AI**: token personalizado Workers AI Read/Edit criado e guardado localmente; ainda falta `Account ID` no `.env` para ativar o adaptador;
 - **SiliconFlow**: conta e API key criadas, mas permanece opcional enquanto um modelo gratuito atual e seus limites reais não forem comprovados.
 
 As credenciais permanecem fora do Git. O usuário optou por continuar os testes com as chaves atuais.
 
 ## Próximo bloqueio real
 
-O próximo bloqueio é revalidar o planner no Linux real com o SDK oficial do Gemini:
+Revalidar fisicamente a correção `response_json_schema`:
 
-- executar `git pull --ff-only`;
-- como foi adicionada a dependência `google-genai`, executar uma vez `pip install -e .` dentro do `.venv` do `project-memory`;
-- reiniciar o Robô pelo Painel;
-- repetir `Por favor abra o editor de texto para mim`;
-- confirmar se Gemini produz uma `StructuredAction` válida e o editor abre quando Z.AI estiver limitado;
-- depois obter/configurar o `Cloudflare Account ID` e ativar o terceiro provedor.
+1. `git pull --ff-only`;
+2. reiniciar o Robô pelo Painel;
+3. repetir `Por favor abra o editor de texto para mim`;
+4. confirmar se Gemini gera `open_app → editor` e o Xed abre quando Z.AI estiver limitado;
+5. verificar nos logs o provedor usado e o fallback.
+
+Depois disso, obter/configurar o `Cloudflare Account ID` e ativar o terceiro provedor.
 
 ## Ainda não implementado ou não validado
 
@@ -143,7 +161,5 @@ O próximo bloqueio é revalidar o planner no Linux real com o SDK oficial do Ge
 - câmera;
 - confirmação humana completa para ações sensíveis;
 - publicação segura do Painel/Central para acesso remoto;
-- WhatsApp;
-- Telegram;
-- Instagram;
+- WhatsApp, Telegram e Instagram;
 - seletor claro/escuro e preferências visuais persistentes.
