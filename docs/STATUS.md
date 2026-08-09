@@ -58,47 +58,52 @@ Existe contrato provider-agnostic em `src/context_anchor/planner.py`, com `Struc
 
 Nenhum provedor de IA real está integrado ao Robô ainda.
 
-### Pesquisa de provedores — agosto de 2026
+### Direção de IA definida — multi-provider
 
-Uma pesquisa aprofundada sobre APIs gratuitas de IA mostrou que a escolha anterior por Cerebras não atende mais ao requisito atual de gratuidade recorrente: o serviço não possui mais um free tier renovável e a oferta atual é trial/crédito temporário.
+A arquitetura do primeiro planner por IA será **multi-provider com roteamento inteligente consciente de quota**, e não dependente de um único serviço.
 
-Por isso, a seleção do primeiro provedor foi reaberta.
+Conjunto inicial definido:
 
-Candidatos principais em avaliação:
+- **Z.AI / GLM-4.7-Flash** — reasoning e decisões mais complexas;
+- **Cloudflare Workers AI** — decisões simples/frequentes e burst, preferindo modelos eficientes para preservar neurons;
+- **Google Gemini** — multimodalidade/visão e fallback complementar.
 
-- **SiliconFlow**;
-- **Z.AI / GLM**;
-- **Cloudflare Workers AI**;
-- **Groq**.
+O roteador não fará round-robin simples. A escolha deverá considerar capacidade exigida, quota/budget disponível, concorrência, latência, erros recentes e cooldown do provedor.
 
-A pesquisa também identificou Cloudflare Workers AI como referência de 300 RPM default para text generation, sujeito a budget diário em neurons, e Groq como referência com limites gratuitos publicados por modelo. SiliconFlow e Z.AI permanecem candidatos prioritários porque os limites reais das contas/modelos gratuitos precisam ser medidos diretamente.
+A pesquisa profunda de agosto de 2026 sustenta essa direção: GLM-4.7-Flash aparece com preço zero atual, reasoning, tools e structured output; Cloudflare possui 300 RPM default para text generation, mas é limitado também por 10.000 neurons/dia; Gemini continua relevante como provedor multimodal e complementar.
 
-### Contas criadas nesta etapa
+### Validação manual das contas
 
-Confirmado por validação manual no navegador:
+Confirmado no navegador:
 
 - conta do **SiliconFlow** criada;
 - API key do SiliconFlow criada para o projeto;
-- tela **Usage & Charges** do SiliconFlow acessada, ainda sem consumo registrado (`$0.00`);
+- tela **Usage & Charges** do SiliconFlow acessada sem consumo registrado (`$0.00`);
+- o link **Higher Limits** do SiliconFlow abre um formulário de solicitação de aumento de RPM/TPM e não revela os limites atuais da conta;
 - conta do **Z.AI** criada;
 - API key do Z.AI criada para o projeto;
-- nenhuma dessas chaves foi adicionada ao Git ou integrada ao código ainda.
+- a tela real **Rate Limits** do Z.AI foi acessada;
+- para `GLM-4.7-Flash`, a conta mostrou **concurrency limit = 1**;
+- a mesma tela mostra limites de concorrência diferentes por modelo, confirmando que o uso precisa respeitar o modelo escolhido;
+- nenhuma chave de SiliconFlow ou Z.AI foi adicionada ao Git ou integrada ao código.
 
-As chaves devem permanecer somente em configuração local/variáveis de ambiente quando a integração começar.
+SiliconFlow permanece candidato opcional futuro, mas não faz parte do conjunto inicial enquanto os limites reais de um modelo gratuito atual não forem comprovados.
 
 ## Próximo bloqueio real
 
-Antes de integrar qualquer IA, ainda é necessário medir e confirmar:
+Antes da integração multi-provider funcionar, ainda falta:
 
-- SiliconFlow: modelos realmente gratuitos, RPM/TPM/RPD/TPD e se a gratuidade é recorrente;
-- Z.AI: limites reais dos modelos Flash/zero-price para a conta;
-- comparar os resultados com Cloudflare Workers AI e Groq;
-- escolher explicitamente o primeiro provedor/modelo.
+- criar/configurar a credencial do Cloudflare Workers AI localmente;
+- registrar os limites efetivos do projeto Gemini no AI Studio;
+- implementar contabilidade local de quota/latência/erros para os provedores que não expõem telemetria suficiente;
+- implementar o roteador e os adaptadores de Z.AI, Cloudflare e Gemini sobre o contrato provider-agnostic existente.
 
 ## Ainda não implementado
 
 - planner conectado a IA real;
-- fallback multi-provider;
+- roteador multi-provider;
+- fallback automático entre provedores;
+- quota manager;
 - loop autônomo multietapa orientado a objetivo;
 - árvore de acessibilidade;
 - percepção semântica de screenshots;
