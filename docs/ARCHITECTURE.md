@@ -92,7 +92,7 @@ Fluxo:
 
 ## 5. Planner determinístico
 
-`DeterministicPlanner` permanece em `src/context_anchor/planner.py` e continua sendo o modo padrão.
+`DeterministicPlanner` permanece em `src/context_anchor/planner.py`.
 
 Mesmo quando o modo multi-provider estiver ativo, o roteador tenta primeiro o planner determinístico. Se o pedido já pertence ao vocabulário conhecido, nenhuma API externa é chamada.
 
@@ -132,7 +132,9 @@ O roteador não é round-robin.
 
 ## 7. Adaptadores de IA
 
-Implementados em `src/context_anchor/providers.py` usando `httpx`, que já fazia parte das dependências do projeto.
+Implementados em `src/context_anchor/providers.py`.
+
+Z.AI e Cloudflare usam chamadas HTTP explícitas por `httpx`. Gemini usa o SDK oficial `google-genai` para evitar acoplamento a formatos REST construídos manualmente.
 
 ### 7.1 Z.AI
 
@@ -142,7 +144,7 @@ Implementados em `src/context_anchor/providers.py` usando `httpx`, que já fazia
 - `response_format={"type":"json_object"}`;
 - resposta convertida e validada como `StructuredAction`.
 
-No primeiro teste real, a API devolveu `HTTP 429` com código `1305`, indicando rate limit/serviço temporariamente sobrecarregado. O router trata isso como falha anterior à execução e tenta outro provedor compatível.
+Nos testes reais, a API devolveu `HTTP 429` com código `1305`, indicando rate limit/serviço temporariamente sobrecarregado. O router trata isso como falha anterior à execução e tenta outro provedor compatível.
 
 ### 7.2 Cloudflare Workers AI
 
@@ -154,12 +156,16 @@ No primeiro teste real, a API devolveu `HTTP 429` com código `1305`, indicando 
 
 ### 7.3 Gemini
 
-- endpoint vigente: REST **Interactions API** em `/v1beta/interactions`;
-- modelo padrão: `gemini-3.5-flash`;
-- autenticação por `x-goog-api-key`;
-- structured output enviado como `response_format` com `type=text`, `mime_type=application/json` e o mesmo JSON Schema de `StructuredAction`;
-- a resposta REST é lida a partir do último `model_output` textual em `steps`;
-- JSON eventualmente envolvido apenas em fence de código pode ser desempacotado, mas o conteúdo final continua obrigado a passar por `StructuredAction`;
+O adaptador vigente segue o mesmo padrão técnico já usado com sucesso no repositório `leon337/meu_primeiro_agente`:
+
+- SDK oficial `google-genai`;
+- cliente `genai.Client`;
+- chamada por `client.models.generate_content(...)`;
+- modelo padrão: `gemini-3.6-flash`;
+- `GenerateContentConfig` define `system_instruction`, `response_mime_type=application/json`, `response_schema=ACTION_SCHEMA`, temperatura e limite de output;
+- timeout mínimo de 10,5 s e retry para erros transitórios configurados no cliente;
+- resposta `parsed`, quando fornecida pelo SDK, ou texto JSON é convertida e validada como `StructuredAction`;
+- exceções do SDK são normalizadas em `ProviderGenerationError` sem incluir a chave de API;
 - RPM local configurável, inicialmente 20.
 
 O adaptador Gemini desta etapa é textual. Visão/multimodalidade ainda não foi ligada ao router.
