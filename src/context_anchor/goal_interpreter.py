@@ -4,6 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlparse
 
 from .policy import Plan, plan_command, plan_local_sequence
 
@@ -185,6 +186,9 @@ _BROWSER_ALIASES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("chromium",), "chromium"),
     (("chrome",), "chromium"),
     (("opera",), "opera"),
+)
+_SUPPORTED_SEARCH_ENGINE_DOMAINS = frozenset(
+    {"bing.com", "duckduckgo.com", "google.com"}
 )
 
 
@@ -613,6 +617,14 @@ def _extract_url(command: str) -> str | None:
     return _normalize_url(match.group(0)) if match else None
 
 
+def _is_supported_search_engine_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").casefold().rstrip(".")
+    return any(
+        host == domain or host.endswith(f".{domain}")
+        for domain in _SUPPORTED_SEARCH_ENGINE_DOMAINS
+    )
+
+
 def _safe_policy_plans(command: str) -> tuple[Plan, ...]:
     sequence = plan_local_sequence(command)
     if sequence is not None:
@@ -906,6 +918,8 @@ class SemanticGoalInterpreter:
             ))
 
         if browser and query:
+            if url is not None and not _is_supported_search_engine_url(url):
+                return GoalIntent(kind=IntentKind.GENERIC, original_command=command)
             return covered(GoalIntent(
                 kind=IntentKind.NAMED_BROWSER_SEARCH,
                 original_command=command,

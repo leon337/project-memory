@@ -347,6 +347,28 @@ def test_explicit_browser_search_without_site_keeps_the_browser_requirement(
 
 
 @pytest.mark.parametrize(
+    ("command", "expected_kind"),
+    [
+        ("No Brave, pesquise gatos", IntentKind.NAMED_BROWSER_SEARCH),
+        (
+            "Abra o Brave, acesse google.com e pesquise gatos",
+            IntentKind.NAMED_BROWSER_SEARCH,
+        ),
+        (
+            "Abra o Brave, acesse example.com e pesquise gatos",
+            IntentKind.GENERIC,
+        ),
+    ],
+)
+def test_named_browser_search_never_discards_an_explicit_site(
+    interpreter: SemanticGoalInterpreter,
+    command: str,
+    expected_kind: IntentKind,
+) -> None:
+    assert interpreter.interpret(command).kind is expected_kind
+
+
+@pytest.mark.parametrize(
     ("command", "query"),
     [
         ("Pesquise Firefox segurança", "Firefox segurança"),

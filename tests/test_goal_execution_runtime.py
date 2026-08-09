@@ -541,6 +541,19 @@ def test_basic_named_browser_search_observes_browser_identity_and_query() -> Non
     }
 
 
+def test_unsupported_explicit_site_in_named_browser_search_fails_before_action() -> None:
+    executor = FakeExecutor()
+
+    with pytest.raises(GoalExecutionFailed, match="decomposição"):
+        execute_command(
+            executor,
+            "Abra o Brave, acesse example.com e pesquise gatos",
+            capability_resolver=MockCapabilityResolver(),
+        )
+
+    assert executor.executed == []
+
+
 @pytest.mark.parametrize(
     ("command", "expected_capability"),
     [
