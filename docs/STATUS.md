@@ -47,203 +47,43 @@ Estado observado nos testes recentes:
 - Gemini retornou `429 RESOURCE_EXHAUSTED` por quota;
 - tarefas determinísticas conhecidas não devem depender desses providers.
 
-## Teste físico `abrir + escrever` — PASS
+## Testes físicos já relevantes para o novo runtime
 
-Pedido validado:
-
-`Abra o editor de texto e escreva Olá mundo`
-
-Resultado real:
+### `Abra o editor de texto e escreva Olá mundo` — PASS
 
 - Xed abriu;
-- o foco ficou correto;
-- `Olá mundo` apareceu exatamente, incluindo `á`;
+- foco correto;
+- `Olá mundo` apareceu exatamente;
 - task `succeeded`;
-- log: `planner=deterministic rota=local-sequence etapas=2 objetivo=concluido`;
-- nenhum provider externo foi necessário.
+- rota local determinística;
+- nenhum provider externo necessário.
 
-## Teste físico `navegador + site` — PASS
-
-Pedido validado:
-
-`Abra o navegador e acesse o site globo.com`
-
-Resultado real:
-
-- o navegador estruturado abriu;
-- `globo.com` foi carregado corretamente;
-- task `succeeded`;
-- log registrou `planner=deterministic rota=deterministic`;
-- nenhum provider externo foi necessário.
-
-## Teste físico `Brave + site` — PASS
-
-Pedido equivalente validado:
-
-`Abra o navegador brave e acesse o site google.com`
-
-Resultado real:
-
-- Brave abriu;
-- Google foi carregado;
-- task `succeeded`;
-- nenhum provider externo foi necessário.
-
-## Teste físico `Brave + Google + pesquisar` — PASS
-
-Foi validado no computador real um pedido equivalente a:
-
-`Abra o navegador brave e acesse o site google.com e pesquise o São Lourenço da Mata`
-
-Resultado real:
-
-- Brave foi preservado;
-- a pesquisa do Google foi carregada;
-- task `succeeded`;
-- fluxo resolvido localmente.
-
-Outro teste também abriu a pesquisa pelo significado do nome Josiel quando a intenção foi explicitamente formulada como pesquisa.
-
-## Baseline físico de autonomia em linguagem natural — CONCLUÍDO
-
-Foi executada uma bateria sem corrigir cada frase durante o teste, para medir a dependência real de sintaxe específica.
-
-### 1. Inferência de aplicativo por necessidade — FAIL
-
-Pedido:
-
-`Quero fazer uma anotação. Abra alguma coisa onde eu possa escrever`
-
-Resultado:
-
-- task `failed`;
-- o sistema não conseguiu inferir de forma confiável uma capacidade de edição sem formulação explícita;
-- durante essa bateria os providers externos também estavam degradados por quota/resposta inválida.
-
-Classificação principal: **interpretação de intenção + dependência de provider**.
-
-### 2. Resolução de nome de aplicativo — RESULTADO MISTO
-
-Pedido:
-
-`Abra o Visual Studio Code`
-
-Resultado:
-
-- **PASS**;
-- VS Code abriu fisicamente;
-- task `succeeded`.
-
-Pedido equivalente:
-
-`Abra o VS Code`
-
-Resultado:
-
-- **FAIL**;
-- log: `FileNotFoundError: Nenhum executável instalado foi encontrado para o aplicativo/comando 'vs code'`.
-
-Conclusão: a capacidade existe, mas a resolução de entidades/sinônimos de aplicativos ainda é inconsistente.
-
-Classificação: **resolução de aplicativo/capacidade**.
-
-### 3. Inferência de capacidade — FAIL
-
-Pedido:
-
-`Preciso fazer algumas contas.`
-
-Resultado:
-
-- task `failed`;
-- log: `FileNotFoundError: Nenhum executável instalado foi encontrado para o aplicativo/comando 'calc'`.
-
-A intenção de calculadora foi parcialmente inferida, mas o resolvedor escolheu um executável que não existe no ambiente Linux real.
-
-Classificação: **resolução de aplicativo/capacidade**.
-
-### 4. Objetivo informacional sem prescrever ferramenta — FAIL
-
-Pedido:
-
-`Quero saber o significado do nome Josiel`
-
-Resultado:
-
-- task `failed`;
-- router não conseguiu gerar plano válido;
-- Gemini retornou `429 RESOURCE_EXHAUSTED` durante a bateria.
-
-Classificação: **provider/quota**, expondo também dependência excessiva de provider para um objetivo simples.
-
-### 5. Pesquisa natural sem verbo de ferramenta — FAIL
-
-Pedido:
-
-`Descubra informações sobre São Lourenço da Mata`
-
-Resultado:
-
-- task `failed`;
-- Z.AI retornou `429/1305`;
-- Gemini retornou `429 RESOURCE_EXHAUSTED`.
-
-Classificação: **provider/quota + interpretação geral de objetivo**.
-
-### 6. Memória operacional entre tarefas — NÃO VALIDADA
-
-O teste de referência contextual não chegou a uma validação confiável porque os objetivos anteriores que deveriam estabelecer o contexto falharam.
-
-Continua sem existir memória operacional explícita para expressões como `agora`, `lá`, `nesse navegador`, `nesse site` e `depois` entre tasks independentes.
-
-Classificação: **contexto entre tarefas**.
-
-### 7. Objetivo multi-etapa com leitura de resultado — FALSO PASS
+### Objetivo multi-etapa com leitura de resultado — FALSO PASS histórico
 
 Pedido:
 
 `Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
 
-O Painel marcou a task como `succeeded`, porém a observação física mostrou que:
+O Painel marcou `succeeded`, mas fisicamente apenas a pesquisa foi aberta com parte indevida do pedido embutida na consulta. O primeiro resultado não foi lido, o editor não foi aberto e o título não foi escrito.
 
-- o navegador abriu uma pesquisa no DuckDuckGo;
-- a consulta enviada ao mecanismo de busca continha praticamente o pedido inteiro, incluindo `e depois abra um editor de texto...`;
-- o Robô **não leu o primeiro resultado**;
-- o Robô **não abriu o editor**;
-- o Robô **não escreveu o título**.
+Esse caso é a regressão principal do Goal Runtime universal.
 
-Portanto esse resultado é **FAIL no nível do objetivo**, apesar de `status=succeeded`.
+## Baseline físico de autonomia — conclusão
 
-Esse é o achado mais crítico do baseline: o sistema ainda pode confundir **sucesso de uma ação intermediária** com **conclusão do objetivo completo**.
+O executor físico e os fast paths já realizam ações úteis. Os principais FAILs atuais estão em:
 
-Classificação: **interpretação de objetivo + percepção/observação + verificação de conclusão**.
+- interpretação de intenção natural;
+- resolução de capacidades/aplicativos;
+- contexto entre tarefas;
+- percepção de conteúdo;
+- condicionais/replanejamento;
+- falso `succeeded` em objetivos compostos.
 
-### 8. Objetivo condicional — FAIL
+Não é correto resolver autonomia adicionando regex por frase como estratégia principal.
 
-Pedido equivalente a:
+## Decisão arquitetural vigente — Goal Runtime universal
 
-`Verifique se example.com está acessível. Se estiver, abra um editor e escreva "site acessível". Se não estiver, escreva "site indisponível".`
-
-Resultado:
-
-- task `failed`;
-- não houve evidência física de observação da condição seguida da ramificação correta.
-
-Classificação: **percepção/observação + decisão condicional + replanejamento**, com dependência de provider ainda presente.
-
-## Conclusão do baseline
-
-O executor físico já consegue realizar ações úteis e sequências determinísticas conhecidas. O gargalo principal agora é o **cérebro operacional**.
-
-Não é correto continuar resolvendo autonomia por adição de frases/regex específicas.
-
-O próximo estágio precisa transformar objetivos naturais em uma representação operacional explícita, acompanhar estado e evidências entre etapas e só marcar `succeeded` quando o objetivo completo tiver critérios de conclusão satisfeitos.
-
-## Decisão arquitetural tomada — Goal Runtime universal
-
-Após o baseline e duas revisões arquiteturais independentes, foi adotada a direção de um **Goal Runtime universal em ciclo fechado**.
-
-A arquitetura alvo é:
+A direção adotada é um **Goal Runtime universal em ciclo fechado**:
 
 ```text
 Goal Contract
@@ -259,97 +99,63 @@ Goal Contract
 → replanejamento ou conclusão
 ```
 
-Princípios já definidos:
+Princípios:
 
-- fast paths determinísticos permanecem, mas como skills/otimizações dentro do mesmo Goal Run;
+- fast paths continuam como skills/otimizações dentro do mesmo Goal Run;
 - ação executada não equivale automaticamente a objetivo concluído;
-- planner não possui autoridade final para emitir `succeeded`;
-- somente o Goal Verifier pode fechar o objetivo quando todos os critérios obrigatórios estiverem comprovados;
-- a migração será incremental, sem reescrever Painel, Central, SQLite/fila/leases, executores, Policy Layer, FAILSAFE, Emergency Stop ou providers.
+- planner não possui autoridade final para `succeeded`;
+- somente o Goal Verifier pode fechar o objetivo quando critérios obrigatórios estiverem comprovados;
+- migração incremental, sem reescrever Painel, Central, SQLite/fila/leases, executores, Policy Layer, FAILSAFE, Emergency Stop ou providers.
 
-## Trabalho preparatório desta sessão
+## Fundação de código criada nesta sessão
 
-A documentação vigente já foi alinhada para a nova arquitetura:
+Foi criado `src/context_anchor/goal_runtime.py` como fundação isolada, ainda **não conectada ao fluxo físico atual**.
 
-- `DECISIONS.md` contém a decisão D-022 do Goal Runtime universal;
-- `ARCHITECTURE.md` descreve o pipeline alvo e separa planner, executor, percepção, evidência e verifier;
-- `NEXT.md` foi reduzido à fundação leve, migração pesada do `local_agent` e evolução posterior de percepção/capacidades/contexto.
+Ela já define:
 
-A preparação de código ainda está em andamento nesta sessão. Nenhuma refatoração pesada do fluxo real foi declarada concluída.
+- `GoalContract`;
+- `GoalCriterion`;
+- `GoalSubgoal`;
+- `GoalRunState`;
+- `EvidenceRecord`;
+- `EvidenceKind`;
+- `GoalVerdict`;
+- `GoalVerifier`.
 
-## Lacuna principal para autonomia real
+Semântica já travada na fundação:
 
-A autonomia desejada exige que o usuário possa expressar algo como:
+- `ExecutionReceipt` pode registrar que uma ação ocorreu, mas não prova sozinho um efeito do objetivo;
+- observação/readback verificado pode satisfazer um critério;
+- um critério obrigatório pendente mantém o Goal Run aberto;
+- apenas quando todos os critérios obrigatórios possuem prova válida o verifier produz `SUCCEEDED`.
 
-```text
-Quero saber o significado do nome Josiel.
-```
+Foi criado `tests/test_goal_runtime_contract.py` com quatro regressões de contrato cobrindo esses pontos.
 
-sem precisar determinar navegador, mecanismo de busca, URL ou sequência de cliques.
+Antes de publicar os arquivos, a sintaxe foi compilada e quatro checks equivalentes foram executados isoladamente com sucesso. A suíte completa do repositório ainda precisa ser executada pelo CI/local após a integração no `main`.
 
-O sistema deve operar assim:
+## O que não foi alterado ainda
 
-```text
-objetivo do usuário
-→ interpretar intenção e entidades
-→ observar estado atual
-→ escolher capacidades disponíveis
-→ decompor objetivo em subobjetivos
-→ planejar próxima ação
-→ executar
-→ coletar evidência do resultado
-→ atualizar estado operacional
-→ verificar se o objetivo completo foi satisfeito
-→ replanejar se necessário
-→ concluir somente quando houver evidência suficiente
-```
+A fundação nova não substitui nem intercepta ainda:
 
-## Caminhos determinísticos locais vigentes
+- `local_agent.py`;
+- planner atual;
+- fast paths atuais;
+- execução física;
+- persistência final da Central.
 
-Continuam úteis como fast path para tarefas inequívocas:
+Isso é intencional para deixar o MVP estável enquanto a integração pesada é feita na próxima etapa.
 
-- abrir URL/domínio;
-- abrir aplicativo;
-- pesquisar/buscar/procurar;
-- abrir aplicativo + escrever/digitar;
-- abrir navegador + acessar site;
-- navegador + mecanismo de busca + consulta.
+## Próxima fronteira pesada
 
-Esses caminhos devem permanecer como atalhos confiáveis, não como linguagem obrigatória para o usuário.
+A próxima mudança é migrar `local_agent` para que todo pedido crie/use o mesmo Goal Run, convertendo fast paths e planner por IA em fontes de steps, e fazendo o Goal Verifier ser a única autoridade de conclusão.
 
-## Loop por IA atual — em migração
-
-O loop já implementado continua sendo:
-
-```text
-ação → observação → nova decisão → ... → finish
-```
-
-Mas o baseline mostrou que ainda falta um contrato explícito de objetivo/subobjetivos/evidências/conclusão, além de percepção suficiente para validar tarefas complexas. A decisão D-022 estabelece que esse loop deixará de ter uma semântica paralela de conclusão e será absorvido pelo Goal Runtime universal.
+Depois vêm percepção estruturada, capability resolver, Session Context e Recovery Manager.
 
 ## Controles que permanecem
 
-Continuam implementados:
-
 - parada de emergência persistente;
 - FAILSAFE físico próprio nos quatro cantos;
-- verificação de foco antes de teclado quando há janela esperada observável;
-- execução de processos com `shell=False`;
+- proteção de foco antes de teclado;
+- `shell=False`;
 - credenciais fora de código, Git, logs e prompts;
 - Painel e Central em localhost por padrão.
-
-## Ainda não validado/implementado para autonomia completa
-
-- fundação tipada do Goal Runtime;
-- camada geral de interpretação de objetivos;
-- decomposição em subobjetivos verificáveis;
-- resolução geral de aplicativos instalados e sinônimos;
-- persistência de contexto entre tarefas e navegadores;
-- verificador de conclusão do objetivo completo integrado ao runtime real;
-- primeiro objetivo condicional real usando percepção + decisão + replanejamento;
-- Cloudflare ativo no router real;
-- percepção semântica de DOM/árvore de acessibilidade;
-- percepção visual multimodal integrada ao loop;
-- câmera;
-- publicação remota segura;
-- WhatsApp, Telegram e Instagram.
