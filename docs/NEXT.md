@@ -1,49 +1,42 @@
 # NEXT
 
-## 1. Medir limites reais de SiliconFlow e Z.AI
+## 1. Fechar configuração e limites dos três provedores iniciais
 
-A validação operacional do MVP 0.3 foi concluída no Linux real e a escolha anterior por Cerebras foi reaberta porque a pesquisa atualizada mostrou que o serviço não possui mais free tier recorrente.
+A direção agora é multi-provider: **Z.AI/GLM + Cloudflare Workers AI + Google Gemini**.
 
-Estado atual:
+Estado verificável:
 
-- conta e API key do **SiliconFlow** já foram criadas;
 - conta e API key do **Z.AI** já foram criadas;
-- nenhuma chave foi armazenada no Git ou enviada ao código do projeto;
-- nenhum dos dois provedores está integrado ao Robô ainda.
+- a tela real de Rate Limits da conta mostrou `GLM-4.7-Flash` com **concurrency 1**;
+- a documentação/pesquisa confirma `GLM-4.7-Flash` com preço zero atual, reasoning, tools e structured output;
+- Google/Gemini já está disponível para o usuário, mas seus limites efetivos devem ser lidos no projeto do AI Studio;
+- Cloudflare Workers AI ainda precisa ter credencial/configuração local preparada para o projeto;
+- SiliconFlow permanece opcional até que um modelo gratuito atual e seus limites reais sejam comprovados.
 
-Próximas verificações manuais:
+Próximos passos:
 
-1. no SiliconFlow, abrir **Higher Limits** e identificar limites atuais por conta/modelo; verificar também **Payments** apenas para saldo/créditos, sem adicionar pagamento;
-2. no Z.AI, abrir **Rate Limits** e registrar RPM/TPM/concurrency/quota dos modelos gratuitos/Flash disponíveis para a conta;
-3. comparar esses números com Cloudflare Workers AI e Groq, usando a pesquisa de agosto de 2026 como referência;
-4. não assumir que um modelo é gratuito apenas porque aparece no catálogo — confirmar preço zero e natureza recorrente do plano.
+1. criar/configurar a credencial do Cloudflare Workers AI sem colocar segredo no Git;
+2. registrar os limites efetivos do projeto Gemini no AI Studio;
+3. manter contadores locais para Z.AI, Cloudflare e Gemini onde o provedor não expuser telemetria completa de quota.
 
-Critério de conclusão: obter dados suficientes para dizer, sem suposição, quais candidatos oferecem gratuidade recorrente e qual volume real de uso está disponível para um planner iterativo.
+## 2. Implementar o roteador inteligente multi-provider
 
-## 2. Escolher o primeiro provedor de IA
+Criar uma camada de roteamento sobre o contrato provider-agnostic de `src/context_anchor/planner.py`.
 
-Depois das medições, escolher explicitamente o primeiro provedor/modelo considerando em conjunto:
+O roteador deve escolher por capacidade, quota/budget, concorrência, latência, erros recentes e cooldown; não deve usar round-robin simples.
 
-- gratuidade recorrente;
-- RPM e TPM;
-- RPD/TPD ou budget diário equivalente;
-- Structured Outputs / JSON Schema;
-- function/tool calling;
-- reasoning;
-- latência;
-- estabilidade do free tier.
+Papéis iniciais:
 
-A decisão escolhida deverá ser registrada em `DECISIONS.md` antes da integração.
+- GLM-4.7-Flash → reasoning/decisões complexas;
+- Cloudflare Workers AI → decisões simples e frequentes/burst com modelo eficiente;
+- Gemini → multimodalidade/visão e fallback complementar.
 
-## 3. Integrar o provedor escolhido ao planner
+Toda resposta continua sendo convertida para `StructuredAction` e passando pela Policy Layer. `DeterministicPlanner` permanece como fallback e para testes.
 
-Conectar o provedor vencedor ao contrato provider-agnostic em `src/context_anchor/planner.py`.
+## 3. Validar roteamento e fallback sem repetir ação física
 
-Requisitos:
+Primeiro teste: uma única ação simples em linguagem natural deve ser planejada, validada e executada pelo mesmo caminho físico já aprovado.
 
-- saída compatível com `StructuredAction`;
-- nenhuma ação de shell;
-- nenhuma credencial enviada ao modelo;
-- toda saída passa pela Policy Layer;
-- `DeterministicPlanner` permanece como fallback e para testes;
-- primeiro teste usa uma única ação simples em linguagem natural pelo mesmo caminho físico já validado.
+Depois, simular indisponibilidade/`429` de um provedor e confirmar que o roteador seleciona outro provedor compatível.
+
+Critério de segurança: fallback de IA não pode repetir automaticamente uma ação física já executada. O sistema deve verificar estado/resultado antes de qualquer nova execução.
