@@ -38,75 +38,75 @@ A parada de emergência em `src/context_anchor/emergency_stop.py` é independent
 
 A Central, o Painel e o Robô continuam locais por padrão e não devem ser expostos diretamente à Internet nesta versão.
 
-## Telemetria e processos
+## Planner e roteador multi-provider
 
-Telemetria estruturada em:
+O `DeterministicPlanner` continua sendo o modo padrão enquanto `CONTEXT_ANCHOR_PLANNER_MODE=deterministic`.
 
-- `runtime/logs/panel.log`;
-- `runtime/logs/central.log`;
-- `runtime/logs/robot.log`.
+Foi implementada no `main` a primeira versão do modo **multi-provider**:
 
-Credenciais não são registradas e o logger estruturado evita copiar o texto bruto das tarefas.
+- `MultiProviderPlanner` em `src/context_anchor/planner.py`;
+- adaptadores reais em `src/context_anchor/providers.py` para **Z.AI**, **Cloudflare Workers AI** e **Gemini**;
+- configuração em `LocalAgentSettings` para modo do planner, timeout, cooldown, modelos e credenciais locais;
+- `local_agent.py` constrói dinamicamente o roteador usando somente provedores que possuam credenciais suficientes no `.env`;
+- comandos que o planner determinístico já entende continuam sendo resolvidos localmente antes da IA, sem consumir quota externa;
+- pedidos simples priorizam Cloudflare → Z.AI → Gemini;
+- pedidos com marcadores de análise/condição priorizam Z.AI → Gemini → Cloudflare;
+- o roteador acompanha sucessos, falhas consecutivas, latência, cooldown e uma janela local de RPM quando há limite configurado;
+- falha ou resposta estruturada inválida de um provedor pode acionar outro provedor **antes da execução física**;
+- resultado de tarefa pode registrar `planner_provider`, `planner_route` e provedores que falharam sem registrar credenciais;
+- toda saída ainda é validada como `StructuredAction` e depois passa pela Policy Layer.
 
-O gerenciamento de processos em `src/context_anchor/process_registry.py` guarda PID e tempo de início e trata processos Linux em estado `Z` como desligados.
+O modo multi-provider **ainda não foi validado fisicamente com as chaves reais no computador do usuário**.
 
-## Planner
+### Provedores iniciais
 
-O `DeterministicPlanner` continua ativo e é o único planner executando tarefas neste momento.
+- **Z.AI / `glm-4.7-flash`** — principal para reasoning/decisões complexas;
+- **Cloudflare Workers AI / `@cf/meta/llama-3.1-8b-instruct-fast`** — fast planner estruturado para chamadas simples;
+- **Google Gemini / `gemini-3.5-flash`** — fallback textual inicial e base para multimodalidade futura.
 
-Existe contrato provider-agnostic em `src/context_anchor/planner.py`, com `StructuredAction` fechado para ações conhecidas e `ProviderPlanner` preparado para integração externa.
+A visão/multimodalidade do Gemini ainda não está conectada ao planner atual; o adaptador implementado nesta etapa recebe texto e devolve uma única `StructuredAction`.
 
-Nenhum provedor de IA real está integrado ao Robô ainda.
-
-### Direção de IA definida — multi-provider
-
-A arquitetura do primeiro planner por IA será **multi-provider com roteamento inteligente consciente de quota**, e não dependente de um único serviço.
-
-Conjunto inicial definido:
-
-- **Z.AI / GLM-4.7-Flash** — reasoning e decisões mais complexas;
-- **Cloudflare Workers AI** — decisões simples/frequentes e burst, preferindo modelos eficientes para preservar neurons;
-- **Google Gemini** — multimodalidade/visão e fallback complementar.
-
-O roteador não fará round-robin simples. A escolha deverá considerar capacidade exigida, quota/budget disponível, concorrência, latência, erros recentes e cooldown do provedor.
-
-A pesquisa profunda de agosto de 2026 sustenta essa direção: GLM-4.7-Flash aparece com preço zero atual, reasoning, tools e structured output; Cloudflare possui 300 RPM default para text generation, mas é limitado também por 10.000 neurons/dia; Gemini continua relevante como provedor multimodal e complementar.
-
-### Validação manual das contas
+## Contas e credenciais — estado real
 
 Confirmado no navegador:
 
-- conta do **SiliconFlow** criada;
-- API key do SiliconFlow criada para o projeto;
-- tela **Usage & Charges** do SiliconFlow acessada sem consumo registrado (`$0.00`);
-- o link **Higher Limits** do SiliconFlow abre um formulário de solicitação de aumento de RPM/TPM e não revela os limites atuais da conta;
-- conta do **Z.AI** criada;
-- API key do Z.AI criada para o projeto;
-- a tela real **Rate Limits** do Z.AI foi acessada;
-- para `GLM-4.7-Flash`, a conta mostrou **concurrency limit = 1**;
-- a mesma tela mostra limites de concorrência diferentes por modelo, confirmando que o uso precisa respeitar o modelo escolhido;
-- token personalizado do **Cloudflare Workers AI** criado com permissões **Workers AI: Read** e **Workers AI: Edit**;
-- o token Cloudflare foi copiado e guardado localmente pelo usuário, sem ser enviado ao Git ou ao código;
-- o token Cloudflare foi criado com escopo de recurso **Todas as contas**, que funciona, mas é mais amplo que o necessário e deve preferencialmente ser restringido à conta específica antes da integração;
-- nenhuma chave de SiliconFlow, Z.AI ou Cloudflare foi adicionada ao Git ou integrada ao código.
+- conta e API key do **Z.AI** criadas;
+- `GLM-4.7-Flash` mostrou **concurrency limit = 1** na tela real de Rate Limits;
+- conta e API key do **SiliconFlow** criadas, mas o serviço permanece opcional enquanto o limite de um modelo free atual não for comprovado;
+- token personalizado do **Cloudflare Workers AI** criado com permissões Workers AI Read/Edit e guardado localmente;
+- Google/Gemini já possui chave disponível para o usuário;
+- nenhuma chave foi gravada no Git.
 
-SiliconFlow permanece candidato opcional futuro, mas não faz parte do conjunto inicial enquanto os limites reais de um modelo gratuito atual não forem comprovados.
+Ainda falta obter/configurar localmente o **Cloudflare Account ID** para que o adaptador Cloudflare possa chamar a REST API.
+
+## Testes automatizados desta etapa
+
+Foram adicionados testes para:
+
+- preservar comandos determinísticos sem chamada externa;
+- roteamento fast para Cloudflare;
+- roteamento de reasoning para Z.AI;
+- fallback quando o primeiro provedor falha;
+- fallback quando um provedor devolve ação estruturada inválida;
+- parsing dos formatos de resposta de Z.AI, Cloudflare e Gemini sem acessar a rede;
+- preservação de `Retry-After` em erro 429.
+
+O commit de testes do roteador (`72596186a9038af5bcfe1ded23fb57254d9e73ed`) teve CI `success`. O run do commit que adiciona os testes dos adaptadores (`4d4f32b39efd16860d34c385f8a305de9f069064`) estava `queued` na última verificação e não deve ser tratado como aprovado até concluir.
 
 ## Próximo bloqueio real
 
-Antes da integração multi-provider funcionar, ainda falta:
+O próximo bloqueio não é mais desenhar o router; é **ativá-lo no Linux real**:
 
-- restringir preferencialmente o token Cloudflare à conta específica e obter o `Account ID`;
-- registrar os limites efetivos do projeto Gemini no AI Studio;
-- implementar contabilidade local de quota/latência/erros para os provedores que não expõem telemetria suficiente;
-- implementar o roteador e os adaptadores de Z.AI, Cloudflare e Gemini sobre o contrato provider-agnostic existente.
+- atualizar a cópia local com `git pull --ff-only`;
+- colocar as chaves Z.AI e Gemini no `.env` e mudar `CONTEXT_ANCHOR_PLANNER_MODE=multi`;
+- reiniciar o Robô e validar uma intenção simples em linguagem natural;
+- depois adicionar `CLOUDFLARE_ACCOUNT_ID` ao `.env` e validar que uma intenção simples pode usar Cloudflare e fazer fallback para outro provedor.
 
-## Ainda não implementado
+## Ainda não implementado ou não validado
 
-- planner conectado a IA real;
-- roteador multi-provider;
-- fallback automático entre provedores;
-- quota manager;
+- validação física do planner multi-provider com APIs reais;
+- quota manager completo com TPD/budget diário de Cloudflare e quotas desconhecidas do Z.AI;
+- visão/multimodalidade ligada ao router;
 - loop autônomo multietapa orientado a objetivo;
 - árvore de acessibilidade;
 - percepção semântica de screenshots;
