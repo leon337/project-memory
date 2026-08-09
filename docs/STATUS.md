@@ -74,17 +74,22 @@ Confirmado no computador alvo:
 - tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`;
 - movimento físico do mouse validado pelo Painel: comandos `mover mouse 200 200`, `mover mouse 600 200`, `mover mouse 600 350` e `mover mouse 600 355` concluíram como **`succeeded`**, com deslocamento visível do ponteiro para as coordenadas solicitadas;
 - clique físico validado visualmente: o ponteiro foi posicionado sobre o botão de minimizar e o comando `clicar` minimizou a janela, confirmando o efeito real do clique;
-- abertura de aplicativo permitida validada fisicamente: o comando `abrir aplicativo editor` abriu o editor Xed com um documento novo.
+- abertura de aplicativo permitida validada fisicamente: o comando `abrir aplicativo editor` abriu o editor Xed com um documento novo;
+- capacidade física de digitação foi validada em um segundo encadeamento: o Xed recebeu o texto `teste do robo`.
 
 ## Falhas já diagnosticadas
 
 - screenshot falhava inicialmente por ausência de `PIL`; corrigido com Pillow;
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
-- comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando.
+- comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
+- o primeiro encadeamento `abrir aplicativo editor` → `digitar teste do robo` marcou as duas tarefas como `succeeded`, mas o editor inicialmente permaneceu sem o texto esperado;
+- o segundo encadeamento funcionou quando uma ação intermediária de movimento do mouse adicionou tempo antes da digitação;
+- isso confirma uma condição de corrida de prontidão/foco: `open_application()` espera apenas cerca de `0.15 s` antes de retornar, e `type_text()` atualmente considera a digitação verificada assim que envia as teclas, sem comprovar o destino do foco;
+- portanto a digitação física funciona, mas o encadeamento automático de ações de desktop ainda não é confiável.
 
 ## Ainda precisa de validação física
 
-- digitação;
+- corrigir e retestar sincronização/foco entre `abrir aplicativo` e `digitar`;
 - teclas permitidas;
 - diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
