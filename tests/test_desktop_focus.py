@@ -9,12 +9,16 @@ class FakeGui:
         self.writes: list[tuple[str, float]] = []
         self.clicks: list[str] = []
         self.presses: list[str] = []
+        self.hotkeys: list[tuple[str, ...]] = []
 
     def write(self, text: str, interval: float = 0.0) -> None:
         self.writes.append((text, interval))
 
     def press(self, key: str) -> None:
         self.presses.append(key)
+
+    def hotkey(self, *keys: str) -> None:
+        self.hotkeys.append(tuple(keys))
 
     def click(self, button: str) -> None:
         self.clicks.append(button)
@@ -89,8 +93,29 @@ def test_type_text_records_confirmed_window(monkeypatch) -> None:
     result = backend.type_text("teste do robo")
 
     assert gui.writes == [("teste do robo", 0.01)]
+    assert result["input_method"] == "pyautogui-write"
     assert result["window_id"] == "200"
     assert result["window_title"] == "Documento não-salvo 1"
+    assert result["verified"] is True
+
+
+def test_type_text_preserves_unicode_with_linux_codepoint_input(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Documento não-salvo 1")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+
+    result = backend.type_text("Olá mundo")
+
+    assert gui.writes == [("Ol", 0.01), ("e1", 0.01), (" mundo", 0.01)]
+    assert gui.hotkeys == [("ctrl", "shift", "u")]
+    assert gui.presses == ["enter"]
+    assert result["characters"] == len("Olá mundo")
+    assert result["input_method"] == "linux-unicode-input"
     assert result["verified"] is True
 
 
