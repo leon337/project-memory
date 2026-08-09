@@ -46,6 +46,47 @@ def _looks_like_url_target(target: str) -> bool:
     )
 
 
+def _strip_polite_suffix(value: str) -> str:
+    result = value.strip()
+    patterns = (
+        r"\s+(?:para|pra)\s+mim\s+por\s+favor$",
+        r"\s+por\s+favor$",
+        r"\s+(?:para|pra)\s+mim$",
+    )
+    for pattern in patterns:
+        result = re.sub(pattern, "", result, flags=re.IGNORECASE).strip()
+    return result
+
+
+def plan_local_sequence(command: str) -> tuple[Plan, ...] | None:
+    """Recognize small compound goals that do not need an external model.
+
+    The fast path is intentionally narrow. It preserves the exact user text and
+    lets the executor verify each physical step, while avoiding unnecessary
+    provider calls for deterministic sequences such as open-app + type-text.
+    """
+
+    text = command.strip()
+    match = re.fullmatch(
+        r"(?:por\s+favor\s+)?(?:abra|abre|abrir|open)\s+(.+?)\s+e\s+"
+        r"(?:escreva|escrever|digite|digitar|type)\s+(.+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    app_target = _strip_polite_suffix(match.group(1))
+    typed_text = match.group(2).strip()
+    if not app_target or not typed_text or _looks_like_url_target(app_target):
+        return None
+
+    return (
+        Plan("open_app", canonical_app_id(app_target)),
+        Plan("type_text", typed_text),
+    )
+
+
 def plan_command(command: str) -> Plan:
     text = command.strip()
     lowered = text.casefold()
@@ -82,7 +123,7 @@ def plan_command(command: str) -> Plan:
 
     for prefix in ("abrir aplicativo ", "abrir app ", "open app "):
         if lowered.startswith(prefix):
-            app_id = canonical_app_id(text[len(prefix):])
+            app_id = canonical_app_id(_strip_polite_suffix(text[len(prefix):]))
             if not app_id:
                 raise ValueError("Informe o aplicativo a abrir.")
             return Plan("open_app", app_id)
@@ -94,18 +135,16 @@ def plan_command(command: str) -> Plan:
                 raise ValueError("A pesquisa precisa de um termo.")
             return Plan("open_url", f"https://duckduckgo.com/?q={quote_plus(query)}")
 
-    for prefix in ("abrir ", "open "):
+    for prefix in ("abrir ", "abra ", "abre ", "open "):
         if lowered.startswith(prefix):
-            target = text[len(prefix):].strip()
+            target = _strip_polite_suffix(text[len(prefix):])
             if not target:
-                raise ValueError("Informe o endereço a abrir.")
-            if not _looks_like_url_target(target):
-                raise ValueError(
-                    "O alvo não parece uma URL. O planner de IA deve decidir se é aplicativo ou outra ação."
-                )
-            if "://" not in target:
-                target = f"https://{target}"
-            return Plan("open_url", target)
+                raise ValueError("Informe o alvo a abrir.")
+            if _looks_like_url_target(target):
+                if "://" not in target:
+                    target = f"https://{target}"
+                return Plan("open_url", target)
+            return Plan("open_app", canonical_app_id(target))
 
     raise ValueError(
         "Comando ainda não suportado pelo caminho determinístico; encaminhe ao planner de IA."
