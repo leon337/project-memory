@@ -1,26 +1,22 @@
 # NEXT
 
-## 1. Ativar o planner multi-provider no Linux real com credenciais não expostas
+## 1. Revalidar o planner multi-provider no Linux real
 
-O router e os adaptadores de **Z.AI, Cloudflare Workers AI e Gemini** já estão implementados no `main`, e a cópia local já foi atualizada com `git pull --ff-only`.
+O primeiro teste real já aconteceu com Z.AI + Gemini e comprovou o fallback, mas terminou `failed` porque Z.AI respondeu `429` e Gemini respondeu `400`.
 
-Durante a edição do `.env`, partes das chaves Z.AI e Gemini ficaram visíveis em um screenshot compartilhado na conversa. Antes do teste real, essas duas credenciais devem ser rotacionadas/substituídas localmente.
+O adaptador Gemini foi corrigido no `main` e o diagnóstico de erros HTTP foi ampliado. O CI da correção passou.
 
 Próximos passos:
 
-1. revogar/substituir as chaves Z.AI e Gemini expostas no screenshot;
-2. atualizar o `.env` local, sem enviar screenshot do arquivo, mantendo:
-   - `CONTEXT_ANCHOR_PLANNER_MODE=multi`;
-   - `CONTEXT_ANCHOR_ZAI_API_KEY=<nova chave>`;
-   - `CONTEXT_ANCHOR_GEMINI_API_KEY=<nova chave>`;
-3. salvar o `.env`;
-4. reiniciar o Robô pelo Painel;
-5. enviar uma intenção simples que o parser determinístico não entenda, por exemplo `Por favor abra o editor de texto para mim`;
-6. confirmar em tarefa/log que o resultado registra `planner_provider` e `planner_route` e que a ação continua passando pela Policy Layer.
+1. executar `git pull --ff-only` na cópia local;
+2. reiniciar o Robô pelo Painel;
+3. repetir exatamente `Por favor abra o editor de texto para mim`;
+4. observar se Gemini agora gera uma `StructuredAction` válida e o editor abre;
+5. se Z.AI continuar em `429`, registrar a nova mensagem específica exibida no log.
 
-Critério de conclusão: uma intenção em linguagem natural deve ser planejada por uma API real, convertida para uma única `StructuredAction`, executada pelo caminho físico já validado e registrada sem expor credenciais.
+Critério de conclusão: pelo menos um provedor real deve gerar uma única `StructuredAction`, a ação deve passar pela Policy Layer e ser executada pelo caminho físico já validado.
 
-## 2. Adicionar Cloudflare ao router real e validar fallback
+## 2. Ativar Cloudflare como terceiro provedor e validar fallback
 
 O token Workers AI já foi criado e guardado localmente. Falta obter/configurar `CONTEXT_ANCHOR_CLOUDFLARE_ACCOUNT_ID`.
 
@@ -33,7 +29,7 @@ Depois:
 
 ## 3. Completar o quota manager e telemetria do router
 
-Depois do primeiro teste real passar, ampliar o controle atual de RPM/cooldown para incluir, quando mensurável:
+Depois do primeiro plano real passar, ampliar o controle atual para incluir, quando mensurável:
 
 - budget diário de neurons do Cloudflare;
 - quotas efetivas do Gemini;
