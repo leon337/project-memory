@@ -52,43 +52,64 @@ Foi implementada no `main` a primeira versão do modo **multi-provider**:
 - falha de um provedor pode acionar outro provedor antes da execução física;
 - toda saída continua validada como `StructuredAction` e depois passa pela Policy Layer.
 
-## Primeiro teste real do planner multi-provider
+## Testes reais do planner multi-provider
 
-Em 2026-08-09 foi feito o primeiro teste físico com `CONTEXT_ANCHOR_PLANNER_MODE=multi` e provedores **Z.AI + Gemini** configurados localmente.
+Em 2026-08-09 foi ativado `CONTEXT_ANCHOR_PLANNER_MODE=multi` no Linux real com provedores **Z.AI + Gemini** configurados localmente.
 
-Pedido enviado pelo Painel:
+Pedido usado nos testes:
 
 `Por favor abra o editor de texto para mim`
+
+### Primeiro teste
 
 Resultado observado:
 
 - o Robô iniciou em `planner=multi` com `providers=zai,gemini`;
 - a tarefa entrou na Central e foi entregue normalmente ao Robô;
-- **Z.AI respondeu HTTP 429**;
-- o roteador tentou o fallback para **Gemini**;
-- **Gemini respondeu HTTP 400**;
+- Z.AI respondeu `HTTP 429`;
+- o roteador tentou Gemini;
+- Gemini respondeu `HTTP 400` com o formato então usado no adaptador;
 - a tarefa terminou `failed`;
-- nenhuma ação física foi executada, portanto o fallback ocorreu antes da execução, como projetado.
+- nenhuma ação física foi executada.
 
-Esse teste comprovou a cadeia básica de fallback, mas ainda não comprovou uma geração de plano bem-sucedida por API real.
+Esse teste comprovou que o fallback ocorre antes da execução física.
 
-## Correções após o primeiro teste real
+### Segundo teste após melhorar diagnóstico HTTP
 
-O erro Gemini `HTTP 400` foi diagnosticado como incompatibilidade no corpo enviado ao endpoint `generateContent`. O adaptador foi corrigido no `main` para usar:
+O mesmo pedido foi repetido depois de atualizar e reiniciar o Robô.
 
-- `responseMimeType=application/json`;
-- `responseJsonSchema=ACTION_SCHEMA`.
+Resultado observado no log real:
 
-Também foi melhorado o diagnóstico HTTP dos provedores. Em respostas de erro, o sistema agora tenta registrar somente código/status e mensagem do provedor, sem copiar chave, headers de autenticação ou corpo da requisição.
+- Z.AI respondeu `HTTP 429: 1305: The service may be temporarily overloaded, please try again later`;
+- o roteador tentou Gemini como fallback;
+- Gemini respondeu HTTP com sucesso, porém o texto retornado não chegou como JSON válido ao parser;
+- o erro registrado foi `gemini: resposta não contém JSON válido`;
+- a tarefa terminou `failed`;
+- novamente nenhuma ação física foi executada.
 
-O commit de testes dessa correção (`8769e23cf595f30fdb6c1943dbe4e79217d584e8`) teve CI `success` no run `31299282874`.
+A documentação oficial do Z.AI classifica o código `1305` como rate limit; portanto o erro observado é uma indisponibilidade/limitação transitória do provedor, não falha da Policy Layer nem do executor.
 
-O `429` do Z.AI ainda não teve a causa específica confirmada. O endpoint, o model id `glm-4.7-flash` e o uso de `response_format={"type":"json_object"}` permanecem compatíveis com a documentação atual; o próximo teste deve revelar a mensagem real devolvida pela API.
+## Correção vigente do Gemini
+
+Depois do segundo teste, a integração Gemini foi migrada para a **Interactions API** atual:
+
+- endpoint: `/v1beta/interactions`;
+- modelo padrão mantido em `gemini-3.5-flash`;
+- structured output configurado por `response_format` com `type=text`, `mime_type=application/json` e `ACTION_SCHEMA`;
+- a resposta REST é extraída do último `model_output` textual em `steps`;
+- fence de código simples em volta de JSON pode ser removida antes do parse;
+- o resultado continua obrigado a validar como `StructuredAction` antes da Policy Layer.
+
+Essa implementação está em `src/context_anchor/providers.py`.
+
+O commit de testes da migração (`02bb0d32f5e9987532565aa818f51f65f65244d0`) teve CI `success` no run `31299603246`.
+
+Ainda falta validar fisicamente essa nova versão com a API real.
 
 ## Provedores e credenciais — estado atual
 
-- **Z.AI / `glm-4.7-flash`**: conta e API key criadas; tela real de Rate Limits mostrou `concurrency limit = 1`; chave configurada localmente no `.env`;
-- **Google Gemini / `gemini-3.5-flash`**: chave configurada localmente no `.env`;
+- **Z.AI / `glm-4.7-flash`**: conta e API key criadas; tela real de Rate Limits mostrou `concurrency limit = 1`; chave configurada localmente no `.env`; chamadas reais atualmente podem retornar `429/1305`;
+- **Google Gemini / `gemini-3.5-flash`**: chave configurada localmente no `.env`; adaptador agora usa Interactions API;
 - **Cloudflare Workers AI**: token personalizado com Workers AI Read/Edit criado e guardado localmente; ainda falta `Account ID` no `.env` para ativar o adaptador;
 - **SiliconFlow**: conta e API key criadas, mas permanece opcional enquanto um modelo gratuito atual e seus limites reais não forem comprovados.
 
@@ -96,12 +117,12 @@ As credenciais permanecem fora do Git. O usuário optou por continuar os testes 
 
 ## Próximo bloqueio real
 
-O próximo bloqueio é revalidar o planner real depois da correção Gemini:
+O próximo bloqueio é revalidar o planner no Linux real com o novo adaptador Gemini:
 
-- atualizar a cópia local com `git pull --ff-only`;
+- executar `git pull --ff-only`;
 - reiniciar o Robô pelo Painel;
-- repetir a intenção em linguagem natural;
-- confirmar se Gemini agora produz uma `StructuredAction` válida ou, se Z.AI continuar em `429`, capturar a mensagem específica do provedor;
+- repetir `Por favor abra o editor de texto para mim`;
+- confirmar se Gemini produz uma `StructuredAction` válida e o editor abre quando Z.AI estiver limitado;
 - depois obter/configurar o `Cloudflare Account ID` e ativar o terceiro provedor.
 
 ## Ainda não implementado ou não validado
