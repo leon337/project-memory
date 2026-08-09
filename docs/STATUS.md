@@ -64,7 +64,7 @@ Commits principais desta rodada:
 - `823715419db91206dfac455b3af2b47c29b4b618` — testes do novo Painel;
 - `fd5192628c7c1e6c4d3e58a00dbc09693265b4f2` — testes do logger de runtime.
 
-O CI do código desta rodada concluiu com **success**. A terceira revisão **ainda não foi puxada nem validada fisicamente no computador alvo**.
+O CI do código desta rodada concluiu com **success**. A terceira revisão foi baixada com sucesso no computador alvo por `git pull`, atualizando a cópia local até `34e8e51`. Os processos Painel, Central e Robô que estavam em execução durante o pull ainda carregam o código anterior em memória e precisam ser reiniciados separadamente antes da validação física da nova UI e da telemetria.
 
 ## Gerenciamento de processos
 
@@ -119,7 +119,8 @@ Confirmado no computador alvo:
 - abertura do Xed, digitação e tecla **Enter** validadas;
 - encadeamento abrir editor → digitar validado após correção de foco;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
-- segunda revisão ultra escura carregada e confirmada visualmente nas três telas.
+- segunda revisão ultra escura carregada e confirmada visualmente nas três telas;
+- terceira revisão com controles de estado e telemetria real baixada com sucesso por `git pull`.
 
 ## Falhas já diagnosticadas
 
@@ -133,7 +134,7 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- puxar a terceira revisão e reiniciar o Painel;
+- reiniciar o Painel para carregar a terceira revisão;
 - confirmar visualmente que **Controles de estado** refletem Central, Robô e Emergência corretamente;
 - validar que a Central atualmente iniciada fora do Painel aparece explicitamente como externa, se esse ainda for o estado real;
 - reiniciar Central e Robô com o código novo e confirmar eventos reais aparecendo nos filtros de log;
