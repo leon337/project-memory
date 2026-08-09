@@ -8,6 +8,7 @@ from context_anchor.planner import (
     ProviderPlanner,
     plan_from_structured,
 )
+from context_anchor.policy import evaluate_plan
 
 
 class FakeProvider:
@@ -33,6 +34,20 @@ def test_structured_plan_accepts_known_action() -> None:
     plan = plan_from_structured({"action": "move_mouse", "target": "100,200"})
     assert plan.action == "move_mouse"
     assert plan.target == "100,200"
+
+
+def test_structured_plan_normalizes_safe_editor_aliases() -> None:
+    for target in ("editor de texto", "text_editor", "xed", "gedit"):
+        plan = plan_from_structured({"action": "open_app", "target": target})
+        assert plan.action == "open_app"
+        assert plan.target == "editor"
+        assert evaluate_plan(plan, desktop_enabled=True).allowed is True
+
+
+def test_structured_plan_does_not_turn_unknown_app_into_allowed_app() -> None:
+    plan = plan_from_structured({"action": "open_app", "target": "bash"})
+    assert plan.target == "bash"
+    assert evaluate_plan(plan, desktop_enabled=True).allowed is False
 
 
 def test_structured_plan_rejects_shell_action() -> None:
