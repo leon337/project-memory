@@ -31,7 +31,9 @@ Feedback de uso real mostrou que o tema predominantemente claro era cansativo pa
 - console e barras de rolagem integrados ao tema;
 - responsividade preservada.
 
-O teste `tests/test_dashboard.py` agora verifica marcadores essenciais da paleta escura para reduzir risco de regressão visual acidental. O commit principal da mudança de tema passou no CI. A revisão ainda precisa ser puxada e validada visualmente no computador alvo antes de ser considerada concluída.
+O teste `tests/test_dashboard.py` verifica marcadores essenciais da paleta escura para reduzir risco de regressão visual acidental. O commit principal da mudança de tema e o teste específico passaram no CI.
+
+A nova versão foi puxada para o computador alvo, o processo do Painel foi reiniciado pelo atalho do desktop e a **Visão geral** foi confirmada visualmente com o dark mode carregado. Ainda falta validar as telas **Configurações** e **Laboratório** e obter a confirmação do usuário sobre conforto, contraste e legibilidade antes de considerar a revisão visual concluída.
 
 ## Gerenciamento de processos
 
@@ -100,7 +102,8 @@ Confirmado no computador alvo:
 - o encadeamento direto `abrir aplicativo editor` → `digitar teste do robo` foi repetido após a correção de foco, sem movimento do mouse nem clique intermediário, e funcionou corretamente;
 - as duas tarefas do reteste foram registradas como **`succeeded`**, com o texto aparecendo no Xed;
 - a tecla permitida **Enter** foi validada fisicamente em sequência: `abrir aplicativo editor` → `digitar linha um` → `tecla enter` → `digitar linha dois`, resultando em duas linhas distintas no Xed;
-- o botão **Diagnóstico** do Painel foi validado no computador real e mostrou **OK** para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop.
+- o botão **Diagnóstico** do Painel foi validado no computador real e mostrou **OK** para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
+- o dark mode foi puxado, o Painel foi reiniciado pelo atalho do desktop e a **Visão geral** carregou corretamente com o novo tema.
 
 ## Falhas já diagnosticadas
 
@@ -110,7 +113,7 @@ Confirmado no computador alvo:
 - o primeiro encadeamento `abrir aplicativo editor` → `digitar teste do robo` marcou as duas tarefas como `succeeded`, mas o editor inicialmente permaneceu sem o texto esperado;
 - um segundo encadeamento funcionou quando uma ação intermediária adicionou tempo antes da digitação, revelando uma condição de corrida de prontidão/foco;
 - a condição de corrida foi corrigida com espera observável de foco e proteção de teclado e depois validada fisicamente em novo reteste direto;
-- o tema claro original do Painel foi considerado desconfortável em uso real; a correção visual escura está implementada no repositório e aguarda validação física.
+- o tema claro original do Painel foi considerado desconfortável em uso real; a correção visual escura está implementada e já foi carregada no computador alvo, faltando validação completa das telas e do conforto subjetivo.
 
 ## Correções validadas em código
 
@@ -119,11 +122,12 @@ Confirmado no computador alvo:
 - o computador alvo recebeu a correção de foco por `git pull`, o Robô foi reiniciado e o reteste físico direto passou;
 - `src/context_anchor/dashboard.py` contém a primeira revisão de dark mode;
 - o CI do commit `e162b1e3811fc33df987f5c6531ac0ab56c7748f` concluiu com **success**;
+- o CI do teste específico de proteção do tema escuro também concluiu com **success**;
 - `tests/test_dashboard.py` inclui proteção básica contra regressão da paleta escura.
 
 ## Ainda precisa de validação física
 
-- puxar a nova versão do Painel e validar conforto, contraste, legibilidade e estados do dark mode no computador real;
+- validar **Configurações** e **Laboratório** no dark mode e confirmar conforto, contraste e legibilidade com o usuário;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
