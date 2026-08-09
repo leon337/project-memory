@@ -2,13 +2,12 @@
 
 ## 1. Concluir a validação física de segurança
 
-Percepção, mouse, abertura de aplicativo, digitação, sincronização de foco e uma tecla permitida (`Enter`) já foram validados no Linux real.
+Percepção, mouse, abertura de aplicativo, digitação, sincronização de foco, uma tecla permitida (`Enter`) e o diagnóstico pelo Painel já foram validados no Linux real.
 
 Próximos testes, em passos pequenos:
 
-1. executar o diagnóstico pelo botão do Painel;
-2. validar o `FAILSAFE` físico;
-3. validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio.
+1. validar o `FAILSAFE` físico;
+2. validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio.
 
 Critério de conclusão: mecanismos de diagnóstico e parada devem funcionar fisicamente sem bypass da Policy Layer.
 
