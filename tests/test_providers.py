@@ -69,7 +69,9 @@ def test_cloudflare_provider_uses_json_schema_and_accepts_object_response(
     assert captured["json"]["response_format"]["type"] == "json_schema"
 
 
-def test_gemini_provider_uses_structured_response_format(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_gemini_provider_uses_generate_content_structured_output_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: dict = {}
 
     def fake_post(url: str, **kwargs):
@@ -97,14 +99,23 @@ def test_gemini_provider_uses_structured_response_format(monkeypatch: pytest.Mon
     result = provider.generate_plan("qual janela está ativa?")
 
     assert result == {"action": "active_window", "target": "active"}
-    response_format = captured["json"]["generationConfig"]["responseFormat"]
-    assert response_format["text"]["mimeType"] == "application/json"
+    config = captured["json"]["generationConfig"]
+    assert config["responseMimeType"] == "application/json"
+    assert config["responseJsonSchema"]["type"] == "object"
+    assert "responseFormat" not in config
     assert captured["url"].endswith("gemini-3.5-flash:generateContent")
 
 
-def test_provider_429_preserves_retry_after_for_router(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_provider_429_preserves_retry_after_and_safe_error_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fake_post(url: str, **kwargs):
-        return _response(url, 429, {"error": "limited"}, headers={"retry-after": "7"})
+        return _response(
+            url,
+            429,
+            {"error": {"code": "RATE_LIMIT", "message": "Too many requests"}},
+            headers={"retry-after": "7"},
+        )
 
     monkeypatch.setattr(httpx, "post", fake_post)
     provider = ZAIProvider("secret")
@@ -114,3 +125,6 @@ def test_provider_429_preserves_retry_after_for_router(monkeypatch: pytest.Monke
 
     assert exc_info.value.status_code == 429
     assert exc_info.value.retry_after_seconds == 7.0
+    assert "RATE_LIMIT" in str(exc_info.value)
+    assert "Too many requests" in str(exc_info.value)
+    assert "secret" not in str(exc_info.value)
