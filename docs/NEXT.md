@@ -1,34 +1,34 @@
 # NEXT
 
-## 1. Validar fisicamente o loop orientado a objetivo
+## 1. Revalidar fisicamente `abrir + escrever` sem provider
 
-Atualizar a cópia local, reiniciar o Robô e repetir exatamente:
+Atualizar a cópia local, reiniciar o Robô, fechar Xed/Gedit já aberto e enviar exatamente:
 
 `Abra o editor de texto e escreva Olá mundo`
 
 Critério de conclusão:
 
 - editor abre;
-- foco permanece correto;
-- `Olá mundo` é realmente digitado;
-- o planner continua depois de `open_app`;
-- uma decisão posterior retorna `finish`;
-- a task só então termina `succeeded`;
-- logs/resultados mostram mais de uma etapa no objetivo.
+- `Olá mundo` aparece exatamente, incluindo `á`;
+- task termina `succeeded`;
+- resultado contém 2 etapas: `open_app` e `type_text`;
+- `planner_provider=deterministic` e `planner_route=local-sequence`;
+- nenhum 429 de Gemini/Z.AI é necessário para essa tarefa.
 
-## 2. Validar fisicamente a política permissiva e o Brave
+## 2. Validar Brave pelo caminho determinístico local
 
-Testar:
+Enviar:
 
 `abrir o navegador brave`
 
 Critério de conclusão:
 
-- a frase não vira URL;
-- o planner escolhe `open_app`;
-- Brave é resolvido para um executável instalado e abre como aplicativo;
-- se um aplicativo/comando não existir, a falha deve ser de resolução/execução (`FileNotFoundError` ou equivalente), não `PermissionError` de allowlist.
+- não vira URL;
+- não chama provider externo;
+- resolve `open_app(brave-browser)`;
+- Brave instalado abre como aplicativo;
+- se não existir executável compatível, a falha é de resolução/execução, não de allowlist.
 
-## 3. Depois das validações, testar objetivo condicional real
+## 3. Preparar e testar primeiro objetivo condicional real
 
-Executar um primeiro caso do tipo observar → decidir → agir → observar novamente, sem ainda depender de visão semântica avançada. Depois disso, retomar metadados de falha, Cloudflare Workers AI e quota manager.
+Depois que os dois testes locais passarem, garantir ao menos um provider disponível para raciocínio — preferencialmente ativando Cloudflare Workers AI com o `Account ID` ou após a quota do Gemini voltar — e então testar um objetivo do tipo observar → decidir → agir → observar novamente.
