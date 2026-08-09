@@ -50,7 +50,10 @@ Validação física desta revisão:
 - as telas **Configurações** e **Laboratório** continuam renderizando corretamente após a revisão;
 - a seção **Logs reais da aplicação** exibiu evento real do Painel com timestamp e origem `[PAINEL]` logo após sua inicialização;
 - após iniciar a Central pelo Painel, a seção exibiu eventos reais separados de `[PAINEL]` e `[CENTRAL]`, incluindo solicitação de início, inicialização da Central em `127.0.0.1:8000` e registro do PID criado pelo Painel;
-- após reiniciar o Robô pelo Painel, a seção exibiu a sequência real de solicitação de reinício, parada, novo início e eventos `[ROBÔ]` informando `agente=desktop-principal` e `desktop=habilitado`.
+- após reiniciar o Robô pelo Painel, a seção exibiu a sequência real de solicitação de reinício, parada, novo início e eventos `[ROBÔ]` informando `agente=desktop-principal` e `desktop=habilitado`;
+- a parada de emergência foi validada fisicamente em dois ciclos pelo Painel: ao ativar, o estado passou para **ATIVA**, o Robô passou para **DESLIGADO** com texto **Bloqueado pela parada de emergência**, e os controles de início/reinício ficaram indisponíveis;
+- em ambos os ciclos, **Liberar emergência** devolveu o estado para **NORMAL** e o Robô permaneceu desligado até uma ação humana explícita de **Ligar Robô**;
+- depois da liberação, o Robô foi iniciado pelo Painel e voltou para **LIGADO**; os logs registraram `PARADA DE EMERGÊNCIA ativada`, `Parada de emergência liberada`, `Solicitado início do Robô`, novo PID e `Robô iniciando`.
 
 ### Telemetria real
 
@@ -161,7 +164,8 @@ Confirmado no computador alvo:
 - telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada;
 - reinício do Robô pelo Painel validado, com novo PID e retorno ao estado operacional;
 - telemetria real do Robô validada fisicamente com eventos `[ROBÔ]` e `[PAINEL]` coerentes com a reinicialização;
-- FAILSAFE explícito revalidado fisicamente em dois cantos: as duas tarefas `mover mouse 200 200` terminaram `failed` e os logs registraram `DesktopFailsafeTriggered` antes da entrada física.
+- FAILSAFE explícito revalidado fisicamente em dois cantos: as duas tarefas `mover mouse 200 200` terminaram `failed` e os logs registraram `DesktopFailsafeTriggered` antes da entrada física;
+- parada de emergência validada fisicamente em dois ciclos: ativação desligou e bloqueou o Robô, a interface impediu início/reinício enquanto o estado estava **ATIVA**, a liberação voltou para **NORMAL** sem reinício automático, e o Robô só voltou para **LIGADO** após ação humana explícita; logs registraram todas essas transições e os novos PIDs.
 
 ## Falhas já diagnosticadas
 
@@ -176,10 +180,9 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- validar parada de emergência real e liberação consciente;
-- validar a transição explícita **Parar Robô → Desligado → Ligar Robô → Ligado** pelo Painel;
+- validar a transição normal explícita **Parar Robô → Desligado → Ligar Robô → Ligado** pelo Painel, sem usar a emergência;
 - testar o Laboratório com um comando conhecido;
-- concluir o uso diário sem dependência normal de terminais separados.
+- confirmar o fluxo diário pelo atalho `Painel do Robô` e pela interface Web local sem dependência normal de terminais separados.
 
 ## Ainda não implementado
 
