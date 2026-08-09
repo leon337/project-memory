@@ -24,9 +24,9 @@ No Linux/X11 real já foram validados:
 - screenshot;
 - movimento e clique de mouse;
 - abertura de aplicativos;
-- digitação ASCII e tecla Enter;
+- digitação e tecla Enter;
 - proteção de foco entre ações de teclado;
-- navegação por Playwright/Chromium;
+- navegação por Playwright/Chromium em testes anteriores;
 - telemetria real de Painel, Central e Robô;
 - planner multi-provider com fallback;
 - Gemini abrindo Xed, calculadora e navegador em testes reais anteriores.
@@ -39,67 +39,28 @@ O modo `multi` possui adaptadores para:
 - **Google Gemini** via SDK oficial `google-genai`;
 - **Cloudflare Workers AI**, ainda sem `Account ID` configurado no ambiente real.
 
-Estado observado nos testes mais recentes:
+Estado observado nos testes recentes:
 
 - Z.AI pode retornar `429/1305`;
 - Gemini retornou `429 RESOURCE_EXHAUSTED` por quota;
-- por isso uma tarefa simples não pode depender de várias chamadas externas consecutivas para funcionar.
+- tarefas simples conhecidas não devem depender de várias chamadas externas consecutivas.
 
-## Teste físico do primeiro loop orientado a objetivo — FAIL
+## Teste físico `abrir + escrever` — PASS
 
 Em 2026-08-09 foi repetido:
 
 `Abra o editor de texto e escreva Olá mundo`
 
-Resultado real:
+Resultado real após as correções:
 
 - Xed abriu;
-- o Robô tentou a etapa de digitação;
-- o texto exibido ficou incorreto (`ol mundo` em vez de `Olá mundo`);
-- depois da ação física, o loop tentou consultar novamente o provider;
-- Gemini respondeu `429 RESOURCE_EXHAUSTED`;
-- a task terminou `failed`.
+- o foco ficou correto;
+- o texto exibido foi exatamente `Olá mundo`, incluindo o caractere `á`;
+- a task terminou `succeeded`;
+- o log registrou `planner=deterministic rota=local-sequence etapas=2 objetivo=concluido`;
+- nenhuma chamada ao Gemini, Z.AI ou Cloudflare foi necessária para concluir essa tarefa.
 
-Nova tentativa sem acento também falhou, mas dessa vez antes de abrir o editor, porque o router não conseguiu obter um plano válido dos providers disponíveis.
-
-Portanto o teste foi classificado como **FAIL**.
-
-## Causas confirmadas
-
-### 1. Unicode na digitação
-
-`type_text()` usava somente `pyautogui.write(...)`. No Linux/X11 real esse caminho não preservou corretamente o caractere `á`.
-
-### 2. Excesso de chamadas de IA para tarefa simples
-
-O primeiro loop consultava a IA depois de cada etapa física e também para obter `finish`.
-
-Para uma tarefa simples como abrir editor + digitar texto, isso criava dependência desnecessária de várias chamadas consecutivas e tornava a task vulnerável a rate limit/quota depois de já ter executado parte do objetivo.
-
-## Correções implementadas no `main` — validação física pendente
-
-### Digitação Unicode
-
-`src/context_anchor/desktop.py` agora:
-
-- continua usando `pyautogui.write(...)` para trechos ASCII;
-- para caracteres não ASCII usa entrada Unicode do Linux (`Ctrl+Shift+U` + código hexadecimal + Enter);
-- preserva o foco esperado e o FAILSAFE antes da digitação;
-- registra `input_method` no resultado sem registrar o conteúdo digitado.
-
-### Sequência local conhecida
-
-`src/context_anchor/policy.py` ganhou `plan_local_sequence(...)` para o primeiro padrão composto inequívoco:
-
-```text
-abrir aplicativo + escrever/digitar texto
-```
-
-Exemplo:
-
-`Abra o editor de texto e escreva Olá mundo`
-
-vira localmente:
+Esse teste valida fisicamente a sequência local:
 
 ```text
 open_app(editor)
@@ -109,39 +70,98 @@ open_app(editor)
 → objetivo concluído
 ```
 
-Essa sequência não chama Gemini, Z.AI ou Cloudflare.
+Também valida o novo caminho de digitação Unicode no Linux/X11.
 
-`src/context_anchor/local_agent.py` executa cada etapa da sequência local, registra observações e só retorna `goal_completed=true` se nenhuma etapa retornar `verified=False`.
+## Teste físico de navegador + site — FAIL
 
-### Abertura de aplicativos sem IA quando inequívoca
+Na sequência foram testadas frases equivalentes a:
 
-O caminho determinístico agora trata `abrir/abra/abre ...` assim:
+`abrir o navegador e acessar globo.com`
 
-- se o alvo parece URL/domínio → `open_url`;
-- caso contrário → `open_app`.
+`Abra o navegador e acessa o site globo.com`
 
-Assim, `abrir o navegador brave` é resolvido localmente para `brave-browser` e não precisa consumir quota de IA.
+Resultado real:
 
-Pedidos com sufixos como `para mim` e `por favor` também são normalizados.
+- as tasks terminaram `failed`;
+- o navegador/site não foi concluído como solicitado.
+
+A causa foi localizada no parser determinístico: ele já reconhecia `abrir globo.com` e `abrir o navegador brave`, mas não reconhecia ainda a construção composta `abrir navegador + acessar site`.
+
+## Correção de navegador implementada no `main` — validação física pendente
+
+`src/context_anchor/policy.py` agora reconhece localmente construções do tipo:
+
+```text
+abrir/abra/abre navegador + acessar/acesse/acessa/visitar site
+```
+
+Exemplos cobertos:
+
+```text
+abrir o navegador e acessar globo.com
+→ open_url(https://globo.com)
+```
+
+```text
+Abra o navegador e acessa o site globo.com
+→ open_url(https://globo.com)
+```
+
+Quando o navegador é genérico, o destino usa o executor estruturado Playwright/Chromium.
+
+Quando um navegador específico é pedido, por exemplo:
+
+```text
+abra o navegador brave e acesse globo.com
+```
+
+o plano local preserva o navegador solicitado e abre o aplicativo com a URL como argumento:
+
+```text
+open_app("brave-browser https://globo.com")
+```
+
+Esses casos não precisam de provider externo.
+
+## Caminhos locais vigentes
+
+### Aplicativo simples
+
+- alvo que parece URL/domínio → `open_url`;
+- outro alvo → `open_app`.
+
+Exemplo:
+
+`abrir o navegador brave` → `open_app(brave-browser)`.
+
+### Aplicativo + texto
+
+`abrir aplicativo + escrever/digitar texto` é executado como sequência local verificada.
+
+### Navegador + site
+
+`abrir navegador + acessar site` é resolvido localmente para navegação estruturada ou para o navegador específico solicitado.
 
 ## Loop por IA continua existindo
 
 O loop `ação → observação → nova decisão → ... → finish` continua vigente para pedidos que realmente exigem raciocínio, condição, ambiguidade ou replanejamento.
 
-A otimização local não substitui o loop por IA; ela evita usar IA repetidamente quando a sequência é determinística e já conhecida.
+A otimização local não substitui o loop por IA; ela evita uso de quota quando a intenção é determinística.
 
 ## Validação automatizada
 
-Foram adicionados testes para:
+A suíte cobre agora:
 
-- preservar exatamente `Olá mundo` no planejamento local;
-- executar `open_app → type_text` sem qualquer chamada ao provider;
+- preservação de `Olá mundo` na sequência local;
+- execução `open_app → type_text` sem provider;
 - entrada Unicode no backend de desktop;
-- `abrir o navegador brave` ser resolvido localmente como aplicativo;
-- formulação `abra o navegador brave para mim por favor`;
-- manter o loop por IA para objetivos que não pertencem ao caminho local conhecido.
+- `abrir o navegador brave` como aplicativo local;
+- pedido educado para Brave;
+- `abrir o navegador e acessar globo.com` → `open_url(https://globo.com)`;
+- `Abra o navegador e acessa o site globo.com` → `open_url(https://globo.com)`;
+- `abra o navegador brave e acesse globo.com` → Brave com URL como argumento.
 
-GitHub Actions CI run `31306326869` terminou com **success** em Install, Compile e Test.
+GitHub Actions CI run `31307288547` terminou com **success** em Install, Compile e Test após a correção de navegação.
 
 ## Controles que permanecem
 
@@ -154,11 +174,10 @@ Continuam implementados:
 - credenciais fora de código, Git, logs e prompts;
 - Painel e Central em localhost por padrão.
 
-## Ainda não validado fisicamente após as últimas correções
+## Ainda não validado fisicamente após a correção mais recente
 
-- sequência local `open_app(editor) → type_text("Olá mundo")`;
-- entrada Unicode real com `á`;
-- Brave aberto pelo caminho determinístico local;
+- `abrir o navegador e acessar globo.com` pelo novo caminho local;
+- `abra o navegador brave e acesse globo.com` preservando Brave;
 - primeiro objetivo condicional real usando o loop por IA;
 - Cloudflare ativo no router real;
 - percepção semântica de screenshots/árvore de acessibilidade;
