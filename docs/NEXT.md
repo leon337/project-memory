@@ -1,21 +1,21 @@
 # NEXT
 
-## 1. Validar Controles de estado e logs reais
+## 1. Validar telemetria real de Central e Robô
 
-A terceira revisão do Painel já está no `main`, passou no CI e foi baixada no computador alvo por `git pull`.
+A terceira revisão do Painel já foi carregada no computador alvo. Os **Controles de estado** foram validados fisicamente para Central, Robô e Emergência, e o log real do **Painel** já apareceu em **Logs reais da aplicação**.
 
 Próximos passos, em ordem:
 
-1. reiniciar apenas o **Painel do Robô** para carregar a nova interface;
-2. confirmar que Central, Robô e Emergência mostram estado real e que a ação oferecida muda conforme esse estado;
-3. se a Central ainda estiver iniciada fora do Painel, confirmar que aparece como **ligada fora do Painel**;
-4. reiniciar Central e Robô separadamente com o código novo e validar em **Logs reais da aplicação** eventos de Painel, Central e Robô, usando os filtros por componente.
+1. encerrar uma vez a **Central** que ainda está rodando fora do Painel e iniciá-la pelo próprio Painel com o código novo;
+2. confirmar que o controle da Central muda de **Ligada fora do Painel** para estado gerenciado pelo Painel e que eventos reais aparecem no filtro **Central**;
+3. reiniciar o **Robô** com o código novo e confirmar eventos reais no filtro **Robô**;
+4. observar se os controles mudam corretamente durante ligar, parar e reiniciar.
 
-Critério de conclusão: nenhum controle pode parecer ligado/desligado de forma ambígua, e os logs exibidos devem corresponder a eventos realmente produzidos pelos componentes.
+Critério de conclusão: os três componentes devem produzir telemetria real identificada por origem, e os controles devem refletir corretamente todas as transições observadas.
 
 ## 2. Concluir segurança e operação física
 
-Depois da validação dos controles e telemetria:
+Depois da validação da telemetria:
 
 - validar o `FAILSAFE` físico;
 - validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio;
