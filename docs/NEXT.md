@@ -1,39 +1,20 @@
 # NEXT
 
-## 1. Concluir o ciclo operacional normal pelo Painel
+## 1. Validar Laboratório e operação diária sem terminal
 
-O FAILSAFE explícito e a parada de emergência já foram validados fisicamente.
+O FAILSAFE explícito, a parada de emergência e o ciclo normal **Parar Robô → Desligado → Ligar Robô → Ligado** já foram validados fisicamente pelo Painel.
 
-A parada de emergência foi testada em dois ciclos reais pelo Painel:
-
-- ativação colocou o estado em **ATIVA**;
-- o Robô foi encerrado e apareceu como **DESLIGADO**;
-- início e reinício ficaram bloqueados enquanto a emergência estava ativa;
-- a liberação devolveu o estado para **NORMAL** sem reiniciar automaticamente;
-- o Robô voltou a **LIGADO** somente depois de ação humana explícita;
-- os logs registraram ativação, liberação, solicitação de início, novo PID e inicialização do Robô.
-
-Agora falta validar o caminho normal, sem usar a emergência:
-
-1. com o Robô ligado, clicar em **Parar Robô**;
-2. confirmar estado **DESLIGADO** e disponibilidade da ação **Ligar Robô**;
-3. clicar em **Ligar Robô**;
-4. confirmar retorno para **LIGADO** e novo evento de inicialização nos logs.
-
-Critério de conclusão: **Parar Robô → Desligado → Ligar Robô → Ligado** deve funcionar integralmente pelo Painel, sem terminal e sem acionar a emergência.
-
-## 2. Validar Laboratório e operação diária sem terminal
-
-Depois do ciclo normal:
+Agora falta validar o Laboratório e confirmar que o Painel é suficiente para a operação cotidiana do MVP 0.3:
 
 1. abrir **Laboratório**;
 2. testar um comando conhecido, começando por `git pull`;
 3. confirmar que o Painel apenas explica a operação e não executa shell arbitrário;
-4. confirmar que o fluxo diário — abrir pelo atalho, ligar/parar Central e Robô, diagnóstico, envio de tarefa e consulta de logs — pode ser feito sem dependência normal de terminais separados.
+4. voltar à Visão geral e confirmar que Central, Robô, diagnóstico, envio de tarefa e logs continuam acessíveis pela interface;
+5. confirmar que o fluxo diário pode ser iniciado pelo atalho `Painel do Robô`, sem depender normalmente de terminais separados.
 
-Critério de conclusão: o Painel deve ser suficiente para operação e diagnóstico cotidianos do MVP 0.3.
+Critério de conclusão: o Laboratório deve explicar comandos conhecidos sem executar shell arbitrário, e o Painel deve ser suficiente para operação e diagnóstico cotidianos do MVP 0.3.
 
-## 3. Ativar o primeiro planner por IA
+## 2. Ativar o primeiro planner por IA
 
 Depois da validação operacional, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
 
@@ -45,4 +26,8 @@ Requisitos:
 - toda saída passa pela Policy Layer;
 - `DeterministicPlanner` permanece como fallback e para testes.
 
-Depois desse marco, o próximo bloco será acesso remoto seguro e adaptadores Telegram/WhatsApp/Instagram.
+## 3. Preparar acesso remoto seguro e canais
+
+Depois do primeiro planner por IA funcionar dentro das proteções atuais, preparar a camada de acesso remoto seguro antes de qualquer exposição à Internet.
+
+Esse bloco deverá anteceder os adaptadores Telegram, WhatsApp e Instagram e incluir autenticação forte, TLS, pareamento/revogação, auditoria e confirmação para ações sensíveis.
