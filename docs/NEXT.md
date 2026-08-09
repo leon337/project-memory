@@ -1,42 +1,23 @@
 # NEXT
 
-## 1. Revalidar fisicamente o FAILSAFE explícito
+## 1. Concluir parada de emergência e ciclo operacional
 
-A primeira validação física do FAILSAFE nativo do PyAutoGUI falhou: com o ponteiro no canto superior esquerdo, a tarefa `mover mouse 200 200` foi executada e terminou como `succeeded`.
+O FAILSAFE explícito já foi aprovado no CI e revalidado fisicamente em dois cantos da tela. Em ambos os testes, `mover mouse 200 200` terminou como `failed` e a telemetria registrou `DesktopFailsafeTriggered` antes da entrada física.
 
-A correção já está implementada no `main`:
+O próximo passo é validar o mecanismo independente de parada de emergência e o ciclo normal de operação pelo Painel:
 
-- `PyAutoGuiDesktopBackend` mantém `pyautogui.FAILSAFE = True` como defesa adicional;
-- antes de mover, clicar, digitar ou pressionar tecla, o backend verifica a posição atual do ponteiro;
-- uma zona de 20 pixels nos quatro cantos funciona como FAILSAFE explícito do Robô;
-- quando o ponteiro está nessa zona, `DesktopFailsafeTriggered` é levantado antes de qualquer entrada física;
-- testes automatizados cobrem os quatro cantos, bloqueio de mouse/teclado e execução normal fora da zona;
-- CI do commit `4f398f4f745fbd996db13c710601fa83b3da5c37` concluiu com `success`.
+1. com Central e Robô ligados, ativar **Emergência** pelo Painel;
+2. confirmar que o Robô é encerrado e que o estado persistente de emergência fica visível;
+3. tentar iniciar o Robô enquanto a emergência estiver ativa e confirmar que o início permanece bloqueado;
+4. liberar conscientemente a emergência pelo Painel;
+5. ligar novamente o Robô e confirmar retorno ao estado **Ligado**;
+6. validar também a sequência explícita **Parar Robô → Desligado → Ligar Robô → Ligado**;
+7. testar o Laboratório com um comando conhecido;
+8. confirmar que o fluxo diário pode ser feito pelo atalho `Painel do Robô` e pela interface Web local, sem dependência normal de terminais separados.
 
-Próximos passos no computador alvo:
+Critério de conclusão: parada de emergência, bloqueio persistente, liberação consciente, parada/início normal, diagnóstico e telemetria precisam funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
 
-1. sincronizar o `main` local com o GitHub;
-2. reiniciar o Robô pelo Painel para carregar o código novo;
-3. colocar o ponteiro no canto superior esquerdo;
-4. enviar `mover mouse 200 200`;
-5. verificar no Painel que a tarefa terminou como `failed` e que o log do Robô registra `DesktopFailsafeTriggered`.
-
-Critério de conclusão: o ponteiro não deve sair do canto por ação do Robô, a tarefa deve terminar como `failed` e a telemetria deve registrar a interrupção de segurança.
-
-## 2. Concluir parada de emergência e ciclo operacional
-
-Depois do FAILSAFE corrigido e aprovado fisicamente:
-
-- validar a parada de emergência real pelo Painel;
-- confirmar que o Robô é encerrado e o bloqueio persistente fica visível;
-- liberar conscientemente a emergência;
-- validar a sequência **Parar Robô → Desligado → Ligar Robô → Ligado**;
-- testar o Laboratório com um comando conhecido;
-- confirmar que o fluxo diário pode ser feito pelo atalho `Painel do Robô` e pela interface Web local, sem dependência normal de terminais separados.
-
-Critério de conclusão: mecanismos de parada, operação, diagnóstico e telemetria devem funcionar fisicamente sem bypass da Policy Layer e sem dependência normal de terminais separados.
-
-## 3. Ativar o primeiro planner por IA
+## 2. Ativar o primeiro planner por IA
 
 Depois da validação física e operacional, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
 
