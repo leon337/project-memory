@@ -65,9 +65,9 @@ Princípios:
 - somente o Goal Verifier pode fechar o objetivo quando critérios obrigatórios estiverem comprovados;
 - migração incremental, sem reescrever Painel, Central, SQLite/fila/leases, executores, Policy Layer, FAILSAFE, Emergency Stop ou providers.
 
-## Fundação de código criada nesta sessão
+## Fundação de código preparada para a integração pesada
 
-Foi criado `src/context_anchor/goal_runtime.py` como fundação isolada, ainda **não conectada ao fluxo físico atual**.
+Existe `src/context_anchor/goal_runtime.py` como fundação isolada, ainda **não conectada ao fluxo físico atual**.
 
 Ela define:
 
@@ -77,23 +77,50 @@ Ela define:
 - `GoalRunState`;
 - `EvidenceRecord`;
 - `EvidenceKind`;
+- `CriterionCheck`;
 - `GoalVerdict`;
 - `GoalVerifier`.
 
 Semântica já travada:
 
 - `ExecutionReceipt` registra execução técnica, mas não prova sozinho um efeito do objetivo;
-- observação/readback verificado pode satisfazer um critério;
+- observação/readback só prova um critério quando `verified=True` e o valor observado satisfaz o check do critério;
+- checks iniciais: `ANY_VERIFIED_EVIDENCE`, `EQUALS`, `CONTAINS` e `TRUTHY`;
 - critério obrigatório pendente mantém o Goal Run aberto;
 - apenas todos os critérios obrigatórios comprovados permitem `SUCCEEDED`.
 
-Foi criado `tests/test_goal_runtime_contract.py` com quatro regressões de contrato. Antes da publicação, a sintaxe foi compilada e quatro checks equivalentes foram executados isoladamente com sucesso.
+`tests/test_goal_runtime_contract.py` cobre atualmente:
 
-Também foram atualizados:
+- receipt não conclui critério;
+- observação precisa corresponder ao valor esperado;
+- um critério satisfeito não conclui Goal com outro critério obrigatório pendente;
+- readback incorreto não conclui critério;
+- todas as evidências corretas permitem `SUCCEEDED`;
+- observação não verificada nunca prova objetivo;
+- `TRUTHY` exige valor observado verdadeiro/não vazio.
 
-- `ARCHITECTURE.md` — pipeline alvo e scaffold existente;
-- `DECISIONS.md` — D-022 Goal Runtime universal e D-023 Execution Receipt não é evidência de efeito;
-- `NEXT.md` — integração pesada no `local_agent`, percepção e autonomia sem frases cadastradas.
+GitHub Actions CI run `31311361873` terminou com **success** em Install, Compile e Test para o commit `f082ffed1f4d86a9554a75a5affc8fdb7629bca0`.
+
+## Missão pesada preparada para o Codex
+
+Foi criado `docs/CODEX_GOAL_RUNTIME_MISSION.md` para evitar que o Codex gaste cota reconstruindo toda a arquitetura e os critérios de aceite.
+
+Esse documento determina que a missão não termina em testes mockados ou em uma implementação parcial. O Codex deve trabalhar em ciclo de diagnóstico → código → testes → execução física → correção até atingir os critérios obrigatórios ou provar um bloqueio externo não resolvível pelo código.
+
+A missão contém:
+
+- arquivos prioritários;
+- fluxo arquitetural obrigatório;
+- integração universal no `local_agent.py`;
+- separação de receipt/evidence;
+- percepção estruturada de browser;
+- Capability Resolver;
+- interpretação/decomposição semântica;
+- replanning/budgets;
+- contexto operacional curto;
+- regressões automatizadas obrigatórias;
+- 10 critérios/testes físicos de aceitação, incluindo o falso PASS histórico, condicional real e continuidade contextual entre tasks;
+- exigência de suíte completa, `git diff --check`, revisão, commit/push e atualização dos quatro arquivos de memória antes de encerrar.
 
 ## O que deliberadamente não foi alterado ainda
 
@@ -105,13 +132,13 @@ A fundação nova não intercepta ainda:
 - execução física;
 - persistência final da Central.
 
-Isso mantém o MVP funcional enquanto a integração pesada é preparada.
+Isso mantém o MVP atual operacional enquanto a integração pesada fica reservada para a execução com acesso integral ao computador.
 
 ## Próxima fronteira pesada
 
 Migrar `local_agent` para que todo pedido crie/use o mesmo Goal Run, convertendo fast paths e planner por IA em fontes de steps e fazendo o Goal Verifier ser a única autoridade de conclusão.
 
-Depois: percepção estruturada, Capability Resolver, Session Context e Recovery Manager.
+Depois completar percepção estruturada, Capability Resolver, interpretação semântica, Session Context e Recovery Manager até passar os critérios físicos de `docs/CODEX_GOAL_RUNTIME_MISSION.md`.
 
 ## Providers
 
