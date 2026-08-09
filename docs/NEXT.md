@@ -1,45 +1,41 @@
 # NEXT
 
-## 1. Fechar configuração dos três provedores iniciais
+## 1. Ativar o planner multi-provider no Linux real
 
-A direção agora é multi-provider: **Z.AI/GLM + Cloudflare Workers AI + Google Gemini**.
-
-Estado verificável:
-
-- conta e API key do **Z.AI** já foram criadas;
-- a tela real de Rate Limits da conta mostrou `GLM-4.7-Flash` com **concurrency 1**;
-- a documentação/pesquisa confirma `GLM-4.7-Flash` com preço zero atual, reasoning, tools e structured output;
-- token personalizado do **Cloudflare Workers AI** já foi criado com permissões **Read + Edit** e guardado localmente pelo usuário;
-- o token Cloudflare está atualmente com escopo **Todas as contas**; antes da integração, preferir restringi-lo à conta específica e obter o `Account ID`;
-- Google/Gemini já está disponível para o usuário, mas seus limites efetivos devem ser lidos no projeto do AI Studio;
-- nenhuma credencial dos provedores foi adicionada ao Git;
-- SiliconFlow permanece opcional até que um modelo gratuito atual e seus limites reais sejam comprovados.
+O router e os adaptadores de **Z.AI, Cloudflare Workers AI e Gemini** já estão implementados no `main`, mas ainda não foram testados com as credenciais reais.
 
 Próximos passos:
 
-1. restringir o token Cloudflare à conta específica, se possível, e obter o `Account ID`;
-2. registrar os limites efetivos do projeto Gemini no AI Studio;
-3. colocar as três credenciais somente no `.env` local quando os adaptadores forem implementados;
-4. manter contadores locais para Z.AI, Cloudflare e Gemini onde o provedor não expuser telemetria completa de quota.
+1. executar `git pull --ff-only` na cópia local;
+2. no `.env`, manter as chaves somente localmente e configurar pelo menos:
+   - `CONTEXT_ANCHOR_PLANNER_MODE=multi`;
+   - `CONTEXT_ANCHOR_ZAI_API_KEY=...`;
+   - `CONTEXT_ANCHOR_GEMINI_API_KEY=...`;
+3. reiniciar o Robô pelo Painel;
+4. enviar uma intenção simples que o parser determinístico não entenda, por exemplo `Por favor abra o editor de texto para mim`;
+5. confirmar em tarefa/log que o resultado registra `planner_provider` e `planner_route` e que a ação continua passando pela Policy Layer.
 
-## 2. Implementar o roteador inteligente multi-provider
+Critério de conclusão: uma intenção em linguagem natural deve ser planejada por uma API real, convertida para uma única `StructuredAction`, executada pelo caminho físico já validado e registrada sem expor credenciais.
 
-Criar uma camada de roteamento sobre o contrato provider-agnostic de `src/context_anchor/planner.py`.
+## 2. Adicionar Cloudflare ao router real e validar fallback
 
-O roteador deve escolher por capacidade, quota/budget, concorrência, latência, erros recentes e cooldown; não deve usar round-robin simples.
+O token Workers AI já foi criado e guardado localmente. Falta obter/configurar `CONTEXT_ANCHOR_CLOUDFLARE_ACCOUNT_ID`.
 
-Papéis iniciais:
+Depois:
 
-- GLM-4.7-Flash → reasoning/decisões complexas;
-- Cloudflare Workers AI → decisões simples e frequentes/burst com modelo eficiente;
-- Gemini → multimodalidade/visão e fallback complementar.
+1. adicionar `CONTEXT_ANCHOR_CLOUDFLARE_API_TOKEN` e `CONTEXT_ANCHOR_CLOUDFLARE_ACCOUNT_ID` ao `.env`;
+2. reiniciar o Robô;
+3. confirmar que pedido simples prioriza Cloudflare e pedido condicional/reasoning prioriza Z.AI;
+4. provocar de forma controlada uma indisponibilidade de provedor antes da execução e confirmar fallback para outro provedor sem repetir ação física.
 
-Toda resposta continua sendo convertida para `StructuredAction` e passando pela Policy Layer. `DeterministicPlanner` permanece como fallback e para testes.
+## 3. Completar o quota manager e telemetria do router
 
-## 3. Validar roteamento e fallback sem repetir ação física
+Depois do primeiro teste real passar, ampliar o controle atual de RPM/cooldown para incluir, quando mensurável:
 
-Primeiro teste: uma única ação simples em linguagem natural deve ser planejada, validada e executada pelo mesmo caminho físico já aprovado.
+- budget diário de neurons do Cloudflare;
+- quotas efetivas do Gemini;
+- limites/feedback disponíveis do Z.AI;
+- contadores locais conservadores onde não houver endpoint/header de quota;
+- exposição no Painel de provedor usado, latência, cooldown e capacidade restante estimada.
 
-Depois, simular indisponibilidade/`429` de um provedor e confirmar que o roteador seleciona outro provedor compatível.
-
-Critério de segurança: fallback de IA não pode repetir automaticamente uma ação física já executada. O sistema deve verificar estado/resultado antes de qualquer nova execução.
+A visão/multimodalidade e o loop autônomo multietapa entram somente depois desse caminho de ação única estar estável.
