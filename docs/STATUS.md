@@ -41,13 +41,14 @@ Uma terceira revisão está implementada e já foi carregada fisicamente no comp
 
 Validação física desta revisão:
 
-- **Central** apareceu como **Ligada fora do Painel**, coerente com o fato de ainda estar rodando em terminal separado;
-- o controle da Central mostrou estado **LIGADA** e substituiu ações enganosas por uma indicação explícita de execução externa;
+- **Central** apareceu inicialmente como **Ligada fora do Painel**, coerente com o fato de estar rodando em terminal separado;
 - depois que a Central externa foi encerrada no terminal, o Painel atualizou automaticamente para **Desligada** e passou a oferecer apenas **Ligar Central**;
-- **Robô local** apareceu como **Ligado**, com ações **Parar Robô** e **Reiniciar** disponíveis;
-- **Emergência** apareceu como **Normal**, com a ação **Ativar emergência** disponível;
-- as telas **Configurações** e **Laboratório** continuaram renderizando corretamente após a revisão;
-- a seção **Logs reais da aplicação** exibiu evento real do Painel com timestamp e origem `[PAINEL]` logo após sua inicialização.
+- a Central foi então iniciada pelo próprio Painel e passou a aparecer como **LIGADA — Em execução e gerenciada pelo Painel**, oferecendo **Parar Central**;
+- **Robô local** aparece como **Ligado**, com ações **Parar Robô** e **Reiniciar** disponíveis;
+- **Emergência** aparece como **Normal**, com a ação **Ativar emergência** disponível;
+- as telas **Configurações** e **Laboratório** continuam renderizando corretamente após a revisão;
+- a seção **Logs reais da aplicação** exibiu evento real do Painel com timestamp e origem `[PAINEL]` logo após sua inicialização;
+- após iniciar a Central pelo Painel, a seção exibiu eventos reais separados de `[PAINEL]` e `[CENTRAL]`, incluindo solicitação de início, inicialização da Central em `127.0.0.1:8000` e registro do PID criado pelo Painel.
 
 ### Telemetria real
 
@@ -131,7 +132,8 @@ Confirmado no computador alvo:
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
 - segunda revisão ultra escura carregada e confirmada visualmente nas três telas;
 - terceira revisão carregada e validada fisicamente para controles de estado e log real do Painel;
-- transição real da Central de **Ligada fora do Painel** para **Desligada** refletida automaticamente pelo controle, que passou a oferecer **Ligar Central**.
+- transição real da Central de **Ligada fora do Painel** → **Desligada** → **Ligada e gerenciada pelo Painel** refletida corretamente;
+- telemetria real da Central validada fisicamente no Painel com eventos `[CENTRAL]` e `[PAINEL]` coerentes com a transição observada.
 
 ## Falhas já diagnosticadas
 
@@ -141,13 +143,12 @@ Confirmado no computador alvo:
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
 - tema claro original causava desconforto visual; revisões dark foram aplicadas;
 - controles rápidos anteriores não expressavam o estado real do componente; corrigido em código e validado fisicamente para Central, Robô e Emergência;
-- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. O log real do Painel já foi validado fisicamente; Central e Robô ainda precisam ser reiniciados com o código novo para validar seus próprios eventos.
+- logs anteriores dependiam excessivamente de processos iniciados pelo Painel; substituídos por telemetria estruturada. Logs reais de Painel e Central já foram validados fisicamente; o Robô ainda precisa ser reiniciado com o código novo para validar seus próprios eventos.
 
 ## Ainda precisa de validação física
 
-- iniciar a Central pelo Painel com o código novo e confirmar eventos reais no filtro **Central**;
 - reiniciar o Robô com o código novo e confirmar eventos reais no filtro **Robô**;
-- validar demais transições dos **Controles de estado** ao ligar/parar/reiniciar componentes pelo próprio Painel;
+- validar demais transições dos **Controles de estado** ao parar/reiniciar componentes pelo próprio Painel;
 - validar `FAILSAFE` físico;
 - validar parada de emergência real e liberação consciente;
 - concluir ciclo completo de gerenciamento sem dependência normal de terminais.
