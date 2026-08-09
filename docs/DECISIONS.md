@@ -205,26 +205,34 @@ Se o ponteiro estiver nessa zona, a ação deve ser recusada antes de mover o mo
 
 Esse mecanismo complementa, mas não substitui, a parada de emergência persistente. O FAILSAFE serve para interromper a próxima entrada física imediatamente; a parada de emergência continua sendo o mecanismo para encerrar e bloquear o Robô até liberação consciente.
 
-## D-026 — Primeiro provedor de IA deve atender gratuidade recorrente e será escolhido após medir os candidatos atuais
+## D-026 — Planner por IA será multi-provider com roteamento inteligente e consciente de quota
 
-O primeiro provedor de IA não será acoplado ao Robô até que a opção escolhida atenda ao requisito atual de **gratuidade recorrente ou zero-cost estável**, além de oferecer volume suficiente para um planner iterativo.
+O primeiro planner por IA não dependerá de um único provedor. A arquitetura seguirá desde o início um modelo **multi-provider**, com um roteador local responsável por escolher o provedor/modelo adequado a cada chamada.
 
-A escolha anterior por Cerebras deixa de ser vigente porque a pesquisa atualizada de agosto de 2026 encontrou que o serviço não possui mais um tier gratuito renovável; a oferta atual é tratada como trial/crédito temporário e, portanto, não satisfaz o critério definido para este projeto.
+O conjunto inicial escolhido é:
 
-Os candidatos em investigação são, nesta ordem prática:
+- **Z.AI / GLM-4.7-Flash** — principal candidato para reasoning e decisões mais complexas, por oferecer preço zero atual, contexto amplo e suporte a reasoning, tools e structured output;
+- **Cloudflare Workers AI** — principal candidato para decisões simples, frequentes e bursts, usando modelos eficientes para preservar o budget diário de neurons;
+- **Google Gemini** — provedor complementar para multimodalidade, visão, capacidades próprias do ecossistema e fallback quando apropriado.
 
-- **SiliconFlow** — conta e API key já criadas; falta confirmar quais modelos são realmente gratuitos e seus limites reais de RPM/TPM/RPD/TPD na conta;
-- **Z.AI / GLM** — conta e API key já criadas; falta confirmar limites reais da conta para os modelos Flash/zero-price;
-- **Cloudflare Workers AI** — referência com 300 RPM default para text generation, mas com budget diário em neurons que precisa ser considerado;
-- **Groq** — referência com limites gratuitos publicados por modelo e boa previsibilidade de RPM/RPD/TPM/TPD.
+A distribuição não será round-robin nem balanceamento igual. O roteador deverá considerar, no mínimo:
 
-A decisão final do primeiro provedor só será tomada depois de comparar, com dados verificáveis, gratuidade, RPM, TPM, limite diário, recursos agentic e estabilidade do plano.
+1. capacidade exigida pela tarefa, como texto, reasoning, visão e tools;
+2. quota/budget disponível conhecido ou estimado;
+3. concorrência permitida;
+4. latência recente;
+5. erros recentes, especialmente `429`, timeout e `5xx`;
+6. estado de cooldown/circuit breaker do provedor;
+7. preferência por preservar recursos mais caros ou escassos para tarefas que realmente precisem deles.
 
-Independentemente do provedor escolhido:
+Quando um provedor estiver indisponível, limitado ou inadequado para a tarefa, o roteador poderá selecionar outro provedor compatível sem alterar o contrato interno do Robô.
 
-- a saída deverá ser convertida para `StructuredAction` conhecida pelo sistema;
-- não haverá execução de shell gerada pelo modelo;
-- toda ação continuará passando pela Policy Layer;
-- FAILSAFE e parada de emergência continuarão independentes da IA;
-- `DeterministicPlanner` permanecerá disponível como fallback e para testes;
-- chaves de API existirão somente em configuração local/variáveis de ambiente e nunca em código, Git, logs ou prompts.
+O roteador seleciona apenas o **planner**. Ele não pode contornar a Policy Layer, o FAILSAFE, a parada de emergência ou as validações dos executores.
+
+Fallback de provedor deve acontecer antes da execução física ou depois de uma falha comprovadamente anterior à execução. Uma ação física já executada não deve ser repetida automaticamente apenas porque a chamada seguinte de IA falhou; verificação e idempotência continuam obrigatórias.
+
+O `DeterministicPlanner` permanece disponível como fallback técnico e para testes.
+
+SiliconFlow continua como candidato opcional futuro, mas não entra no conjunto inicial até que os limites reais dos modelos gratuitos sejam comprovados na conta.
+
+Todas as chaves de API permanecerão somente em configuração local/variáveis de ambiente e nunca em código, Git, logs ou prompts.
