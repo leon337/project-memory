@@ -4,12 +4,14 @@
 
 A terceira revisão do Painel já foi carregada no computador alvo. Os **Controles de estado** foram validados fisicamente para Central, Robô e Emergência, e o log real do **Painel** já apareceu em **Logs reais da aplicação**.
 
+A **Central que estava rodando fora do Painel foi encerrada manualmente com Ctrl+C**. O encerramento foi limpo, com `Shutting down`, `Application shutdown complete` e retorno ao prompt do terminal.
+
 Próximos passos, em ordem:
 
-1. encerrar uma vez a **Central** que ainda está rodando fora do Painel e iniciá-la pelo próprio Painel com o código novo;
-2. confirmar que o controle da Central muda de **Ligada fora do Painel** para estado gerenciado pelo Painel e que eventos reais aparecem no filtro **Central**;
-3. reiniciar o **Robô** com o código novo e confirmar eventos reais no filtro **Robô**;
-4. observar se os controles mudam corretamente durante ligar, parar e reiniciar.
+1. confirmar no Painel que o controle da **Central** mudou de **Ligada fora do Painel** para **Desligada**;
+2. iniciar a Central pelo próprio Painel com o código novo e confirmar que passa a estado gerenciado pelo Painel;
+3. confirmar eventos reais no filtro **Central**;
+4. reiniciar o **Robô** com o código novo e confirmar eventos reais no filtro **Robô**.
 
 Critério de conclusão: os três componentes devem produzir telemetria real identificada por origem, e os controles devem refletir corretamente todas as transições observadas.
 
