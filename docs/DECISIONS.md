@@ -90,6 +90,8 @@ Pedidos remotos para abrir aplicativos são resolvidos por ids conhecidos para u
 
 O sistema não aceita caminho de executável ou argumentos de shell fornecidos livremente pelo comando remoto. A abertura usa `shell=False`.
 
+Saídas de planner podem usar aliases textuais previamente aprovados, mas esses aliases devem ser normalizados para o ID canônico antes da Policy Layer. Para o editor, `editor de texto`, `text editor`, `text_editor`, `xed`, `gedit` e `notepad` equivalem somente ao ID `editor`, que continua resolvendo a lista fixa `xed`/`gedit`. Essa normalização não autoriza `notepad.exe`, caminhos, argumentos ou executáveis fora da allowlist.
+
 ## D-016 — Emergency stop independente do planner
 
 O emergency stop deve continuar funcionando mesmo que o planner, a comunicação remota ou as credenciais do Robô estejam com problema.
@@ -177,6 +179,8 @@ Ao encadear ações como `abrir aplicativo` seguido de `digitar`, o executor dev
 
 A digitação deve registrar em qual janela ativa foi executada e não deve ser tratada como verificada apenas porque as teclas foram enviadas. Quando o alvo esperado puder ser conhecido, foco e resultado devem ser confirmados antes de marcar a etapa como concluída.
 
+A proteção acompanha a identidade observada da janela, não uma allowlist separada de aplicativos autorizados a receber teclado. Abrir um aplicativo ou clicar em uma janela observável pode estabelecer o foco esperado; `type_text` e `press_key` devem recusar a ação se a janela ativa mudar depois disso. A allowlist fixa de D-015 continua restrita à ação `open_app` e não altera esse contrato de foco.
+
 ## D-023 — Conforto visual é requisito do Painel
 
 O tema visual do Painel do Robô não deve usar grandes áreas claras como padrão, pois isso foi considerado cansativo em uso real.
@@ -245,6 +249,8 @@ A integração vigente do Gemini no planner usa o SDK oficial **`google-genai`**
 
 Essa decisão foi tomada depois de comparar o `project-memory` com o repositório `leon337/meu_primeiro_agente`, onde esse padrão já está implementado e usado com `gemini-3.6-flash`.
 
-O modelo padrão do planner Gemini é `gemini-3.6-flash`. O SDK recebe `GenerateContentConfig` com instrução do sistema, `response_mime_type=application/json` e o `ACTION_SCHEMA` do projeto.
+O modelo padrão do planner Gemini é `gemini-3.6-flash`. O SDK recebe `GenerateContentConfig` com instrução do sistema, `response_mime_type=application/json`, o `ACTION_SCHEMA` do projeto e `max_output_tokens=1024`.
+
+O limite de output deve acomodar pensamento interno e o JSON. O teto anterior de 160 produziu uma resposta real truncada com `FinishReason.MAX_TOKENS`; 1024 produziu JSON completo e `FinishReason.STOP`. Desabilitar thinking com `thinking_budget=0` não é usado porque o modelo vigente recusou essa configuração com `400 INVALID_ARGUMENT`.
 
 A resposta do SDK, seja por `parsed` ou texto JSON, continua obrigada a validar como `StructuredAction`. O uso do SDK não dá ao Gemini acesso direto a ferramentas, mouse, teclado, navegador ou shell; a ação proposta ainda passa pela Policy Layer, FAILSAFE e demais proteções locais.

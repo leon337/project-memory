@@ -293,7 +293,7 @@ class GeminiProvider:
             response_mime_type="application/json",
             response_json_schema=ACTION_SCHEMA,
             temperature=0.1,
-            max_output_tokens=160,
+            max_output_tokens=1024,
         )
 
     def generate_plan(self, objective: str) -> Mapping[str, Any]:

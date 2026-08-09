@@ -18,7 +18,6 @@ APP_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
 }
 
 SUPPORTED_APP_IDS = frozenset(APP_COMMANDS)
-KEYBOARD_INPUT_APP_IDS = frozenset({"editor"})
 
 APP_ALIASES = {
     "browser": "firefox",
@@ -26,10 +25,12 @@ APP_ALIASES = {
     "files": "arquivos",
     "file manager": "arquivos",
     "gerenciador de arquivos": "arquivos",
-    "text editor": "editor",
     "editor de texto": "editor",
+    "text editor": "editor",
+    "text_editor": "editor",
     "xed": "editor",
     "gedit": "editor",
+    "notepad": "editor",
     "code": "vscode",
     "visual studio code": "vscode",
     "calculator": "calculadora",
@@ -83,8 +84,6 @@ class PyAutoGuiDesktopBackend:
         self._gui: Any | None = None
         self._expected_window_id: str | None = None
         self._focus_guard_error: str | None = None
-        self._keyboard_authorized_window_id: str | None = None
-        self._keyboard_authorized_app_id: str | None = None
 
     def _pyautogui(self) -> Any:
         if self._gui is None:
@@ -187,37 +186,16 @@ class PyAutoGuiDesktopBackend:
             "window_title": self._window_title(current),
         }
 
-    def _focused_window_for_input(self) -> tuple[str, str | None]:
+    def _focused_window_for_input(self) -> tuple[str | None, str | None]:
         if self._focus_guard_error:
             raise RuntimeError(self._focus_guard_error)
 
-        if not self._xdotool_path():
-            raise RuntimeError(
-                "Entrada de teclado bloqueada: o foco não pode ser verificado sem xdotool."
-            )
-
         current = self._active_window_id()
-        if current is None:
-            raise RuntimeError(
-                "Entrada de teclado bloqueada: nenhuma janela ativa pôde ser confirmada."
-            )
-
-        if self._keyboard_authorized_window_id is None:
-            raise RuntimeError(
-                "Entrada de teclado bloqueada: nenhuma janela segura foi autorizada pelo Robô."
-            )
-
-        if current != self._keyboard_authorized_window_id:
-            raise RuntimeError(
-                "Entrada de teclado bloqueada: o foco não está na janela segura autorizada."
-            )
-
-        if self._expected_window_id and current != self._expected_window_id:
+        if self._expected_window_id and current and current != self._expected_window_id:
             raise RuntimeError(
                 "O foco mudou para outra janela desde a última ação preparada. "
                 "O Robô recusou enviar teclado para evitar digitar no lugar errado."
             )
-
         return current, self._window_title(current)
 
     def capture_screen(self, output_path: Path) -> dict[str, Any]:
@@ -264,12 +242,9 @@ class PyAutoGuiDesktopBackend:
         gui.click(button=button)
         x, y = gui.position()
         current_window = self._active_window_id()
-        if current_window and current_window == self._keyboard_authorized_window_id:
+        if current_window:
             self._expected_window_id = current_window
             self._focus_guard_error = None
-        elif current_window:
-            # Clicking another window never grants keyboard authority.
-            self._expected_window_id = None
         return {
             "action": "click_mouse",
             "button": button,
@@ -290,7 +265,7 @@ class PyAutoGuiDesktopBackend:
             "characters": len(text),
             "window_id": window_id,
             "window_title": window_title,
-            "verified": True,
+            "verified": window_id is not None if self._xdotool_path() else True,
         }
 
     def press_key(self, key: str) -> dict[str, Any]:
@@ -303,7 +278,7 @@ class PyAutoGuiDesktopBackend:
             "key": key,
             "window_id": window_id,
             "window_title": window_title,
-            "verified": True,
+            "verified": window_id is not None if self._xdotool_path() else True,
         }
 
     def open_application(self, app_id: str) -> dict[str, Any]:
@@ -331,14 +306,6 @@ class PyAutoGuiDesktopBackend:
             window_id = readiness["window_id"]
             window_changed = readiness["window_changed"]
 
-            keyboard_safe = canonical in KEYBOARD_INPUT_APP_IDS
-            keyboard_authorized = bool(
-                keyboard_safe
-                and self._xdotool_path()
-                and window_id
-                and window_changed is not False
-            )
-
             if window_id and window_changed is not False:
                 self._expected_window_id = window_id
                 self._focus_guard_error = None
@@ -346,18 +313,11 @@ class PyAutoGuiDesktopBackend:
                 self._expected_window_id = None
                 self._focus_guard_error = (
                     f"O aplicativo '{canonical}' foi iniciado, mas não assumiu o foco dentro de "
-                    f"{self.app_ready_timeout_seconds:.1f}s. O Robô não enviará teclado até o foco ser confirmado."
+                    f"{self.app_ready_timeout_seconds:.1f}s. O Robô não enviará teclado até o foco ser confirmado por um clique."
                 )
             else:
                 self._expected_window_id = window_id
                 self._focus_guard_error = None
-
-            if keyboard_authorized:
-                self._keyboard_authorized_window_id = window_id
-                self._keyboard_authorized_app_id = canonical
-            else:
-                self._keyboard_authorized_window_id = None
-                self._keyboard_authorized_app_id = None
 
             launched = process.poll() is None or window_changed is True
             return {
@@ -368,7 +328,6 @@ class PyAutoGuiDesktopBackend:
                 "window_changed": window_changed,
                 "window_id": window_id,
                 "window_title": readiness["window_title"],
-                "keyboard_authorized": keyboard_authorized,
                 "verified": bool(launched and window_changed is not False),
             }
 

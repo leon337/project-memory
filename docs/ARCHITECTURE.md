@@ -162,9 +162,10 @@ O adaptador vigente segue o mesmo padrão técnico já usado com sucesso no repo
 - cliente `genai.Client`;
 - chamada por `client.models.generate_content(...)`;
 - modelo padrão: `gemini-3.6-flash`;
-- `GenerateContentConfig` define `system_instruction`, `response_mime_type=application/json`, `response_json_schema=ACTION_SCHEMA`, temperatura e limite de output;
+- `GenerateContentConfig` define `system_instruction`, `response_mime_type=application/json`, `response_json_schema=ACTION_SCHEMA`, temperatura e `max_output_tokens=1024`;
 - `response_json_schema` é usado porque `ACTION_SCHEMA` é JSON Schema padrão e inclui `additionalProperties`; o primeiro teste físico com `response_schema` foi rejeitado pelo Gemini com `400 INVALID_ARGUMENT`;
-- timeout mínimo de 10,5 s e retry para erros transitórios configurados no cliente;
+- timeout mínimo de 10,5 s; no SDK instalado, `HttpRetryOptions(attempts=1)` não adiciona uma nova tentativa, portanto a recuperação efetiva atual é o fallback entre provedores feito pelo router;
+- o limite 1024 foi escolhido depois de uma resposta real terminar em `MAX_TOKENS` com o teto 160; ele acomoda pensamento interno e o JSON curto sem desabilitar thinking, opção recusada pelo modelo vigente;
 - resposta `parsed`, quando fornecida pelo SDK, ou texto JSON é convertida e validada como `StructuredAction`;
 - exceções do SDK são normalizadas em `ProviderGenerationError` sem incluir a chave de API;
 - RPM local configurável, inicialmente 20.
@@ -187,6 +188,8 @@ A IA só pode propor uma das ações conhecidas:
 Campos extras são recusados. Não existe ação de shell, código livre, caminho arbitrário de executável ou credencial.
 
 Uma ação estruturalmente válida ainda precisa passar pela Policy Layer.
+
+Para `open_app`, a conversão de `StructuredAction` para `Plan` normaliza somente aliases explicitamente seguros para um ID canônico da allowlist. Nesta etapa, `editor de texto`, `text editor`, `text_editor`, `xed`, `gedit` e `notepad` convergem para `editor`. Um caminho como `/usr/bin/xed`, `notepad.exe`, um alvo com argumentos ou qualquer executável desconhecido não ganha permissão e continua sendo recusado pela Policy Layer.
 
 ## 9. Configuração do planner
 
@@ -247,6 +250,8 @@ Backend em `src/context_anchor/desktop.py`.
 
 Além de `pyautogui.FAILSAFE = True`, uma zona própria de 20 pixels nos quatro cantos interrompe entradas físicas antes de mover, clicar, digitar ou pressionar tecla.
 
+Ao abrir um aplicativo ou clicar, o backend registra a janela ativa observada como foco esperado. Antes de `type_text` e `press_key`, uma mudança para outro ID de janela é recusada. Não existe uma autorização de teclado exclusiva do editor: a allowlist de aplicativos controla somente `open_app`, enquanto Policy Layer, janela esperada e FAILSAFE continuam protegendo cada entrada física.
+
 ## 14. Parada de emergência
 
 Implementada em `src/context_anchor/emergency_stop.py` com sentinel persistente, PID + identidade Linux e bloqueio de reinício até liberação consciente.
@@ -262,6 +267,8 @@ Telemetria estruturada em `src/context_anchor/runtime_log.py`:
 - `runtime/logs/robot.log`.
 
 Resultados de tarefas planejadas por IA podem incluir nome do provedor, rota e nomes de provedores que falharam, sem segredos.
+
+Limitação vigente: esses metadados são anexados depois da Policy Layer e da execução. Uma falha de política persiste o tipo/motivo do erro, mas ainda não preserva provider, rota, fallback ou target canônico; por isso o teste físico que terminou na allowlist não permite atribuir o plano a um provider específico.
 
 ## 16. Percepção
 

@@ -36,17 +36,24 @@ def test_structured_plan_accepts_known_action() -> None:
     assert plan.target == "100,200"
 
 
-def test_structured_plan_normalizes_safe_editor_aliases() -> None:
-    for target in ("editor de texto", "text_editor", "xed", "gedit"):
-        plan = plan_from_structured({"action": "open_app", "target": target})
-        assert plan.action == "open_app"
-        assert plan.target == "editor"
-        assert evaluate_plan(plan, desktop_enabled=True).allowed is True
+@pytest.mark.parametrize(
+    "alias",
+    ["editor de texto", "text editor", "text_editor", "xed", "gedit", "notepad"],
+)
+def test_structured_open_app_normalizes_safe_editor_alias_before_policy(alias: str) -> None:
+    plan = plan_from_structured({"action": "open_app", "target": alias})
+
+    assert plan.target == "editor"
+    assert evaluate_plan(plan, desktop_enabled=True).allowed is True
 
 
-def test_structured_plan_does_not_turn_unknown_app_into_allowed_app() -> None:
-    plan = plan_from_structured({"action": "open_app", "target": "bash"})
-    assert plan.target == "bash"
+@pytest.mark.parametrize(
+    "target",
+    ["/usr/bin/xed", "xed --new-window", "notepad.exe", "bash"],
+)
+def test_structured_open_app_keeps_arbitrary_targets_blocked(target: str) -> None:
+    plan = plan_from_structured({"action": "open_app", "target": target})
+
     assert evaluate_plan(plan, desktop_enabled=True).allowed is False
 
 

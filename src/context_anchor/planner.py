@@ -71,6 +71,7 @@ _PROVIDER_APP_ALIASES = {
     "text editor": "editor",
     "xed": "editor",
     "gedit": "editor",
+    "notepad": "editor",
     "gerenciador de arquivos": "arquivos",
     "file manager": "arquivos",
     "nemo": "arquivos",

@@ -106,6 +106,7 @@ def test_gemini_provider_uses_official_sdk_structured_output(
     assert config.response_schema is None
     assert config.response_json_schema["type"] == "object"
     assert config.response_json_schema["additionalProperties"] is False
+    assert config.max_output_tokens == 1024
 
 
 def test_gemini_provider_accepts_fenced_json_without_skipping_structured_validation(
