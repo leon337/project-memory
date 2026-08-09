@@ -6,7 +6,7 @@ Construir um operador digital local capaz de usar navegador e desktop dentro das
 
 ## Estado verificável agora
 
-O branch `main` contém o **MVP 0.3** em código, com três processos separados:
+O branch `main` contém o **MVP 0.3** com três processos separados:
 
 - **Painel do Robô** — interface local de operação e aprendizado;
 - **Central** — recebe, persiste e distribui tarefas;
@@ -14,26 +14,37 @@ O branch `main` contém o **MVP 0.3** em código, com três processos separados:
 
 ## Painel do Robô
 
-Implementado em `src/context_anchor/dashboard.py`, iniciado por `painel-robo` e, por padrão, disponível apenas em `127.0.0.1:8765`.
+Implementado em `src/context_anchor/dashboard.py`, iniciado por `painel-robo` e disponível por padrão apenas em `127.0.0.1:8765`.
 
-O Painel mostra o estado de Central, Robô, Desktop e emergência; permite ligar/parar Central, ligar/parar/reiniciar Robô, alterar a habilitação do Desktop, executar diagnóstico, ver tarefas recentes, enviar tarefas e usar o Laboratório de comandos guiados.
+O Painel mostra o estado de Central, Robô, Desktop e emergência; permite ligar/parar Central, ligar/parar/reiniciar Robô, alterar a habilitação do Desktop, executar diagnóstico, ver tarefas recentes, enviar tarefas e usar o Laboratório de comandos guiados. O Laboratório não oferece shell arbitrário.
 
-O Laboratório não oferece shell arbitrário.
+### Revisão visual
 
-Feedback de uso real mostrou que o tema predominantemente claro era cansativo para a visão durante uso prolongado. Uma primeira revisão visual foi implementada no `main`:
+O tema claro original foi rejeitado em uso real por causar desconforto visual. A primeira revisão em dark mode foi carregada no computador e melhorou a luminosidade, mas o usuário ainda considerou o design simples, com pouco contraste entre superfícies, textos secundários pequenos/apagados e espaço mal aproveitado.
 
-- tema escuro como padrão;
-- fundo geral e barra lateral em grafite de baixa luminosidade;
-- cards, fila, campos e diagnóstico em superfícies escuras;
-- textos principais e secundários com hierarquia de contraste;
-- estados verde, vermelho, azul e âmbar recalibrados para fundo escuro;
-- botões com hover, foco de teclado e feedback visual mais claros;
-- console e barras de rolagem integrados ao tema;
-- responsividade preservada.
+O usuário definiu que, entre alternativas aceitáveis, **quanto mais escuro melhor**, desde que a leitura continue clara.
 
-O teste `tests/test_dashboard.py` verifica marcadores essenciais da paleta escura para reduzir risco de regressão visual acidental. O commit principal da mudança de tema e o teste específico passaram no CI.
+Uma segunda revisão visual já foi implementada no `main`:
 
-A nova versão foi puxada para o computador alvo, o processo do Painel foi reiniciado pelo atalho do desktop e a **Visão geral** foi confirmada visualmente com o dark mode carregado. Ainda falta validar as telas **Configurações** e **Laboratório** e obter a confirmação do usuário sobre conforto, contraste e legibilidade antes de considerar a revisão visual concluída.
+- tema **ultra escuro** identificado por `data-theme="ultra-dark"`;
+- fundo principal próximo de preto (`#02050a`) e cards mais escuros (`#07101a`);
+- tipografia e textos secundários com contraste maior;
+- hierarquia visual reforçada nos títulos e seções;
+- cards de status redesenhados;
+- fila de tarefas com leitura mais clara;
+- controles rápidos, comando e logs reorganizados;
+- Configurações com layout específico para permissões, emergência e diagnóstico;
+- Laboratório com dicas rápidas, fluxo visual e área de explicação mais estruturada;
+- títulos/subtítulos mudam conforme Visão geral, Configurações e Laboratório;
+- barra inferior informa que o Painel está em localhost;
+- responsividade mantida.
+
+Commits principais desta revisão:
+
+- `f885579181f3406e8719c816b243a049bdb1876c` — implementação do redesign ultra escuro;
+- `1433a6884472da04ae6e88395e31028baffd7cb7` — atualização dos testes do dashboard.
+
+O CI da revisão ultra escura foi iniciado e ainda estava em execução na última verificação. A nova revisão **ainda não foi puxada nem validada visualmente no computador alvo**.
 
 ## Gerenciamento de processos
 
@@ -61,10 +72,10 @@ Implementado em `src/context_anchor/desktop.py` com ações tipadas para:
 
 A sincronização de foco foi reforçada e validada fisicamente:
 
-- ao abrir aplicativo, o backend espera a janela ativa mudar em vez de confiar apenas em um `sleep` curto;
-- a janela que recebeu foco é registrada como alvo esperado para teclado;
-- digitação e tecla recusam execução se o foco mudou para outra janela;
-- clique atualiza a janela esperada e pode confirmar novo foco;
+- ao abrir aplicativo, o backend espera a janela ativa mudar;
+- a janela focada é registrada como alvo esperado para teclado;
+- digitação e tecla recusam execução se o foco mudar para outra janela;
+- clique atualiza a janela esperada;
 - resultados de teclado registram id e título da janela ativa.
 
 ## Navegador
@@ -93,41 +104,28 @@ Confirmado no computador alvo:
 - correção de processo zumbi validada fisicamente;
 - botão **Ligar Robô** inicia uma nova execução funcional;
 - Pillow `12.3.0` instalado na `.venv`;
-- tarefas `capturar tela` concluíram como **`succeeded`**;
-- tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`;
-- movimento físico do mouse validado pelo Painel;
+- `capturar tela` concluído como `succeeded`;
+- `janela ativa` concluída como `succeeded`;
+- movimento físico do mouse validado;
 - clique físico validado visualmente ao minimizar uma janela;
-- abertura de aplicativo permitida validada fisicamente com o Xed;
-- capacidade física de digitação validada: o Xed recebeu o texto `teste do robo`;
-- o encadeamento direto `abrir aplicativo editor` → `digitar teste do robo` foi repetido após a correção de foco, sem movimento do mouse nem clique intermediário, e funcionou corretamente;
-- as duas tarefas do reteste foram registradas como **`succeeded`**, com o texto aparecendo no Xed;
-- a tecla permitida **Enter** foi validada fisicamente em sequência: `abrir aplicativo editor` → `digitar linha um` → `tecla enter` → `digitar linha dois`, resultando em duas linhas distintas no Xed;
-- o botão **Diagnóstico** do Painel foi validado no computador real e mostrou **OK** para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
-- o dark mode foi puxado, o Painel foi reiniciado pelo atalho do desktop e a **Visão geral** carregou corretamente com o novo tema.
+- abertura de aplicativo validada com o Xed;
+- digitação física validada no Xed;
+- encadeamento `abrir aplicativo editor` → `digitar teste do robo` validado após correção de foco;
+- tecla **Enter** validada em sequência com duas linhas distintas no Xed;
+- botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
+- primeira versão do dark mode foi carregada no computador e avaliada nas telas Visão geral, Configurações e Laboratório, levando à decisão de uma segunda revisão mais escura e mais refinada.
 
 ## Falhas já diagnosticadas
 
-- screenshot falhava inicialmente por ausência de `PIL`; corrigido com Pillow;
+- screenshot falhava por ausência de `PIL`; corrigido com Pillow;
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
-- o primeiro encadeamento `abrir aplicativo editor` → `digitar teste do robo` marcou as duas tarefas como `succeeded`, mas o editor inicialmente permaneceu sem o texto esperado;
-- um segundo encadeamento funcionou quando uma ação intermediária adicionou tempo antes da digitação, revelando uma condição de corrida de prontidão/foco;
-- a condição de corrida foi corrigida com espera observável de foco e proteção de teclado e depois validada fisicamente em novo reteste direto;
-- o tema claro original do Painel foi considerado desconfortável em uso real; a correção visual escura está implementada e já foi carregada no computador alvo, faltando validação completa das telas e do conforto subjetivo.
-
-## Correções validadas em código
-
-- `src/context_anchor/desktop.py` espera foco observável e protege teclado contra mudança de janela;
-- `tests/test_desktop_focus.py` cobre rastreamento da janela focada, recusa de digitação quando o foco muda, registro da janela de destino e atualização de foco por clique;
-- o computador alvo recebeu a correção de foco por `git pull`, o Robô foi reiniciado e o reteste físico direto passou;
-- `src/context_anchor/dashboard.py` contém a primeira revisão de dark mode;
-- o CI do commit `e162b1e3811fc33df987f5c6531ac0ab56c7748f` concluiu com **success**;
-- o CI do teste específico de proteção do tema escuro também concluiu com **success**;
-- `tests/test_dashboard.py` inclui proteção básica contra regressão da paleta escura.
+- primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
+- tema claro original causava desconforto visual; primeira revisão dark melhorou luminosidade, mas ainda foi considerada insuficiente em hierarquia, legibilidade e uso do espaço; segunda revisão ultra escura está implementada e aguarda validação física.
 
 ## Ainda precisa de validação física
 
-- validar **Configurações** e **Laboratório** no dark mode e confirmar conforto, contraste e legibilidade com o usuário;
+- puxar a segunda revisão ultra escura e validar Visão geral, Configurações e Laboratório;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
