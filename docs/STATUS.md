@@ -87,7 +87,8 @@ Confirmado no computador alvo:
 - abertura de aplicativo permitida validada fisicamente com o Xed;
 - capacidade física de digitação validada: o Xed recebeu o texto `teste do robo`;
 - o encadeamento direto `abrir aplicativo editor` → `digitar teste do robo` foi repetido após a correção de foco, sem movimento do mouse nem clique intermediário, e funcionou corretamente;
-- as duas tarefas do reteste foram registradas como **`succeeded`**, com o texto aparecendo no Xed.
+- as duas tarefas do reteste foram registradas como **`succeeded`**, com o texto aparecendo no Xed;
+- a tecla permitida **Enter** foi validada fisicamente em sequência: `abrir aplicativo editor` → `digitar linha um` → `tecla enter` → `digitar linha dois`, resultando em duas linhas distintas no Xed.
 
 ## Falhas já diagnosticadas
 
@@ -107,7 +108,6 @@ Confirmado no computador alvo:
 
 ## Ainda precisa de validação física
 
-- teclas permitidas;
 - diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
