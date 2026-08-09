@@ -1,38 +1,32 @@
 # NEXT
 
-## 1. Validar o Painel do Robô no Linux real
+## 1. Concluir a validação física de segurança e teclado
 
-O primeiro Painel do Robô já está implementado e passou no CI.
+O caminho de percepção, mouse, abertura de aplicativo e digitação já foi validado no Linux real.
 
-Próximo teste, em passos pequenos:
+Próximos testes, em passos pequenos:
 
-1. atualizar o computador com `git pull` e `pip install -e .`;
-2. parar uma vez a Central antiga que já estava rodando antes do registro de PID novo;
-3. iniciar `painel-robo` e abrir `http://127.0.0.1:8765`;
-4. confirmar visualmente os estados de Central, Robô, Desktop e emergência;
-5. ligar/reiniciar Central e Robô pelos botões do Painel;
-6. executar o diagnóstico pelo Painel;
-7. testar o Laboratório com `git pull` e confirmar que a explicação aparece sem execução automática de shell.
+1. validar uma tecla permitida em um aplicativo controlado;
+2. executar o diagnóstico pelo botão do Painel;
+3. validar o `FAILSAFE` físico;
+4. validar a parada de emergência real pelo Painel e a liberação consciente do bloqueio.
 
-Critério de conclusão: o usuário deve conseguir administrar o ciclo básico pelo Painel sem precisar manter três terminais para Central, Robô e configuração.
+Critério de conclusão: teclado e mecanismos de parada devem funcionar fisicamente sem enviar entrada para a janela errada e sem bypass da Policy Layer.
 
-## 2. Validar percepção e controle do desktop pelo Painel
+## 2. Fechar o ciclo de operação pelo Painel
 
-Com o Painel validado, continuar o teste físico no Linux/X11:
+Validar o uso normal sem depender de vários terminais manuais:
 
-- `capturar tela`;
-- `janela ativa`;
-- movimento e clique do mouse;
-- digitação e teclas;
-- abertura de aplicativo permitido;
-- parada de emergência real pelo Painel;
-- confirmar comportamento do `FAILSAFE`.
+- ligar, parar e reiniciar Central e Robô pelo Painel;
+- confirmar estados corretos após cada transição;
+- testar o Laboratório com um comando conhecido, confirmando explicação sem execução automática de shell;
+- reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local.
 
-Critério de conclusão: pelo menos uma ação de percepção, uma ação de mouse, uma ação de teclado, um aplicativo e a parada de emergência devem funcionar sem bypass da Policy Layer.
+Critério de conclusão: o usuário deve conseguir administrar e diagnosticar o ciclo básico pelo Painel sem manter terminais separados para Central e Robô.
 
 ## 3. Ativar o primeiro planner por IA
 
-Depois da validação física, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
+Depois da validação física e operacional, escolher um provedor e conectá-lo ao contrato existente em `src/context_anchor/planner.py`.
 
 Requisitos:
 
