@@ -20,14 +20,14 @@ O Painel mostra o estado de Central, Robô, Desktop e emergência; permite ligar
 
 ### Revisão visual
 
-O tema claro original foi rejeitado em uso real por causar desconforto visual. A primeira revisão em dark mode foi carregada no computador e melhorou a luminosidade, mas o usuário ainda considerou o design simples, com pouco contraste entre superfícies, textos secundários pequenos/apagados e espaço mal aproveitado.
+O tema claro original foi rejeitado em uso real por causar desconforto visual. A primeira revisão em dark mode melhorou a luminosidade, mas ainda foi considerada simples, com pouco contraste entre superfícies, textos secundários pequenos/apagados e espaço mal aproveitado.
 
 O usuário definiu que, entre alternativas aceitáveis, **quanto mais escuro melhor**, desde que a leitura continue clara.
 
-Uma segunda revisão visual já foi implementada no `main`:
+A segunda revisão visual ultra escura está implementada no `main` e foi carregada no computador alvo:
 
-- tema **ultra escuro** identificado por `data-theme="ultra-dark"`;
-- fundo principal próximo de preto (`#02050a`) e cards mais escuros (`#07101a`);
+- tema `data-theme="ultra-dark"`;
+- fundo principal próximo de preto (`#02050a`) e cards escuros (`#07101a`);
 - tipografia e textos secundários com contraste maior;
 - hierarquia visual reforçada nos títulos e seções;
 - cards de status redesenhados;
@@ -35,16 +35,15 @@ Uma segunda revisão visual já foi implementada no `main`:
 - controles rápidos, comando e logs reorganizados;
 - Configurações com layout específico para permissões, emergência e diagnóstico;
 - Laboratório com dicas rápidas, fluxo visual e área de explicação mais estruturada;
-- títulos/subtítulos mudam conforme Visão geral, Configurações e Laboratório;
-- barra inferior informa que o Painel está em localhost;
+- títulos/subtítulos específicos por tela;
 - responsividade mantida.
 
-Commits principais desta revisão:
+Commits principais:
 
-- `f885579181f3406e8719c816b243a049bdb1876c` — implementação do redesign ultra escuro;
-- `1433a6884472da04ae6e88395e31028baffd7cb7` — atualização dos testes do dashboard.
+- `f885579181f3406e8719c816b243a049bdb1876c` — redesign ultra escuro;
+- `1433a6884472da04ae6e88395e31028baffd7cb7` — testes do dashboard.
 
-O CI da revisão ultra escura concluiu com **success**. A nova revisão já foi baixada no computador alvo por `git pull`; falta reiniciar o processo do Painel para carregar o novo HTML/CSS e então validar visualmente as três telas.
+O CI concluiu com **success**. A nova versão foi baixada por `git pull`, o Painel foi reiniciado pelo atalho do desktop e as três telas **Visão geral**, **Configurações** e **Laboratório** foram confirmadas visualmente no computador real com a nova revisão carregada. Falta apenas a confirmação subjetiva final do usuário sobre conforto visual antes de encerrar essa revisão.
 
 ## Gerenciamento de processos
 
@@ -113,8 +112,8 @@ Confirmado no computador alvo:
 - encadeamento `abrir aplicativo editor` → `digitar teste do robo` validado após correção de foco;
 - tecla **Enter** validada em sequência com duas linhas distintas no Xed;
 - botão **Diagnóstico** mostrou OK para Python, X11, PyAutoGUI, `xdotool`, `scrot` e Desktop;
-- primeira versão do dark mode foi carregada no computador e avaliada nas telas Visão geral, Configurações e Laboratório, levando à decisão de uma segunda revisão mais escura e mais refinada;
-- segunda revisão ultra escura baixada com sucesso no computador alvo por `git pull`, atualizando o código local até `e3e093a`.
+- primeira versão dark avaliada e rejeitada como ainda insuficiente;
+- segunda revisão ultra escura carregada e visualmente confirmada nas telas Visão geral, Configurações e Laboratório.
 
 ## Falhas já diagnosticadas
 
@@ -122,11 +121,11 @@ Confirmado no computador alvo:
 - processo zumbi era tratado como Robô online; corrigido verificando estado `Z`;
 - comando composto `abrir google.com e pesquisar inteligencia artificial` excede o limite atual do planner determinístico de uma ação por comando;
 - primeira sequência abrir editor → digitar revelou condição de corrida de prontidão/foco; corrigida e validada;
-- tema claro original causava desconforto visual; primeira revisão dark melhorou luminosidade, mas ainda foi considerada insuficiente em hierarquia, legibilidade e uso do espaço; segunda revisão ultra escura está implementada, já foi baixada e aguarda carregamento/validação física.
+- tema claro original causava desconforto visual; primeira revisão dark ainda foi insuficiente; segunda revisão ultra escura está carregada e aguarda apenas aprovação subjetiva final.
 
 ## Ainda precisa de validação física
 
-- reiniciar o Painel para carregar a segunda revisão ultra escura e validar Visão geral, Configurações e Laboratório;
+- confirmar conforto visual final da segunda revisão ultra escura;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
 - ciclo completo de ligar/parar/reiniciar Central e Robô sem depender de terminais manuais;
