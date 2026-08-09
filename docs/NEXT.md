@@ -13,16 +13,18 @@ Próximos testes, em passos pequenos:
 
 Critério de conclusão: teclado e mecanismos de parada devem funcionar fisicamente sem enviar entrada para a janela errada e sem bypass da Policy Layer.
 
-## 2. Fechar o ciclo de operação pelo Painel
+## 2. Fechar o ciclo de operação e melhorar o design do Painel
 
-Validar o uso normal sem depender de vários terminais manuais:
+Validar o uso normal sem depender de vários terminais manuais e corrigir o desconforto visual observado no uso real:
 
 - ligar, parar e reiniciar Central e Robô pelo Painel;
 - confirmar estados corretos após cada transição;
 - testar o Laboratório com um comando conhecido, confirmando explicação sem execução automática de shell;
-- reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local.
+- reduzir o fluxo diário ao atalho `Painel do Robô` e à interface Web local;
+- revisar o tema atual para reduzir brilho e fadiga visual, com aparência de menor luminosidade, melhor hierarquia e contraste;
+- validar visualmente o novo design no computador real antes de considerar o Painel pronto para uso diário.
 
-Critério de conclusão: o usuário deve conseguir administrar e diagnosticar o ciclo básico pelo Painel sem manter terminais separados para Central e Robô.
+Critério de conclusão: o usuário deve conseguir administrar e diagnosticar o ciclo básico pelo Painel sem manter terminais separados para Central e Robô e sem desconforto causado pelo tema atual.
 
 ## 3. Ativar o primeiro planner por IA
 
