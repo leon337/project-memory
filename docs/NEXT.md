@@ -1,18 +1,23 @@
 # NEXT
 
-## 1. Validar FAILSAFE físico
+## 1. Corrigir e revalidar o FAILSAFE físico
 
-Painel, Central e Robô já produziram telemetria real identificada por origem no computador alvo. Os **Controles de estado** também acompanharam as principais transições observadas, incluindo a Central passando de externa para desligada e depois para gerenciada pelo Painel, além do reinício real do Robô pelo próprio Painel.
+A primeira validação física do FAILSAFE falhou: com o ponteiro no canto superior esquerdo, a tarefa `mover mouse 200 200` foi executada e terminou como `succeeded`.
 
-Próximo passo:
+O backend atualmente ativa `pyautogui.FAILSAFE = True`, mas isso não foi suficiente no computador alvo.
 
-1. validar fisicamente o `FAILSAFE` do PyAutoGUI em uma ação controlada, confirmando que o mecanismo de segurança interrompe a ação quando o ponteiro é levado ao canto configurado.
+Próximos passos:
 
-Critério de conclusão: o FAILSAFE deve interromper a ação de desktop de forma observável e sem deixar o Robô em estado enganoso.
+1. adicionar no backend de desktop uma proteção explícita própria antes de ações físicas, tratando uma pequena zona dos cantos da tela como área de parada;
+2. cobrir a proteção com testes automatizados;
+3. baixar/reiniciar o Robô;
+4. repetir fisicamente `mover mouse 200 200` com o ponteiro na zona de segurança.
+
+Critério de conclusão: a ação deve ser recusada antes do movimento, a tarefa deve terminar como `failed` e a telemetria deve registrar a interrupção de segurança.
 
 ## 2. Concluir parada de emergência e ciclo operacional
 
-Depois do FAILSAFE:
+Depois do FAILSAFE corrigido e aprovado:
 
 - validar a parada de emergência real pelo Painel;
 - confirmar que o Robô é encerrado e o bloqueio persistente fica visível;
