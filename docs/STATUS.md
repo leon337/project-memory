@@ -2,153 +2,143 @@
 
 ## Objetivo atual
 
-Construir um operador digital local capaz de receber objetivos em linguagem natural, usar as capacidades disponíveis ao usuário e ao sistema operacional e continuar executando até concluir o objetivo.
+Construir um operador digital local capaz de receber objetivos em linguagem natural, descobrir capacidades disponíveis, executar em ciclo fechado e só encerrar quando o resultado final estiver comprovado por evidências.
 
 ## Estado verificável agora
 
-O `main` contém o MVP 0.3 com três processos separados:
+O `main` continua no commit `b7f79a0e4830d37d763a46b981497b52519781b8` com o MVP anterior estável.
 
-- **Painel do Robô** — `127.0.0.1:8765`;
-- **Central** — `127.0.0.1:8000`;
-- **Robô local** — polling autenticado, planejamento, execução, verificação e telemetria.
+O trabalho pesado do novo Goal Runtime está preservado na branch:
 
-Painel e Central continuam locais por padrão. Publicação remota ainda não foi implementada.
+`codex/goal-runtime-wip`
 
-## Capacidades físicas já validadas
+Checkpoint inicial:
 
-No Linux/X11 real já foram validados controles de Painel/Central/Robô, Emergency Stop, FAILSAFE, screenshot, mouse, aplicativos, Unicode/teclado, proteção de foco, telemetria, planner multi-provider com fallback e fast paths locais de editor/escrita e navegação/pesquisa.
+`f73abddc23b676c990755011621a3a4b1db7b4f7`
 
-## Baseline físico de autonomia — conclusão
+Correção P0 mais recente:
 
-O executor físico e os fast paths já realizam ações úteis. Os principais FAILs atuais estão em:
+`5894f98c0a1004a76bc10326a04a58e08b9807e0`
 
-- interpretação de intenção natural;
-- resolução de capacidades/aplicativos;
-- contexto entre tarefas;
-- percepção de conteúdo;
-- condicionais/replanejamento;
-- falso `succeeded` em objetivos compostos.
+A branch está à frente de `main` e contém código/testes da missão sem incluir PNGs, PDFs, arquivos pessoais ou `egg-info`.
 
-Não é correto resolver autonomia adicionando regex por frase como estratégia principal.
+## Arquitetura nova já implementada na branch WIP
 
-### Regressão crítica
+O fluxo local novo já está conectado:
+
+```text
+pedido
+→ claim + lease
+→ contexto operacional curto
+→ interpretação local tipada ou decomposição estruturada por provider
+→ GoalContract / GoalRunState
+→ Capability Resolver
+→ Policy Layer
+→ executor físico
+→ ExecutionReceipt
+→ percepção independente
+→ EvidenceRecord
+→ GoalVerifier
+→ continuar/falhar/succeeded
+```
+
+Componentes novos relevantes:
+
+- `src/context_anchor/goal_execution.py` — orquestrador universal de Goal Runs;
+- `src/context_anchor/capabilities.py` — resolução de capacidades para aplicativos instalados;
+- `src/context_anchor/goal_interpreter.py` — interpretação tipada e fail-closed para cobertura incompleta;
+- `src/context_anchor/session_context.py` — memória operacional curta com proveniência/TTL;
+- `src/context_anchor/lease.py` — heartbeat e proteção de posse da task;
+- `src/context_anchor/redaction.py` — sanitização de resultados/logs/contexto;
+- `src/context_anchor/goal_runtime.py` — contratos, evidências, budgets e `GoalVerifier`.
+
+`src/context_anchor/local_agent.py` já encaminha todo comando para `execute_goal()` na branch WIP.
+
+## Regra de conclusão já travada em código
+
+- `ExecutionReceipt` registra execução, mas não prova sozinho o efeito do objetivo;
+- critérios obrigatórios precisam de observação/readback compatível;
+- subobjetivos dependentes precisam estar satisfeitos;
+- contratos sem critérios obrigatórios não concluem;
+- `finish`/planner não possuem autoridade para encerrar objetivo incompleto;
+- `GoalVerifier` é a autoridade final para `SUCCEEDED`.
+
+## Autonomia já implementada em código
+
+A branch WIP possui caminhos para:
+
+- `Abra o VS Code` → capability `code.edit`;
+- `Preciso fazer algumas contas.` → capability `calculate`;
+- `Quero fazer uma anotação...` → capability `text.edit`;
+- `Quero saber o significado do nome Josiel.` → busca + leitura estruturada;
+- busca simples sem provider externo;
+- busca em navegador explicitamente solicitado;
+- pesquisa → observar primeiro resultado → extrair título → abrir editor → escrever → readback;
+- objetivo condicional com observação de site e branch;
+- contexto entre tasks, incluindo resolução de `lá` por artefato anterior.
+
+A interpretação local continua conceitual/lexical e tipada; pedidos fora desse vocabulário vão para decomposição estruturada por provider. Não há pretensão de entendimento semântico aberto totalmente local nesta etapa.
+
+## Regressão crítica histórica
 
 Pedido:
 
 `Pesquise inteligência artificial e depois abra um editor de texto e escreva o título do primeiro resultado.`
 
-Houve um falso PASS histórico: apenas a pesquisa foi aberta; o primeiro resultado não foi lido, o editor não foi aberto e o título não foi escrito. Esse caso é a regressão principal da nova arquitetura.
+O falso PASS histórico é coberto agora por critérios separados de pesquisa, resultados, primeiro título, editor e readback do texto final. Automatizado, esse fluxo está implementado; validação física integrada pelo Painel/Central/Robô ainda é obrigatória antes do merge em `main`.
 
-## Decisão arquitetural vigente — Goal Runtime universal
+## P0 de cobertura de objetivo — corrigido
 
-Foi adotado um **Goal Runtime universal em ciclo fechado**:
+Foi encontrado um caso em que:
 
-```text
-Goal Contract
-→ estado operacional / blackboard
-→ resolução de capacidade
-→ próxima etapa
-→ Policy Layer
-→ executor
-→ Execution Receipt
-→ observação
-→ evidência
-→ Goal Verifier
-→ replanejamento ou conclusão
-```
+`Abra o Brave, acesse example.com e pesquise gatos`
 
-Princípios:
+poderia perder a URL explícita e virar uma busca em outro mecanismo.
 
-- fast paths continuam como skills/otimizações dentro do mesmo Goal Run;
-- ação executada não equivale automaticamente a objetivo concluído;
-- planner não possui autoridade final para `succeeded`;
-- somente o Goal Verifier pode fechar o objetivo quando critérios obrigatórios estiverem comprovados;
-- migração incremental, sem reescrever Painel, Central, SQLite/fila/leases, executores, Policy Layer, FAILSAFE, Emergency Stop ou providers.
+O commit `5894f98c0a1004a76bc10326a04a58e08b9807e0` corrigiu isso:
 
-## Fundação de código preparada para a integração pesada
+- pesquisa em navegador nomeado sem site explícito continua fast path;
+- Google/Bing/DuckDuckGo explícitos continuam fast path;
+- site explícito não reconhecido como mecanismo de busca vai para `GENERIC`/fail-closed antes de qualquer ação física;
+- regressão automatizada exige `executor.executed == []` no caso incorreto.
 
-Existe `src/context_anchor/goal_runtime.py` como fundação isolada, ainda **não conectada ao fluxo físico atual**.
+O Codex reportou `10 passed` nos testes focados dessa correção.
 
-Ela define:
+## Testes automatizados
 
-- `GoalContract`;
-- `GoalCriterion`;
-- `GoalSubgoal`;
-- `GoalRunState`;
-- `EvidenceRecord`;
-- `EvidenceKind`;
-- `CriterionCheck`;
-- `GoalVerdict`;
-- `GoalVerifier`.
+No checkpoint anterior à correção P0, o Codex reportou suíte local completa com:
 
-Semântica já travada:
+`333 passed, 1 warning`
 
-- `ExecutionReceipt` registra execução técnica, mas não prova sozinho um efeito do objetivo;
-- observação/readback só prova um critério quando `verified=True` e o valor observado satisfaz o check do critério;
-- checks iniciais: `ANY_VERIFIED_EVIDENCE`, `EQUALS`, `CONTAINS` e `TRUTHY`;
-- critério obrigatório pendente mantém o Goal Run aberto;
-- apenas todos os critérios obrigatórios comprovados permitem `SUCCEEDED`.
+Também foram reportadas várias suítes focadas verdes.
 
-`tests/test_goal_runtime_contract.py` cobre atualmente:
+Depois da correção P0 foram reportados `10 passed` nos testes diretamente relacionados.
 
-- receipt não conclui critério;
-- observação precisa corresponder ao valor esperado;
-- um critério satisfeito não conclui Goal com outro critério obrigatório pendente;
-- readback incorreto não conclui critério;
-- todas as evidências corretas permitem `SUCCEEDED`;
-- observação não verificada nunca prova objetivo;
-- `TRUTHY` exige valor observado verdadeiro/não vazio.
+Ainda não existe execução de GitHub Actions para a branch WIP; portanto o estado da suíte completa dessa branch ainda precisa ser repetido antes do merge.
 
-GitHub Actions CI run `31311361873` terminou com **success** em Install, Compile e Test para o commit `f082ffed1f4d86a9554a75a5affc8fdb7629bca0`.
+## Testes físicos integrados
 
-## Missão pesada preparada para o Codex
+Pelos critérios estritos de `docs/CODEX_GOAL_RUNTIME_MISSION.md`, a nova branch ainda não possui a bateria A–E totalmente aprovada pelo fluxo real Painel → Central → Robô.
 
-Foi criado `docs/CODEX_GOAL_RUNTIME_MISSION.md` para evitar que o Codex gaste cota reconstruindo toda a arquitetura e os critérios de aceite.
-
-Esse documento determina que a missão não termina em testes mockados ou em uma implementação parcial. O Codex deve trabalhar em ciclo de diagnóstico → código → testes → execução física → correção até atingir os critérios obrigatórios ou provar um bloqueio externo não resolvível pelo código.
-
-A missão contém:
-
-- arquivos prioritários;
-- fluxo arquitetural obrigatório;
-- integração universal no `local_agent.py`;
-- separação de receipt/evidence;
-- percepção estruturada de browser;
-- Capability Resolver;
-- interpretação/decomposição semântica;
-- replanning/budgets;
-- contexto operacional curto;
-- regressões automatizadas obrigatórias;
-- 10 critérios/testes físicos de aceitação, incluindo o falso PASS histórico, condicional real e continuidade contextual entre tasks;
-- exigência de suíte completa, `git diff --check`, revisão, commit/push e atualização dos quatro arquivos de memória antes de encerrar.
-
-## O que deliberadamente não foi alterado ainda
-
-A fundação nova não intercepta ainda:
-
-- `local_agent.py`;
-- planner atual;
-- fast paths atuais;
-- execução física;
-- persistência final da Central.
-
-Isso mantém o MVP atual operacional enquanto a integração pesada fica reservada para a execução com acesso integral ao computador.
-
-## Próxima fronteira pesada
-
-Migrar `local_agent` para que todo pedido crie/use o mesmo Goal Run, convertendo fast paths e planner por IA em fontes de steps e fazendo o Goal Verifier ser a única autoridade de conclusão.
-
-Depois completar percepção estruturada, Capability Resolver, interpretação semântica, Session Context e Recovery Manager até passar os critérios físicos de `docs/CODEX_GOAL_RUNTIME_MISSION.md`.
+Há provas físicas parciais/diretas de editor/readback, navegação, busca, fluxo pesquisa→título→editor, condicional e contexto, mas isso não substitui a validação integrada obrigatória.
 
 ## Providers
 
-O modo `multi` possui adaptadores para Z.AI/GLM, Google Gemini e Cloudflare Workers AI; Cloudflare ainda precisa do `Account ID` no ambiente real. Z.AI e Gemini apresentaram 429/respostas inválidas nos testes recentes, portanto fast paths determinísticos continuam importantes para preservar quota.
+O modo multi continua com Z.AI/GLM, Google Gemini e Cloudflare Workers AI. Cloudflare ainda depende de `Account ID` no ambiente real. Z.AI/Gemini já apresentaram 429 em testes anteriores; fast paths e capabilities locais continuam importantes para preservar quota.
 
 ## Controles preservados
 
-- parada de emergência persistente;
-- FAILSAFE físico próprio nos quatro cantos;
-- proteção de foco antes de teclado;
+- Emergency Stop persistente;
+- FAILSAFE físico;
+- proteção de foco;
+- Policy Layer;
 - `shell=False`;
-- credenciais fora de código, Git, logs e prompts;
-- Painel e Central em localhost por padrão.
+- leases da Central;
+- credenciais fora de código/Git/logs;
+- Painel/Central em localhost por padrão.
+
+## Situação de conclusão
+
+A missão **não está concluída** e a branch WIP **não deve ser mergeada em `main` ainda**.
+
+O principal trabalho restante é validação física integrada, correção de qualquer falha real encontrada, repetição da suíte completa/checks e fechamento documental/merge somente após os critérios obrigatórios passarem.
