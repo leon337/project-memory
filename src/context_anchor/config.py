@@ -32,7 +32,7 @@ class EmergencyStopSettings(BaseAppSettings):
 
 
 class DesktopSettings(EmergencyStopSettings):
-    desktop_enabled: bool = False
+    desktop_enabled: bool = True
     screenshot_dir: Path = Path("runtime/screenshots")
 
 
