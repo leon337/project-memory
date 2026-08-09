@@ -73,7 +73,8 @@ Confirmado no computador alvo:
 - tarefas `capturar tela` concluíram como **`succeeded`**;
 - tarefa `janela ativa` concluída como **`succeeded`**, validando a consulta da janela ativa via `xdotool`;
 - movimento físico do mouse validado pelo Painel: comandos `mover mouse 200 200`, `mover mouse 600 200`, `mover mouse 600 350` e `mover mouse 600 355` concluíram como **`succeeded`**, com deslocamento visível do ponteiro para as coordenadas solicitadas;
-- ação física de clique validada pelo Painel: comando `clicar` concluiu como **`succeeded`** enquanto o ponteiro estava sobre uma área branca vazia, portanto sem efeito visual esperado na interface.
+- clique físico validado visualmente: o ponteiro foi posicionado sobre o botão de minimizar e o comando `clicar` minimizou a janela, confirmando o efeito real do clique;
+- abertura de aplicativo permitida validada fisicamente: o comando `abrir aplicativo editor` abriu o editor Xed com um documento novo.
 
 ## Falhas já diagnosticadas
 
@@ -85,7 +86,6 @@ Confirmado no computador alvo:
 
 - digitação;
 - teclas permitidas;
-- abertura de aplicativo permitido;
 - diagnóstico pelo botão do Painel;
 - `FAILSAFE` físico;
 - parada de emergência real pelo Painel;
