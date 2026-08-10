@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from .action_journal import ActionReplayBlocked
 from .actions import ActionExecutor
 from .capabilities import CapabilityResolver
 from .config import DashboardSettings, LocalAgentSettings
@@ -267,6 +268,18 @@ def run() -> None:
                                         )
                                     except LeaseOwnershipLost:
                                         raise
+                                    except ActionReplayBlocked as exc:
+                                        safe_error = redact_exception(exc)
+                                        payload = {
+                                            "lease_token": task.lease_token,
+                                            "ok": False,
+                                            "error": safe_error,
+                                        }
+                                        log(
+                                            f"Replay físico bloqueado id={task.id} "
+                                            f"action_key={exc.action_key} state={exc.state}",
+                                            level="WARN",
+                                        )
                                     except (
                                         EmergencyStopTriggered,
                                         DesktopFailsafeTriggered,
@@ -306,7 +319,7 @@ def run() -> None:
                                             )
 
                                     # A final result can only be sent after one last
-                                    # ownership check.  The result endpoint performs
+                                    # ownership check. The result endpoint performs
                                     # the definitive atomic token/expiry validation.
                                     lease.assert_owned()
                             except LeaseOwnershipLost as exc:
