@@ -7,6 +7,7 @@ from enum import Enum
 from urllib.parse import urlparse
 
 from .policy import Plan, plan_command, plan_local_sequence
+from .text_semantics import strip_exact_write_modifier
 
 
 class IntentKind(str, Enum):
@@ -757,12 +758,14 @@ def _extract_written_text(command: str, tokens: tuple[_Token, ...]) -> str | Non
     if not indices:
         return None
     token = tokens[indices[-1]]
-    tail = command[token.end :].strip()
+    tail = strip_exact_write_modifier(command[token.end :].strip())
+    tail = re.sub(r"^(?:no|num|em\s+um|em\s+uma)\s+editor(?:\s+de\s+texto)?\s*[,;:]?\s*", "", tail, flags=re.IGNORECASE)
+    tail = strip_exact_write_modifier(tail)
     quoted = _QUOTED_RE.match(tail.lstrip(" :"))
     if quoted:
         return next(group for group in quoted.groups() if group is not None).strip()
-    tail = re.sub(r"^(?:no|num|em\s+um|em\s+uma)\s+editor(?:\s+de\s+texto)?\s*[,;:]?\s*", "", tail, flags=re.IGNORECASE)
     tail = re.sub(r"^(?:o\s+)?texto\s*[:]?\s*", "", tail, flags=re.IGNORECASE)
+    tail = strip_exact_write_modifier(tail)
     return _trim_value(tail) or None
 
 
@@ -811,13 +814,16 @@ def _extract_branch_texts(
             maxsplit=1,
             flags=re.IGNORECASE,
         )[0]
+        value = strip_exact_write_modifier(value)
         value = re.sub(
             r"^(?:no|num|em\s+um|em\s+uma)\s+editor(?:\s+de\s+texto)?\s*[,;:]?\s*",
             "",
             value,
             flags=re.IGNORECASE,
         )
+        value = strip_exact_write_modifier(value)
         value = re.sub(r"^(?:o\s+)?texto\s*[:]?\s*", "", value, flags=re.IGNORECASE)
+        value = strip_exact_write_modifier(value)
         values.append(_trim_value(value))
     return (values[0] or None), (values[1] or None)
 
