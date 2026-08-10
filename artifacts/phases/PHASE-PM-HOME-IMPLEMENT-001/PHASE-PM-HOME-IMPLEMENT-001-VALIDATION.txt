@@ -19,8 +19,12 @@ CHECKS
 - GoalVerifier untouched: PASS
 - Home V4.1 structure: PASS
 - Chromium interaction test included: PASS
-- GitHub Actions run 318: PASS
+- functional GitHub Actions run 318: PASS
+- PRF pre-audit GitHub Actions run 331: PASS
 - Vinicius code review: PASS_WITH_REQUIREMENTS
 - Ricardo security recheck: PASS_WITH_EXTERNAL_VALIDATION
+- Emily pre-physical audit: PASS_TO_EXTERNAL_DEPENDENCY
+- Leo pre-physical gate: APROVAR_COM_RESSALVAS
 - physical Linux/X11 validator: PENDING_EXTERNAL_LOCAL_ENV
+- HUMAN_GATE: NOT_REQUIRED
 - merge: NOT_EXECUTED
