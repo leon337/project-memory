@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
@@ -28,6 +28,35 @@ from .schemas import (
     TaskView,
 )
 from .store import TaskStore
+
+_JOURNAL_RECEIPT_FIELDS = frozenset(
+    {
+        "action",
+        "verified",
+        "http_status",
+        "x",
+        "y",
+        "button",
+        "window_id",
+        "characters",
+        "input_method",
+        "key",
+        "pid",
+        "window_changed",
+    }
+)
+
+
+def _journal_receipt(receipt: dict[str, Any] | None) -> dict[str, Any] | None:
+    if receipt is None:
+        return None
+    return {
+        key: value
+        for key, value in receipt.items()
+        if key in _JOURNAL_RECEIPT_FIELDS
+        and isinstance(value, (str, int, float, bool, type(None)))
+    }
+
 
 INDEX_HTML = """<!doctype html>
 <html lang="pt-BR">
@@ -232,7 +261,7 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
                 lease_token=payload.lease_token,
                 action_key=payload.action_key,
                 state=payload.state,
-                receipt=payload.receipt,
+                receipt=_journal_receipt(payload.receipt),
             )
         except (ActionJournalLeaseConflict, ActionJournalConflict) as exc:
             raise journal_error(exc) from exc
