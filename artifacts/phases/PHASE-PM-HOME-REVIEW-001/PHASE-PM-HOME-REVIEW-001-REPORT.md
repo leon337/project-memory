@@ -4,7 +4,7 @@
 A execução anterior foi auditada por Augusto e Emily. Findings técnicos verificáveis foram reaproveitados; pareceres agregados foram tratados apenas como referência e os especialistas necessários foram reexecutados com artefatos individuais.
 
 Fluxo pós-correção:
-`Augusto(reuso) → Emily(reuso) → Miriam → Leonardo → Evelyn → Laura → Isabela → Marina → Sofia → Rafael → Ricardo → Tiago → Beatriz → Júlia → Augusto(trace) → Renato → Carmem → Emily`.
+`Augusto(reuso) → Emily(reuso) → Miriam → Leonardo → Evelyn → Laura → Isabela → Marina → Sofia → Rafael → Ricardo → Tiago → Beatriz → Júlia → Augusto(trace) → Renato → Carmem → Emily → Carmem/Gabriel(remediação) → Emily(reauditoria) → Léo → Gabriel/Carmem → Mestre`.
 
 A passagem de bastão foi tratada como fronteira de responsabilidade, não como pausa humana.
 
@@ -24,8 +24,12 @@ A passagem de bastão foi tratada como fronteira de responsabilidade, não como 
 - journal de crash/replay permanece backlog técnico explícito;
 - nenhuma alteração funcional foi realizada.
 
-## Auditoria
-Emily encontrou somente um finding de fechamento: PRF antigo ainda refletia o HUMAN_GATE artificial. A remediação documental está em andamento antes do gate final de Léo.
+## Correção e auditoria
+Emily detectou PRF stale após a correção metodológica de LEANDRO. Carmem/Gabriel remediaram PLAN/REPORT/DECISIONS/CHECKPOINT; Emily reavaliou e marcou o finding como `RESOLVED`.
 
-## Estado
-`PRF_REMEDIATION_BEFORE_LEO_GATE`.
+## Gate
+Léo: `APROVAR`.
+HUMAN_GATE: não requerido nesta fase, pois nenhum gatilho reservado foi identificado.
+
+## Estado final
+`ENTREGUE` — objetivo documental atendido; implementação funcional permanece fora desta missão.
