@@ -1,0 +1,6 @@
+PM-HOME-REVIEW-001 SMOKE
+
+RESULT: NAO_APLICAVEL
+
+Justificativa:
+Esta fase altera somente documentação de revisão e não modifica runtime, frontend funcional, testes ou configuração. O smoke funcional do Robô não foi repetido porque isso seria execução fora do escopo. O baseline funcional permaneceu ancorado no CI verde e nas evidências já registradas no repositório. A implementação futura da Home V4.1 exige smoke e bateria física próprios.
