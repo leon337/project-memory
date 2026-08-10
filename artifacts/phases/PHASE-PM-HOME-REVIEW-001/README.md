@@ -11,5 +11,11 @@
 8. `PHASE-PM-HOME-REVIEW-001-ARTIFACT-MANIFEST.sha256`
 
 ## Resultado
-Fase documental pronta para HUMAN_GATE de LEANDRO.
-Nenhuma implementação, PR ou merge foi autorizado.
+`ENTREGUE` — revisão V1–V4 concluída e Home V4.1 consolidada como especificação recomendada.
+
+- Léo gate: `APROVAR`;
+- HUMAN_GATE: não requerido nesta fase documental;
+- nenhuma implementação funcional foi realizada;
+- requirements técnicos futuros permanecem explicitamente rastreados.
+
+A especificação final está em `docs/reviews/PM-HOME-REVIEW-001/25-CARMEM-FINAL-HOME-SPEC.md`.
