@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import threading
 from collections import defaultdict
 from collections.abc import Callable, Mapping
@@ -249,10 +250,27 @@ class LeaseGuardedExecutor:
         self.assert_authorized()
         return result
 
-    def _next_action_key(self, action_name: str) -> str:
-        self._action_occurrences[action_name] += 1
-        occurrence = self._action_occurrences[action_name]
-        return f"v1:{action_name}:{occurrence:04d}"
+    def _next_action_key(self, action_name: str, target: str) -> str:
+        """Build a task-scoped stable identity without persisting the raw target.
+
+        A task UUID is used as the BLAKE2 key/salt, so identical targets in
+        different tasks do not produce a globally correlatable fingerprint.
+        The occurrence suffix distinguishes an intentional repeated invocation
+        of the exact same action+target within one task.
+        """
+
+        task_id = str(getattr(self._heartbeat, "task_id", "legacy-task"))
+        task_key = task_id.encode("utf-8")[:32] or b"legacy-task"
+        raw_signature = f"{action_name}\0{target}".encode("utf-8")
+        fingerprint = hashlib.blake2s(
+            raw_signature,
+            key=task_key,
+            digest_size=10,
+        ).hexdigest()
+        signature = f"{action_name}:{fingerprint}"
+        self._action_occurrences[signature] += 1
+        occurrence = self._action_occurrences[signature]
+        return f"v1:{action_name}:{fingerprint}:{occurrence:04d}"
 
     @classmethod
     def _repeat_safe(cls, action_name: str) -> bool:
@@ -270,7 +288,8 @@ class LeaseGuardedExecutor:
             return self._guarded_call(self._executor.execute, plan)
 
         action_name = str(getattr(plan, "action", ""))
-        action_key = self._next_action_key(action_name)
+        target = str(getattr(plan, "target", ""))
+        action_key = self._next_action_key(action_name, target)
         repeat_safe = self._repeat_safe(action_name)
         prepared = journal.prepare(
             action_key=action_key,
