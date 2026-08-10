@@ -3,17 +3,25 @@ PM-HOME-REVIEW-001 VALIDATION FULL
 Evidence sources:
 - GitHub issue #1
 - branch review/pm-home-review-001
-- baseline docs and code inspected from project-memory main
-- MCF operational protocol and agent matrix
-- review artifacts 00 through 08
+- project-memory main baseline SHA 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
+- MCF main SHA 1c58b4ba280bd32f587c2f042e35a2dba1a123a9
+- MCF operational protocol 1.1 and 29-agent matrix
+- review artifacts 00 through 29
+- PRF remediation and Emily re-audit
 
 Verified technical facts used by the review:
-1. Goal Runtime and GoalVerifier are integrated according to STATUS/ARCHITECTURE.
+1. Goal Runtime and GoalVerifier are integrated according to STATUS.
 2. baseline CI for main SHA 48712501... completed successfully with 351 passed and 1 external deprecation warning.
 3. README still contains drift about Goal Runtime integration.
-4. `_extract_written_text()` lacks explicit `exatamente:` normalization in inspected baseline.
-5. current dashboard exposes mutable local POST routes; hardening review is required.
-6. `docs/NEXT.md` retains crash/replay journal/idempotency as future work.
-7. compare of review branch against baseline showed documentation-only additions before internal gate.
+4. `_extract_written_text()` lacks `exatamente:` normalization in inspected baseline.
+5. `tests/test_goal_interpreter.py` has no equivalent regression for that modifier.
+6. current dashboard exposes mutable local control/task routes; hardening is required before the new Home is considered ready.
+7. `docs/NEXT.md` retains crash/replay journal/idempotency as future work.
+8. compare of review branch against main remained documentation/PRF only throughout this phase.
+9. previous grouped multiagent evidence was not accepted as sufficient proof; individual specialist artifacts were reissued after LEANDRO's correction.
+10. Emily re-audit resolved the stale-HUMAN_GATE PRF finding.
+11. Léo final gate: APROVAR; no reserved HUMAN_GATE trigger identified.
 
-No new functional test result is claimed by this review phase.
+No new functional test result is claimed by this review phase. Functional implementation and physical verification belong to a separate future mission.
+
+FINAL_STATE: ENTREGUE
