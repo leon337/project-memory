@@ -370,6 +370,22 @@ def _origin_is_allowed(request: Request) -> bool:
     return parsed.netloc.casefold() == request_host.casefold()
 
 
+def _public_dashboard_status(raw: dict[str, Any]) -> dict[str, Any]:
+    """Remove lease ownership credentials before status reaches the browser."""
+
+    public = dict(raw)
+    tasks: list[dict[str, Any]] = []
+    for task in raw.get("tasks", []):
+        if not isinstance(task, dict):
+            continue
+        item = dict(task)
+        item.pop("lease_token", None)
+        item.pop("lease_expires_at", None)
+        tasks.append(item)
+    public["tasks"] = tasks
+    return public
+
+
 def _default_conversation(active: DashboardControl) -> ConversationBackend:
     root = getattr(active, "project_root", Path.cwd())
     return ProjectConversationService(project_root=root)
@@ -409,7 +425,7 @@ def create_app(
 
     @app.get("/api/status")
     def status() -> dict[str, Any]:
-        return active.status()
+        return _public_dashboard_status(active.status())
 
     @app.get("/api/diagnostics")
     def diagnostics() -> dict[str, Any]:
