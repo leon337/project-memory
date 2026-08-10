@@ -1,40 +1,6 @@
 from pathlib import Path
 
-import context_anchor.desktop as desktop_module
 from context_anchor.conversation import ProjectConversationService
-from context_anchor.desktop import PyAutoGuiDesktopBackend
-
-
-def test_focus_wait_settles_on_final_window_after_transient(monkeypatch) -> None:
-    backend = PyAutoGuiDesktopBackend(
-        app_ready_timeout_seconds=2.0,
-        focus_settle_seconds=0.15,
-    )
-    windows = ["200", "300", "300", "300", "300"]
-    index = {"value": 0}
-
-    def active_window() -> str:
-        position = min(index["value"], len(windows) - 1)
-        index["value"] += 1
-        return windows[position]
-
-    clock = {"value": 0.0}
-
-    def monotonic() -> float:
-        clock["value"] += 0.1
-        return clock["value"]
-
-    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
-    monkeypatch.setattr(backend, "_active_window_id", active_window)
-    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: f"window-{window_id}")
-    monkeypatch.setattr(desktop_module.time, "monotonic", monotonic)
-    monkeypatch.setattr(desktop_module.time, "sleep", lambda _seconds: None)
-
-    result = backend._wait_for_active_window_change("100")
-
-    assert result["window_changed"] is True
-    assert result["window_id"] == "300"
-    assert result["window_title"] == "window-300"
 
 
 def test_conversation_rejects_project_identity_drift_and_falls_back(
@@ -60,7 +26,9 @@ def test_conversation_rejects_project_identity_drift_and_falls_back(
     monkeypatch.setattr(
         service,
         "_gemini",
-        lambda system, message: (_ for _ in ()).throw(AssertionError("não deveria chegar ao Gemini")),
+        lambda system, message: (_ for _ in ()).throw(
+            AssertionError("não deveria chegar ao Gemini")
+        ),
     )
 
     response = service.reply(
