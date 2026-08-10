@@ -169,7 +169,13 @@ def plan_local_sequence(command: str) -> tuple[Plan, ...] | None:
     if not match:
         return None
 
-    app_target = _strip_polite_suffix(match.group(1))
+    app_target = re.sub(
+        r"^(?:o|a|um|uma)\s+",
+        "",
+        _strip_polite_suffix(match.group(1)),
+        count=1,
+        flags=re.IGNORECASE,
+    ).strip()
     typed_text = strip_exact_write_modifier(match.group(2))
     if not app_target or not typed_text or _looks_like_url_target(app_target):
         return None
