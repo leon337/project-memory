@@ -1,0 +1,55 @@
+PM-HOME-IMPLEMENT-001 VALIDATION FULL
+
+BASELINE
+MCF main = 1c58b4ba280bd32f587c2f042e35a2dba1a123a9
+project-memory main = 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
+
+TDD / CI EVIDENCE
+- run 288 / 31363942980: FAILURE — initial exatamente RED.
+- run 291 / 31364265999: FAILURE — remaining `um editor` target mismatch.
+- run 292 / 31364557832: SUCCESS — parser slice GREEN.
+- run 294 / 31364943684: FAILURE — Home V4.1 contract RED.
+- run 297 / 31365359561: FAILURE — legacy dashboard contract mismatch after UI replacement.
+- run 298 / 31365499078: SUCCESS — V4.1 API/UI integration GREEN.
+- run 299 / 31365593830: FAILURE — conversation privacy/fingerprint regression.
+- run 300 / 31365721132: SUCCESS — sanitized stable conversation context.
+- run 301 / 31365982438: FAILURE — lease data exposure regression.
+- run 302 / 31366142008: SUCCESS — public dashboard status sanitized.
+- run 303 / 31366334185: SUCCESS — physical validator script compiles/tests.
+- run 305 / 31366728644: FAILURE — browser test used unavailable pytest fixture.
+- run 306 / 31366934052: FAILURE — Chromium selector/assertion refinement required.
+- run 318 / 31367543844: SUCCESS — final functional HEAD ddb8e0d06c1981a592f26edbcb854e54046780a4.
+
+RUN 318 JOB
+job id = 93389106018
+Install = PASS
+Playwright Chromium install = PASS
+Compile = PASS
+Test = PASS
+Conclusion = SUCCESS
+
+GitHub connector did not expose textual job logs for run 318, so this PRF does not invent a test-count number.
+
+CODE REVIEW
+PR #3 review id = 4894682127
+Reviewer role = Vinícius / MCF code-review function
+Verdict = PASS_WITH_REQUIREMENTS
+Blockers = 0 known
+Requirement = physical Linux/X11 before integration
+
+SECURITY
+- TrustedHost enabled.
+- Foreign Origin blocked for mutation routes.
+- Cross-site fetch without Origin blocked.
+- Security headers/CSP applied.
+- lease_token and lease_expires_at removed before browser status.
+- conversation context and user message sanitized.
+- .env excluded from project context.
+- no Internet publication authorized.
+
+PHYSICAL
+Validator: scripts/validate_home_v4_1_physical.py
+Expected final marker: PASS_GATE: HOME_V4_1_PHYSICAL
+Current result: PENDING_EXTERNAL_LOCAL_ENV
+
+No physical PASS is claimed in this document.
