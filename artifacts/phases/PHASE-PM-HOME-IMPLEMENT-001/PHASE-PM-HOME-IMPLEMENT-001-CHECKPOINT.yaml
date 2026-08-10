@@ -1,0 +1,33 @@
+mission_id: PM-HOME-IMPLEMENT-001
+phase_id: HOME_V4_1_IMPLEMENTATION
+risk_class: C
+repository: leon337/project-memory
+issue: 2
+pr: 3
+base_main_sha: 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
+branch: feat/pm-home-v4-1-implementation
+last_functional_head_sha: ddb8e0d06c1981a592f26edbcb854e54046780a4
+functional_ci:
+  run_id: 31367543844
+  run_number: 318
+  result: PASS
+vinicius_review:
+  review_id: 4894682127
+  result: PASS_WITH_REQUIREMENTS
+security:
+  result: PASS_WITH_EXTERNAL_VALIDATION
+automated_validation: PASS
+physical_validation:
+  status: PENDING_EXTERNAL_LOCAL_ENV
+  validator: scripts/validate_home_v4_1_physical.py
+  expected_marker: PASS_GATE_HOME_V4_1_PHYSICAL
+pr_state:
+  open: true
+  draft: true
+merge_performed: false
+human_gate:
+  required: false
+next_internal_gate: AFTER_PHYSICAL_VALIDATION
+final_state: AGUARDANDO_DEPENDENCIA_EXTERNA
+next_action: EXECUTE_HOME_V4_1_PHYSICAL_VALIDATOR_ON_OPERATIONAL_LINUX_X11
+checkpoint_recipient: Mestre
