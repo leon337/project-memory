@@ -19,4 +19,7 @@
 17. Renato: protocolo de testes automatizados, segurança, acessibilidade e físico definido sem alegar execução.
 18. Carmem: especificação final recomendada da Home V4.1 consolidada.
 19. Emily: `REQUEST_CHANGES` somente porque o PRF antigo ainda continha HUMAN_GATE artificial.
-20. Carmem/Gabriel: remediar PRF e devolver para reauditoria/gate de Léo.
+20. Carmem/Gabriel: remediaram PLAN, REPORT, DECISIONS e CHECKPOINT.
+21. Emily: reauditoria `PASS`; finding A-01 `RESOLVED`.
+22. Léo: `APROVAR`; nenhum gatilho humano reservado encontrado; fechar fase documental.
+23. Gabriel/Carmem/Mestre: finalizar PRF e Issue #1 com `ENTREGUE`, sem alegar implementação funcional.
