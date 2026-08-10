@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import threading
-from collections import defaultdict
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -211,7 +210,6 @@ class LeaseGuardedExecutor:
     ) -> None:
         self._executor = executor
         self._heartbeat = heartbeat
-        self._action_occurrences: dict[str, int] = defaultdict(int)
         if journal is not None:
             self._journal = journal
         elif all(
@@ -250,13 +248,18 @@ class LeaseGuardedExecutor:
         self.assert_authorized()
         return result
 
-    def _next_action_key(self, action_name: str, target: str) -> str:
+    def _action_key(self, action_name: str, target: str) -> str:
         """Build a task-scoped stable identity without persisting the raw target.
 
-        A task UUID is used as the BLAKE2 key/salt, so identical targets in
-        different tasks do not produce a globally correlatable fingerprint.
-        The occurrence suffix distinguishes an intentional repeated invocation
-        of the exact same action+target within one task.
+        A task UUID salts a compact BLAKE2 fingerprint, so identical target
+        values from different tasks are not globally correlatable. The key has
+        no retry/occurrence counter on purpose: the same non-repeat-safe
+        action+target inside one task resolves to the same journal row, so a
+        retry/reclaim cannot silently manufacture a second physical invocation.
+
+        A future capability that *legitimately* needs two identical physical
+        effects must provide a distinct stable contract-level identity instead
+        of relying on an implicit retry counter.
         """
 
         task_id = str(getattr(self._heartbeat, "task_id", "legacy-task"))
@@ -265,12 +268,9 @@ class LeaseGuardedExecutor:
         fingerprint = hashlib.blake2s(
             raw_signature,
             key=task_key,
-            digest_size=10,
+            digest_size=12,
         ).hexdigest()
-        signature = f"{action_name}:{fingerprint}"
-        self._action_occurrences[signature] += 1
-        occurrence = self._action_occurrences[signature]
-        return f"v1:{action_name}:{fingerprint}:{occurrence:04d}"
+        return f"v1:{action_name}:{fingerprint}"
 
     @classmethod
     def _repeat_safe(cls, action_name: str) -> bool:
@@ -289,7 +289,7 @@ class LeaseGuardedExecutor:
 
         action_name = str(getattr(plan, "action", ""))
         target = str(getattr(plan, "target", ""))
-        action_key = self._next_action_key(action_name, target)
+        action_key = self._action_key(action_name, target)
         repeat_safe = self._repeat_safe(action_name)
         prepared = journal.prepare(
             action_key=action_key,
@@ -315,14 +315,17 @@ class LeaseGuardedExecutor:
         if state not in {"prepared", "in_flight", "executed"}:
             raise ActionReplayBlocked(action_key, state or "unknown")
 
-        # PREPARED proves the physical backend was never entered. IN_FLIGHT or
-        # EXECUTED is repeated only for actions explicitly classified repeat-safe.
-        journal.transition(action_key=action_key, state="in_flight")
+        # PREPARED proves the backend was never entered. IN_FLIGHT/EXECUTED is
+        # repeated only for explicitly repeat-safe observation-like actions.
+        # An already EXECUTED repeat-safe action stays EXECUTED while the fresh
+        # observation is performed; no unsafe state regression is required.
+        if state != "executed":
+            journal.transition(action_key=action_key, state="in_flight")
         try:
             result = self._guarded_call(self._executor.execute, plan)
         except Exception:
-            # Deliberately leave IN_FLIGHT. A crash/error after backend entry
-            # cannot prove whether an external physical effect occurred.
+            # Deliberately leave IN_FLIGHT when backend entry was possible. A
+            # crash/error there cannot prove whether an external effect occurred.
             raise
         safe_receipt = self._safe_receipt(action_name, result)
         journal.transition(
