@@ -2,92 +2,78 @@
 
 ## Objetivo atual
 
-Manter um operador digital local que receba objetivos em linguagem natural, converse sobre o próprio projeto sem executar ações por engano e execute objetivos físicos em ciclo fechado, persistindo `succeeded` somente quando o estado final for comprovado por evidências independentes.
+Manter um operador digital local que recebe objetivos em linguagem natural e executa ações físicas em ciclo fechado, sem declarar `succeeded` até que o estado final seja comprovado por percepção independente e GoalVerifier.
 
-## Estado verificável agora
+## Estado verificável desta versão
 
-A `main` contém a Home V4.1, o Goal Runtime universal e a correção de estabilidade de foco Linux/X11.
+A base consolidada contém:
 
-Integração funcional mais recente:
+- Home V4.1;
+- Goal Runtime universal;
+- FOCUS-RACE-001 / estabilidade de foco Linux/X11;
+- providers Z.AI, Gemini e Cloudflare Workers AI;
+- Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE e Emergency Stop;
+- Session Context commitado somente depois do ACK da Central;
+- PM-DURABLE-JOURNAL-001 implementado e rastreado pelo PR #9.
 
-- PR #5 — `FOCUS-RACE-001` — merge funcional `b47d6a1ef9954e20d36593acfc050819bdb7c902`;
-- correção: `StableFocusDesktopBackend` estabiliza o XID antes de armar teclado e valida `WM_CLASS` para aplicativos conhecidos;
-- o guard fail-closed continua ativo depois do arming: mudança real de foco recusa teclado;
-- Emergency Stop, FAILSAFE, Policy, lease e autoridade do GoalVerifier não foram enfraquecidos.
+## PM-DURABLE-JOURNAL-001
 
-## Arquitetura operacional vigente
+A janela residual `ação física → crash → ACK ausente → reclaim → possível replay` recebeu proteção durável no mesmo SQLite da Central.
+
+Contrato atual:
 
 ```text
-Painel local :8765
-├─ Conversar
-│  └─ ProjectConversationService
-│     └─ providers configurados localmente
-│        └─ sem criar task nem executar mouse/teclado
-└─ Executar objetivo
-   └─ Central :8000
-      └─ SQLite / fila / lease
-         └─ Robô local
-            └─ Goal Runtime
-               └─ Policy
-                  └─ execução física
-                     └─ percepção independente
-                        └─ GoalVerifier
+task_id + action_key
+        ↓
+prepared
+        ↓
+in_flight
+        ↓
+executed
+        ↓
+acknowledged
 ```
 
-A conversa e a execução são caminhos separados. O modo Conversar não possui `TaskStore`, executor físico ou autoridade para declarar conclusão de objetivo.
+Semântica:
 
-## Providers
+- `prepared`: backend físico ainda não foi chamado;
+- `in_flight`: backend pode ter produzido efeito; ação não repeat-safe fica fail-closed;
+- `executed`: chamada física retornou e um receipt mínimo foi persistido; a ação não é reemitida, mas o GoalVerifier ainda exige percepção independente;
+- `acknowledged`: Central aceitou a task terminal; row passa a ser elegível a cleanup por retenção.
 
-O código suporta Z.AI, Gemini e Cloudflare Workers AI como providers. Credenciais são configuração local em `.env` e não entram no Git.
+`action_key` é um fingerprint task-scoped de `action + target`. O target bruto não é persistido e não existe contador implícito de retry que permita criar uma segunda identidade para a mesma ação+target.
 
-Cloudflare Workers AI foi validado localmente em 2026-08-10 com chamada real pela Home V4.1:
+Apenas `active_window` e `capture_screen` são tratadas como repeat-safe nesta fase. Demais ações externas/físicas permanecem conservadoras.
 
-- `Provider: cloudflare`;
-- modelo observado: `@cf/meta/llama-3.1-8b-instruct-fast`;
-- resposta de identidade retornou `project-memory`;
-- Central e Robô permaneceram offline durante a conversa, comprovando isolamento entre Conversar e Executar objetivo;
-- o fallback já foi observado funcionando para Z.AI quando a primeira credencial Cloudflare não produziu resposta utilizável.
+## Migração e compatibilidade
 
-Durante a configuração, um screenshot do `.env` expôs chaves locais. As chaves Z.AI e Gemini foram rotacionadas em seguida e o token Cloudflare funcional foi criado depois da captura. Nenhum valor secreto é persistido nesta documentação.
+`tasks` recebe `journal_version` e `action_journal` é criada de forma aditiva.
 
-## Validações concluídas
+- task legada nunca iniciada (`queued`, `attempts=0`) pode ser claimada e promovida para journal v1;
+- task legada já iniciada sem journal é ambígua e recebe `failed` fail-closed, em vez de ser reclamada cegamente.
 
-### Home V4.1
+## Privacidade
 
-- fluxo real Painel → Central → Robô → GoalVerifier validado;
-- conversa real isolada validada;
-- `Validação real número 1` comprovada por GoalVerifier `verified=true` e readback AT-SPI exato;
-- gate físico: `PASS_GATE: HOME_V4_1_PHYSICAL`.
+O journal não persiste texto integral digitado, screenshot ou URL completa. Receipts passam por whitelist no agente e novamente na Central. Credenciais continuam fora de Git/logs/prompts.
 
-### FOCUS-RACE-001
+## Validação
 
-A primeira tentativa repetida foi contaminada por interação manual do operador e foi preservada como evidência, mas não usada como gate limpo.
+O implementation head `9558ddd04f852fb5835a960c7ab7adb1aef8f36b` passou no CI run `31438287389`.
 
-A segunda tentativa foi executada sem interação manual:
+A cobertura adicionada inclui:
 
-- 5/5 rodadas físicas consecutivas PASS;
-- cinco startups reais de editor;
-- GoalVerifier `verified=true` em todas;
-- readback AT-SPI exato em todas;
-- gate físico: `PASS_GATE: FOCUS_STABILITY_PHYSICAL`.
+- crash antes do backend;
+- estado `in_flight` ambíguo;
+- crash após retorno físico e antes do receipt durável;
+- `executed` antes do ACK;
+- reconciliação após terminal ACK;
+- migração de tasks legadas;
+- autenticação/lease da API do journal;
+- sanitização do receipt;
+- deduplicação da mesma ação+target.
 
-A suíte automatizada do candidato chegou a `370 passed`; o HEAD de closeout do PR passou no CI run 357 antes do merge.
-
-### Cloudflare Workers AI
-
-- configuração local detectada sem imprimir segredos;
-- token restrito à conta do projeto com permissões Workers AI Read/Edit;
-- chamada real retornou `Provider: cloudflare`;
-- modelo observado: `@cf/meta/llama-3.1-8b-instruct-fast`;
-- identidade canônica `project-memory` confirmada;
-- conversa validada com Central e Robô offline;
-- segredos expostos durante a configuração foram rotacionados antes do fechamento.
-
-## Dívidas conhecidas não bloqueantes
-
-- consolidar futuramente a tabela de identidades `WM_CLASS` hoje repetida em pontos do backend;
-- ainda existe a janela residual de replay se houver crash abrupto depois de uma ação física e antes do ACK; a correção planejada é journal/idempotência persistente por `task_id + action_key`.
+Nenhum novo smoke físico no desktop Linux/X11 é alegado por esta missão, porque o ambiente instrumental desta execução foi GitHub/CI. A bateria física anterior da Home V4.1 permanece baseline histórica, não evidência desta alteração.
 
 ## Situação
 
-Não há blocker conhecido para Home V4.1, estabilidade de foco ou Cloudflare Workers AI. O próximo trabalho está em `docs/NEXT.md`.
+Sem blocker técnico conhecido para PM-DURABLE-JOURNAL-001. O estado corrente de PR/CI é verificável no GitHub; a próxima atividade operacional está em `docs/NEXT.md`.

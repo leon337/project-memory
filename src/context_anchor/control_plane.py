@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import secrets
-from typing import Annotated
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Any
 
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.responses import HTMLResponse
 
+from .action_journal import (
+    ActionJournalConflict,
+    ActionJournalLeaseConflict,
+    ActionJournalStore,
+)
 from .config import ControlPlaneSettings, DashboardSettings
 from .process_registry import registered_process
 from .runtime_log import write_runtime_log
 from .schemas import (
+    AgentActionJournalView,
+    AgentActionPrepare,
+    AgentActionTransition,
     AgentLeaseRenewal,
     AgentLeaseView,
     AgentResult,
@@ -19,6 +28,35 @@ from .schemas import (
     TaskView,
 )
 from .store import TaskStore
+
+_JOURNAL_RECEIPT_FIELDS = frozenset(
+    {
+        "action",
+        "verified",
+        "http_status",
+        "x",
+        "y",
+        "button",
+        "window_id",
+        "characters",
+        "input_method",
+        "key",
+        "pid",
+        "window_changed",
+    }
+)
+
+
+def _journal_receipt(receipt: dict[str, Any] | None) -> dict[str, Any] | None:
+    if receipt is None:
+        return None
+    return {
+        key: value
+        for key, value in receipt.items()
+        if key in _JOURNAL_RECEIPT_FIELDS
+        and isinstance(value, (str, int, float, bool, type(None)))
+    }
+
 
 INDEX_HTML = """<!doctype html>
 <html lang="pt-BR">
@@ -100,6 +138,12 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
     cfg = settings or ControlPlaneSettings()
     dashboard_cfg = DashboardSettings()
     store = TaskStore(cfg.db_path)
+    journal = ActionJournalStore(cfg.db_path)
+    journal.reconcile_terminal_tasks()
+    journal.prune_acknowledged(
+        older_than=datetime.now(timezone.utc)
+        - timedelta(days=cfg.action_journal_retention_days)
+    )
     app = FastAPI(title="Central do Robô", version="0.2.0")
 
     def log(message: str, *, level: str = "INFO") -> None:
@@ -114,6 +158,18 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
         token = _bearer_token(authorization)
         if not secrets.compare_digest(token, cfg.agent_token):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido.")
+
+    def journal_error(exc: Exception) -> HTTPException:
+        if isinstance(exc, ActionJournalLeaseConflict):
+            log(f"Journal recusado: {type(exc).__name__}", level="WARN")
+            return HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Lease da tarefa expirou ou não pertence mais a esta execução.",
+            )
+        if isinstance(exc, ActionJournalConflict):
+            log(f"Journal recusado: {type(exc).__name__}", level="WARN")
+            return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+        raise exc
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
@@ -176,6 +232,40 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
             "lease_expires_at": updated["lease_expires_at"],
         }
 
+    @app.post(
+        "/api/agent/tasks/{task_id}/actions/prepare",
+        response_model=AgentActionJournalView,
+        dependencies=[Depends(require_agent)],
+    )
+    def prepare_task_action(task_id: str, payload: AgentActionPrepare) -> dict:
+        try:
+            return journal.prepare(
+                task_id=task_id,
+                lease_token=payload.lease_token,
+                action_key=payload.action_key,
+                action_name=payload.action_name,
+                repeat_safe=payload.repeat_safe,
+            )
+        except (ActionJournalLeaseConflict, ActionJournalConflict) as exc:
+            raise journal_error(exc) from exc
+
+    @app.post(
+        "/api/agent/tasks/{task_id}/actions/transition",
+        response_model=AgentActionJournalView,
+        dependencies=[Depends(require_agent)],
+    )
+    def transition_task_action(task_id: str, payload: AgentActionTransition) -> dict:
+        try:
+            return journal.transition(
+                task_id=task_id,
+                lease_token=payload.lease_token,
+                action_key=payload.action_key,
+                state=payload.state,
+                receipt=_journal_receipt(payload.receipt),
+            )
+        except (ActionJournalLeaseConflict, ActionJournalConflict) as exc:
+            raise journal_error(exc) from exc
+
     @app.post("/api/agent/tasks/{task_id}/result", response_model=TaskView, dependencies=[Depends(require_agent)])
     def finish_task(task_id: str, payload: AgentResult) -> dict:
         updated = store.complete_task(
@@ -191,6 +281,7 @@ def create_app(settings: ControlPlaneSettings | None = None) -> FastAPI:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Lease da tarefa expirou ou não pertence mais a esta execução.",
             )
+        journal.acknowledge_task(task_id)
         log(f"Tarefa finalizada id={task_id} status={updated['status']}", level="INFO" if payload.ok else "ERROR")
         return updated
 

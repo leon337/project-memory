@@ -24,6 +24,7 @@ class ControlPlaneSettings(BaseAppSettings):
     agent_token: str = Field(min_length=24)
     task_lease_seconds: int = Field(default=120, ge=30, le=3600)
     task_max_attempts: int = Field(default=3, ge=1, le=10)
+    action_journal_retention_days: int = Field(default=30, ge=1, le=3650)
 
 
 class EmergencyStopSettings(BaseAppSettings):

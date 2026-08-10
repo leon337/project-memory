@@ -1,0 +1,23 @@
+PM-DURABLE-JOURNAL-001 — VALIDATION
+
+IMPLEMENTATION_HEAD_BEFORE_DOCS=9558ddd04f852fb5835a960c7ab7adb1aef8f36b
+CI_RUN=31438287389
+CI_RESULT=SUCCESS
+PR=9
+
+Cobertura adicionada:
+- journal sobre SQLite existente;
+- reclaim com executed sem nova chamada física;
+- PREPARED recuperável;
+- IN_FLIGHT não idempotente fail-closed;
+- fault injection depois do retorno físico e antes de persistir executed;
+- ACK terminal e reconciliação após crash;
+- retenção apenas de acknowledged;
+- API Central exige lease vivo;
+- receipt da API remove typed_text/final_url/screenshot;
+- action_key estável para mesmo action+target e diferente para targets diferentes;
+- retry da mesma action+target não ganha contador/identidade nova;
+- task legada ambígua sem journal falha fechada;
+- task legada nunca iniciada migra para journal v1.
+
+O CI citado valida o último commit com mudanças de código/testes antes do pacote documental. O HEAD documental final também deve passar pelo mesmo workflow antes de merge.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import threading
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
@@ -7,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from .action_journal import ActionJournalClient, ActionReplayBlocked
 from .desktop import DesktopFailsafeTriggered
 from .emergency_stop import EmergencyStopTriggered
 from .schemas import AgentLeaseView
@@ -22,7 +24,12 @@ def is_safety_interrupt(exc: BaseException) -> bool:
 
     if isinstance(
         exc,
-        (LeaseOwnershipLost, EmergencyStopTriggered, DesktopFailsafeTriggered),
+        (
+            LeaseOwnershipLost,
+            ActionReplayBlocked,
+            EmergencyStopTriggered,
+            DesktopFailsafeTriggered,
+        ),
     ):
         return True
     exc_type = type(exc)
@@ -35,9 +42,10 @@ def is_safety_interrupt(exc: BaseException) -> bool:
 class LeaseHeartbeat:
     """Renew one task lease in the background and expose fail-closed checks.
 
-    The heartbeat owns its HTTP client.  It deliberately does not share the
+    The heartbeat owns its HTTP client. It deliberately does not share the
     polling/result client used by the local agent, so a slow request in either
-    path cannot serialize all lease renewals behind the other path.
+    path cannot serialize all lease renewals behind the other path. Journal
+    calls create short-lived clients from the same authenticated factory.
     """
 
     def __init__(
@@ -71,6 +79,11 @@ class LeaseHeartbeat:
         self._lock = threading.Lock()
         self._lost: LeaseOwnershipLost | None = None
         self._lease_expires_at: datetime | None = None
+
+    def new_client(self) -> httpx.Client:
+        """Create an authenticated Central client without sharing thread state."""
+
+        return self._client_factory()
 
     def start(self) -> LeaseHeartbeat:
         if self._client is not None:
@@ -163,11 +176,55 @@ class LeaseHeartbeat:
 
 
 class LeaseGuardedExecutor:
-    """Proxy that verifies lease ownership around actions and observations."""
+    """Proxy that verifies lease ownership and durable replay state around actions."""
 
-    def __init__(self, executor: Any, heartbeat: LeaseHeartbeat) -> None:
+    _REPEAT_SAFE_ACTIONS = frozenset({"active_window", "capture_screen"})
+    _SAFE_RECEIPT_FIELDS: dict[str, tuple[str, ...]] = {
+        "open_url": ("action", "verified", "http_status"),
+        "capture_screen": ("action", "verified"),
+        "active_window": ("action", "verified"),
+        "move_mouse": ("action", "verified", "x", "y"),
+        "click_mouse": ("action", "verified", "button", "x", "y", "window_id"),
+        "type_text": (
+            "action",
+            "verified",
+            "characters",
+            "input_method",
+            "window_id",
+        ),
+        "press_key": ("action", "verified", "key", "window_id"),
+        "open_app": (
+            "action",
+            "verified",
+            "pid",
+            "window_changed",
+            "window_id",
+        ),
+    }
+
+    def __init__(
+        self,
+        executor: Any,
+        heartbeat: LeaseHeartbeat,
+        journal: ActionJournalClient | None = None,
+    ) -> None:
         self._executor = executor
         self._heartbeat = heartbeat
+        if journal is not None:
+            self._journal = journal
+        elif all(
+            hasattr(heartbeat, name)
+            for name in ("task_id", "lease_token", "new_client")
+        ):
+            self._journal = ActionJournalClient(
+                task_id=heartbeat.task_id,
+                lease_token=heartbeat.lease_token,
+                client_factory=heartbeat.new_client,
+            )
+        else:
+            # Test doubles and legacy direct construction remain usable. The
+            # production LocalAgent always supplies a real LeaseHeartbeat.
+            self._journal = None
 
     @staticmethod
     def _must_preserve(exc: BaseException) -> bool:
@@ -183,7 +240,7 @@ class LeaseGuardedExecutor:
         except Exception as exc:
             # If an observation/action fails after lease loss, propagate the
             # ownership interruption instead of letting Goal Runtime retry or
-            # enter a fallback.  Existing safety controls retain priority.
+            # enter a fallback. Existing safety controls retain priority.
             if self._must_preserve(exc):
                 raise
             self.assert_authorized()
@@ -191,8 +248,94 @@ class LeaseGuardedExecutor:
         self.assert_authorized()
         return result
 
+    def _action_key(self, action_name: str, target: str) -> str:
+        """Build a task-scoped stable identity without persisting the raw target.
+
+        A task UUID salts a compact BLAKE2 fingerprint, so identical target
+        values from different tasks are not globally correlatable. The key has
+        no retry/occurrence counter on purpose: the same non-repeat-safe
+        action+target inside one task resolves to the same journal row, so a
+        retry/reclaim cannot silently manufacture a second physical invocation.
+
+        A future capability that *legitimately* needs two identical physical
+        effects must provide a distinct stable contract-level identity instead
+        of relying on an implicit retry counter.
+        """
+
+        task_id = str(getattr(self._heartbeat, "task_id", "legacy-task"))
+        task_key = task_id.encode("utf-8")[:32] or b"legacy-task"
+        raw_signature = f"{action_name}\0{target}".encode("utf-8")
+        fingerprint = hashlib.blake2s(
+            raw_signature,
+            key=task_key,
+            digest_size=12,
+        ).hexdigest()
+        return f"v1:{action_name}:{fingerprint}"
+
+    @classmethod
+    def _repeat_safe(cls, action_name: str) -> bool:
+        return action_name in cls._REPEAT_SAFE_ACTIONS
+
+    @classmethod
+    def _safe_receipt(cls, action_name: str, receipt: dict[str, Any]) -> dict[str, Any]:
+        allowed = cls._SAFE_RECEIPT_FIELDS.get(action_name, ("action", "verified"))
+        return {key: receipt[key] for key in allowed if key in receipt}
+
     def execute(self, plan: Any) -> dict[str, Any]:
-        return self._guarded_call(self._executor.execute, plan)
+        self.assert_authorized()
+        journal = self._journal
+        if journal is None:
+            return self._guarded_call(self._executor.execute, plan)
+
+        action_name = str(getattr(plan, "action", ""))
+        target = str(getattr(plan, "target", ""))
+        action_key = self._action_key(action_name, target)
+        repeat_safe = self._repeat_safe(action_name)
+        prepared = journal.prepare(
+            action_key=action_key,
+            action_name=action_name,
+            repeat_safe=repeat_safe,
+        )
+        state = str(prepared.get("state") or "")
+
+        if state == "executed" and not repeat_safe:
+            receipt = prepared.get("receipt")
+            recovered = dict(receipt) if isinstance(receipt, dict) else {}
+            recovered.setdefault("action", action_name)
+            recovered["journal_recovered"] = True
+            recovered["journal_action_key"] = action_key
+            return recovered
+
+        if state == "acknowledged":
+            raise ActionReplayBlocked(action_key, state)
+
+        if state == "in_flight" and not repeat_safe:
+            raise ActionReplayBlocked(action_key, state)
+
+        if state not in {"prepared", "in_flight", "executed"}:
+            raise ActionReplayBlocked(action_key, state or "unknown")
+
+        # PREPARED proves the backend was never entered. IN_FLIGHT/EXECUTED is
+        # repeated only for explicitly repeat-safe observation-like actions.
+        # An already EXECUTED repeat-safe action stays EXECUTED while the fresh
+        # observation is performed; no unsafe state regression is required.
+        if state != "executed":
+            journal.transition(action_key=action_key, state="in_flight")
+        try:
+            result = self._guarded_call(self._executor.execute, plan)
+        except Exception:
+            # Deliberately leave IN_FLIGHT when backend entry was possible. A
+            # crash/error there cannot prove whether an external effect occurred.
+            raise
+        safe_receipt = self._safe_receipt(action_name, result)
+        journal.transition(
+            action_key=action_key,
+            state="executed",
+            receipt=safe_receipt,
+        )
+        result = dict(result)
+        result["journal_action_key"] = action_key
+        return result
 
     def observe_browser(self, **kwargs: Any) -> dict[str, Any]:
         return self._guarded_call(self._executor.observe_browser, **kwargs)

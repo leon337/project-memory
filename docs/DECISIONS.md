@@ -273,3 +273,27 @@ Quando um navegador singleton encerra o launcher ou a janela já está exatament
 O fallback Bing RSS é usado somente depois dos mecanismos HTML e somente quando o próprio documento comprova content-type XML e raiz `rss`/`feed`.
 
 Itens precisam de título e URL HTTP(S). Em Atom, `rel=alternate` ou link sem `rel` representa o resultado; `rel=self` não substitui a URL do item.
+
+## D-029 — Journal durável bloqueia replay cego entre ação física e ACK
+
+Toda ação física/externa executada sob lease passa por um journal durável correlacionado por `task_id + action_key` antes de entrar no backend.
+
+A máquina mínima vigente é:
+
+```text
+prepared → in_flight → executed → acknowledged
+```
+
+`prepared` significa que a intenção foi persistida, mas o backend ainda não foi chamado. `in_flight` significa que o backend pode ter produzido efeito; para ações não repeat-safe esse estado é deliberadamente ambíguo e fail-closed. `executed` significa apenas que a chamada técnica retornou e um receipt mínimo foi persistido. `acknowledged` significa que a Central aceitou o estado terminal da task.
+
+O journal **não possui estado `verified`** e não pode satisfazer critérios do objetivo. Percepção independente, EvidenceRecord e GoalVerifier continuam sendo a única cadeia autorizada a produzir `succeeded`.
+
+`action_key` é um fingerprint task-scoped de `action + target`, sem persistir o target bruto. A mesma ação+target na mesma task produz a mesma identidade; retries e reclaims não recebem um contador implícito que permita fabricar uma segunda emissão física. Se uma capacidade futura precisar repetir legitimamente duas ações idênticas, ela deverá fornecer identidade estável explícita no contrato.
+
+Apenas operações classificadas explicitamente como repeat-safe podem ser repetidas quando o journal já registra entrada/execução. Nesta fase, essa categoria é limitada a `active_window` e `capture_screen`.
+
+Tasks legadas já iniciadas sem journal são ambíguas e devem falhar fechadas na migração, em vez de voltar para a fila. Tasks legadas nunca iniciadas podem aderir ao journal v1 quando forem claimadas.
+
+O ACK da Central torna o journal elegível a cleanup, mas não precisa ser atômico com o mundo físico. Se houver crash depois da terminalização da task e antes de marcar o journal como `acknowledged`, a Central reconcilia rows de tasks terminais no próximo startup. Cleanup automático só remove rows `acknowledged` depois da retenção configurável.
+
+O journal persiste somente identidade, estado, timestamps e receipt mínimo sanitizado. Texto integral digitado, screenshots e URLs completas não fazem parte do contrato persistente.

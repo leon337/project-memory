@@ -1,0 +1,3 @@
+NAO_APLICAVEL_SHA256
+
+Justificativa: a execução instrumental desta missão opera sobre o conector GitHub, que fornece commits/trees/blobs versionados, mas não expõe um checkout byte-a-byte ao mesmo fluxo de escrita para executar `sha256sum` sobre o pacote já materializado. Para não inventar hashes, este manifesto registra explicitamente a limitação. A integridade desta entrega é rastreada pelo commit/tree do Git e pelo CI do PR. Um SHA-256 real só deve substituir este conteúdo quando calculado sobre bytes efetivamente lidos do checkout.
