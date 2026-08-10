@@ -1,0 +1,16 @@
+PM-HOME-IMPLEMENT-001 SMOKE
+
+AUTOMATED_BROWSER_SMOKE:
+- implementation: tests/test_dashboard_browser_v4_1.py
+- engine: Playwright Chromium
+- behavior: load Home, conversation via Enter, zero task during conversation, provider/model telemetry, explicit Execute creates task
+- final functional CI: run 318 SUCCESS
+
+PHYSICAL_SMOKE:
+- validator: scripts/validate_home_v4_1_physical.py
+- requires: local Panel + Central + Robot + Desktop enabled + Linux/X11 + configured real provider
+- exact command: Abra um editor de texto e escreva exatamente: Validação real número 1
+- exact readback: Validação real número 1
+- current result: PENDING_EXTERNAL_LOCAL_ENV
+
+OVERALL_SMOKE: PARTIAL_PASS_AWAITING_PHYSICAL
