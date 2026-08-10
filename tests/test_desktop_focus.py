@@ -280,6 +280,7 @@ def test_read_active_text_rejects_focus_change_during_observation(monkeypatch) -
     backend._expected_window_id = "200"
     windows = iter(("200", "300"))
 
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
     monkeypatch.setattr(backend, "_active_window_id", lambda: next(windows))
     monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
     monkeypatch.setattr(

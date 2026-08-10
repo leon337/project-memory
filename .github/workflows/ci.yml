@@ -21,6 +21,9 @@ jobs:
       - name: Install
         run: pip install -e '.[dev]'
 
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
       - name: Compile
         run: python -m compileall -q src tests
 
