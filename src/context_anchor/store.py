@@ -44,7 +44,8 @@ class TaskStore:
                     error TEXT,
                     lease_token TEXT,
                     lease_expires_at TEXT,
-                    attempts INTEGER NOT NULL DEFAULT 0
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    journal_version INTEGER NOT NULL DEFAULT 1
                 )
                 """
             )
@@ -55,13 +56,42 @@ class TaskStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN lease_expires_at TEXT")
             if "attempts" not in columns:
                 conn.execute("ALTER TABLE tasks ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
+            if "journal_version" not in columns:
+                # Existing rows predate PM-DURABLE-JOURNAL-001. Zero is an
+                # explicit legacy marker; newly created/claimed-safe rows use 1.
+                conn.execute(
+                    "ALTER TABLE tasks ADD COLUMN journal_version INTEGER NOT NULL DEFAULT 0"
+                )
+
+            # A legacy task that was already claimed may have produced an
+            # external effect before this journal existed. Reclaiming it would
+            # recreate exactly the unsafe ambiguity this migration is meant to
+            # remove, so fail it closed instead of guessing.
+            conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'failed',
+                    agent_id = NULL,
+                    lease_token = NULL,
+                    lease_expires_at = NULL,
+                    error = 'Tarefa legada já iniciada sem journal durável; replay bloqueado por segurança.',
+                    updated_at = ?
+                WHERE journal_version = 0
+                  AND status IN ('queued', 'running')
+                  AND (status = 'running' OR attempts > 0)
+                """,
+                (utc_text(),),
+            )
 
             # Tasks claimed by versions that predate leases cannot prove ownership.
+            # The journal migration above already failed closed ambiguous legacy rows.
             conn.execute(
                 """
                 UPDATE tasks
                 SET status = 'queued', agent_id = NULL, updated_at = ?
-                WHERE status = 'running' AND lease_expires_at IS NULL
+                WHERE status = 'running'
+                  AND lease_expires_at IS NULL
+                  AND journal_version >= 1
                 """,
                 (utc_text(),),
             )
@@ -72,8 +102,10 @@ class TaskStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO tasks(id, command, status, created_at, updated_at)
-                VALUES (?, ?, 'queued', ?, ?)
+                INSERT INTO tasks(
+                    id, command, status, created_at, updated_at, journal_version
+                )
+                VALUES (?, ?, 'queued', ?, ?, 1)
                 """,
                 (task_id, command, now, now),
             )
@@ -110,9 +142,24 @@ class TaskStore:
                 agent_id = NULL,
                 lease_token = NULL,
                 lease_expires_at = NULL,
+                error = 'Tarefa legada já iniciada sem journal durável; replay bloqueado por segurança.',
+                updated_at = ?
+            WHERE status = 'running'
+              AND journal_version = 0
+            """,
+            (now_text,),
+        )
+        conn.execute(
+            """
+            UPDATE tasks
+            SET status = 'failed',
+                agent_id = NULL,
+                lease_token = NULL,
+                lease_expires_at = NULL,
                 error = 'Tarefa interrompida repetidamente; limite de tentativas atingido.',
                 updated_at = ?
             WHERE status = 'running'
+              AND journal_version >= 1
               AND lease_expires_at IS NOT NULL
               AND lease_expires_at <= ?
               AND attempts >= ?
@@ -129,6 +176,7 @@ class TaskStore:
                 error = NULL,
                 updated_at = ?
             WHERE status = 'running'
+              AND journal_version >= 1
               AND lease_expires_at IS NOT NULL
               AND lease_expires_at <= ?
               AND attempts < ?
@@ -198,6 +246,7 @@ class TaskStore:
                     lease_token = ?,
                     lease_expires_at = ?,
                     attempts = attempts + 1,
+                    journal_version = 1,
                     updated_at = ?
                 WHERE id = ? AND status = 'queued'
                 """,
@@ -273,7 +322,7 @@ class TaskStore:
     ) -> dict[str, Any] | None:
         """Atomically extend a live lease owned by the supplied token.
 
-        An expired lease is never revived.  This is important because another
+        An expired lease is never revived. This is important because another
         agent may recover and claim the task as soon as its prior lease expires.
         """
 
