@@ -76,4 +76,4 @@ Nenhum novo smoke físico no desktop Linux/X11 é alegado por esta missão, porq
 
 ## Situação
 
-Sem blocker técnico conhecido no código da missão. O closeout depende apenas de documentação/revisão final do PR e CI do HEAD final.
+Sem blocker técnico conhecido para PM-DURABLE-JOURNAL-001. O estado corrente de PR/CI é verificável no GitHub; a próxima atividade operacional está em `docs/NEXT.md`.
