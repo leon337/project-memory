@@ -1,0 +1,21 @@
+PM-DURABLE-JOURNAL-001 — VALIDATION FULL
+
+A suíte completa é executada pelo workflow `.github/workflows/ci.yml` em Python 3.11 com:
+1. instalação do projeto;
+2. Playwright Chromium;
+3. `python -m compileall`;
+4. `pytest -q`.
+
+O pacote de fault injection está em:
+- `tests/test_action_journal.py`;
+- `tests/test_action_journal_api.py`;
+- `tests/test_durable_journal_migration_faults.py`.
+
+Matriz A–E:
+A crash antes do backend: PREPARED pode prosseguir após reclaim.
+B crash durante/ao redor do backend: IN_FLIGHT não repetível bloqueia.
+C crash após efeito/retorno e antes do receipt durável: permanece IN_FLIGHT e bloqueia.
+D crash após executed e antes do ACK: receipt é recuperado sem reexecutar; GoalVerifier ainda exige percepção.
+E crash após ACK: task terminal não é reclamada; startup reconcilia journal para acknowledged.
+
+Smoke físico real do host do usuário não é alegado por este arquivo; a validação instrumental disponível nesta missão é CI/fault injection determinístico.

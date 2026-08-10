@@ -1,0 +1,20 @@
+PM-DURABLE-JOURNAL-001 — VALIDATION
+
+IMPLEMENTATION_HEAD_BEFORE_DOCS=9558ddd04f852fb5835a960c7ab7adb1aef8f36b
+PR=9
+
+Cobertura adicionada:
+- journal sobre SQLite existente;
+- reclaim com executed sem nova chamada física;
+- PREPARED recuperável;
+- IN_FLIGHT não idempotente fail-closed;
+- falha depois do retorno físico e antes de persistir executed;
+- ACK terminal e reconciliação após crash;
+- retenção apenas de acknowledged;
+- API Central exige lease vivo;
+- receipt da API remove typed_text/final_url/screenshot;
+- action_key estável para mesmo target e diferente para targets diferentes;
+- task legada ambígua sem journal falha fechada;
+- task legada nunca iniciada migra para journal v1.
+
+Validação final deve usar o CI do HEAD de closeout; não há evidência física local fabricada neste artefato.

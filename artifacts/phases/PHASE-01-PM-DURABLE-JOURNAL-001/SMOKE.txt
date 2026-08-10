@@ -1,0 +1,8 @@
+PM-DURABLE-JOURNAL-001 — SMOKE
+
+AUTOMATED_SMOKE=APLICAVEL
+- Central API prepare/transition/result é exercitada por TestClient.
+- executor físico é substituído por fake contabilizável para provar zero segunda chamada em recovery.
+
+PHYSICAL_HOST_SMOKE=NAO_APLICAVEL_NESTE_AMBIENTE
+Justificativa: a execução desta missão dispõe do GitHub/CI, não do desktop Linux/X11 físico do usuário. Nenhum PASS físico novo é inventado. A bateria física previamente documentada da Home V4.1 permanece evidência histórica da baseline, não evidência desta mudança.

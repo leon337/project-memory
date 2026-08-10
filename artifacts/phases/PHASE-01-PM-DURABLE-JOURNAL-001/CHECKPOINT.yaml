@@ -1,0 +1,14 @@
+mission_id: PM-DURABLE-JOURNAL-001
+phase: PHASE-01
+class: B
+entry_state: DISCOVERY_CONTRACT_MAPPING
+implementation_head_before_docs: 9558ddd04f852fb5835a960c7ab7adb1aef8f36b
+base_main: 1e6d74b2f3314187a2967a7d38218dcc68dcc3b9
+branch: codex/pm-durable-journal-001
+pr: 9
+human_gate: NOT_REQUIRED
+journal_contract:
+  key: task_id+action_key
+  states: [prepared, in_flight, executed, acknowledged]
+  final_authority: GoalVerifier
+physical_smoke_this_environment: NAO_APLICAVEL
