@@ -40,7 +40,7 @@ def test_context_version_is_stable_sha256_prefix(tmp_path: Path, monkeypatch) ->
     monkeypatch.setattr(
         service,
         "_cloudflare",
-        lambda system, message: ("ok", "cloudflare", "fake-model"),
+        lambda system, message: ("project-memory", "cloudflare", "fake-model"),
     )
 
     first = service.reply("qual projeto?")["context_version"]
