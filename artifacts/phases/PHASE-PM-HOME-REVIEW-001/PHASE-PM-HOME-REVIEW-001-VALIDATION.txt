@@ -10,13 +10,20 @@ CHECKS
 - branch separada da main: PASS
 - merge base = baseline main: PASS
 - revisão V1–V4: PASS
-- especificação V4.1 recomendada: PASS
+- reuso anterior auditado por Augusto/Emily: PASS
+- artefatos individuais pós-correção: PASS
+- especificação final Home V4.1 recomendada: PASS
 - Conversar vs Executar separados: PASS
 - GoalVerifier preservado: PASS
 - segurança especificada: PASS
 - acessibilidade especificada: PASS
+- avaliação de IA/agente especificada: PASS
 - protocolo de testes definido: PASS
-- auditoria Emily: PASS_WITH_CHANGES
-- gate Léo: APROVAR_COM_RESSALVAS
+- mission trace Augusto: PASS
+- auditoria Emily final/re-auditoria: PASS
+- gate Léo: APROVAR
+- HUMAN_GATE: NAO_REQUERIDO
 - nova validação funcional: NAO_APLICAVEL (fase documental)
-- PR/merge: NAO_EXECUTADO
+- implementação funcional: NAO_EXECUTADA
+
+FINAL_STATE: ENTREGUE
