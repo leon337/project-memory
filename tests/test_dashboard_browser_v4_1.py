@@ -6,7 +6,7 @@ import time
 
 import pytest
 import uvicorn
-from playwright.sync_api import Page, expect
+from playwright.sync_api import expect, sync_playwright
 
 from context_anchor.dashboard import create_app
 
@@ -110,25 +110,36 @@ def live_dashboard():
 
 
 def test_home_v4_1_browser_keeps_enter_in_conversation_and_execute_explicit(
-    page: Page, live_dashboard
+    live_dashboard,
 ) -> None:
     base_url, controller, conversation = live_dashboard
 
-    page.goto(base_url)
-    expect(page.get_by_text("Conversar com a IA", exact=True)).to_be_visible()
-    expect(page.locator("#conversationSend")).to_be_visible()
-    expect(page.locator("#executeGoal")).to_be_visible()
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        try:
+            page.goto(base_url)
+            expect(page.get_by_text("Conversar com a IA", exact=True)).to_be_visible()
+            expect(page.locator("#conversationSend")).to_be_visible()
+            expect(page.locator("#executeGoal")).to_be_visible()
 
-    page.locator("#messageInput").fill("Em qual projeto você está?")
-    page.locator("#messageInput").press("Enter")
-    expect(page.get_by_text("project-memory", exact=True).last).to_be_visible()
-    assert conversation.messages == ["Em qual projeto você está?"]
-    assert not any(call.startswith("task:") for call in controller.calls)
+            page.locator("#messageInput").fill("Em qual projeto você está?")
+            page.locator("#messageInput").press("Enter")
+            expect(page.get_by_text("project-memory", exact=True).last).to_be_visible()
+            assert conversation.messages == ["Em qual projeto você está?"]
+            assert not any(call.startswith("task:") for call in controller.calls)
 
-    expect(page.locator("#agentProvider")).to_have_text("fake-ai")
-    expect(page.locator("#agentModel")).to_have_text("fake-model")
+            expect(page.locator("#agentProvider")).to_have_text("fake-ai")
+            expect(page.locator("#agentModel")).to_have_text("fake-model")
 
-    page.locator("#messageInput").fill("capturar tela")
-    page.locator("#executeGoal").click()
-    expect(page.get_by_text("Objetivo enfileirado. Task ID: browser-task-1", exact=True)).to_be_visible()
-    assert "task:capturar tela" in controller.calls
+            page.locator("#messageInput").fill("capturar tela")
+            page.locator("#executeGoal").click()
+            expect(
+                page.get_by_text(
+                    "Objetivo enfileirado. Task ID: browser-task-1",
+                    exact=True,
+                )
+            ).to_be_visible()
+            assert "task:capturar tela" in controller.calls
+        finally:
+            browser.close()
