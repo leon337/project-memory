@@ -38,7 +38,17 @@ A conversa e a execução são caminhos separados. O modo Conversar não possui 
 
 ## Providers
 
-O código suporta Z.AI, Gemini e Cloudflare Workers AI como providers. Credenciais são configuração local em `.env` e não entram no Git. A presença de suporte no código não significa que um provider esteja configurado na máquina.
+O código suporta Z.AI, Gemini e Cloudflare Workers AI como providers. Credenciais são configuração local em `.env` e não entram no Git.
+
+Cloudflare Workers AI foi validado localmente em 2026-08-10 com chamada real pela Home V4.1:
+
+- `Provider: cloudflare`;
+- modelo observado: `@cf/meta/llama-3.1-8b-instruct-fast`;
+- resposta de identidade retornou `project-memory`;
+- Central e Robô permaneceram offline durante a conversa, comprovando isolamento entre Conversar e Executar objetivo;
+- o fallback já foi observado funcionando para Z.AI quando a primeira credencial Cloudflare não produziu resposta utilizável.
+
+Durante a configuração, um screenshot do `.env` expôs chaves locais. As chaves Z.AI e Gemini foram rotacionadas em seguida e o token Cloudflare funcional foi criado depois da captura. Nenhum valor secreto é persistido nesta documentação.
 
 ## Validações concluídas
 
@@ -63,6 +73,16 @@ A segunda tentativa foi executada sem interação manual:
 
 A suíte automatizada do candidato chegou a `370 passed`; o HEAD de closeout do PR passou no CI run 357 antes do merge.
 
+### Cloudflare Workers AI
+
+- configuração local detectada sem imprimir segredos;
+- token restrito à conta do projeto com permissões Workers AI Read/Edit;
+- chamada real retornou `Provider: cloudflare`;
+- modelo observado: `@cf/meta/llama-3.1-8b-instruct-fast`;
+- identidade canônica `project-memory` confirmada;
+- conversa validada com Central e Robô offline;
+- segredos expostos durante a configuração foram rotacionados antes do fechamento.
+
 ## Dívidas conhecidas não bloqueantes
 
 - consolidar futuramente a tabela de identidades `WM_CLASS` hoje repetida em pontos do backend;
@@ -70,4 +90,4 @@ A suíte automatizada do candidato chegou a `370 passed`; o HEAD de closeout do 
 
 ## Situação
 
-Não há blocker conhecido para a correção de foco. A Issue #4 pode ser encerrada depois da verificação final da `main` documentada nesta sessão. O próximo trabalho está em `docs/NEXT.md`.
+Não há blocker conhecido para Home V4.1, estabilidade de foco ou Cloudflare Workers AI. O próximo trabalho está em `docs/NEXT.md`.
