@@ -41,10 +41,26 @@ GitHub Actions run `31367543844` / run 318:
 - Test: PASS;
 - conclusão: SUCCESS.
 
+PRF pré-auditoria no HEAD `f7da737a5c06ae85d6b7a37ec25e07b4d38448ba`:
+- GitHub Actions run `31368082345` / run 331 = SUCCESS;
+- Install Playwright Chromium: PASS;
+- Compile: PASS;
+- Test: PASS.
+
 Review Vinícius no PR #3:
 - review id `4894682127`;
 - sem blocker de código;
 - validação física obrigatória antes de integração.
+
+Auditoria Emily:
+- `PASS_TO_EXTERNAL_DEPENDENCY`;
+- nenhum trabalho interno recuperável conhecido antes do teste físico.
+
+Gate Léo:
+- `APROVAR_COM_RESSALVAS`;
+- próximo estado `AGUARDANDO_DEPENDENCIA_EXTERNA`;
+- merge não autorizado;
+- HUMAN_GATE não requerido.
 
 ## Estado
 `AGUARDANDO_DEPENDENCIA_EXTERNA`
