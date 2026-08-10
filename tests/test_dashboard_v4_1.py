@@ -24,6 +24,8 @@ class FakeController:
                     "updated_at": "2026-08-10T06:00:03+00:00",
                     "agent_id": "desktop-principal",
                     "attempts": 1,
+                    "lease_token": "secret-lease-token",
+                    "lease_expires_at": "2026-08-10T06:01:00+00:00",
                     "result": {
                         "status": "succeeded",
                         "goal_completed": True,
@@ -170,3 +172,15 @@ def test_untrusted_host_is_rejected():
     response = client.get("/", headers={"Host": "evil.example"})
 
     assert response.status_code == 400
+
+
+def test_dashboard_status_never_exposes_task_lease_token():
+    client, _, _ = build_client()
+
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    task = response.json()["tasks"][0]
+    assert "lease_token" not in task
+    assert "lease_expires_at" not in task
+    assert task["id"] == "task-1"
