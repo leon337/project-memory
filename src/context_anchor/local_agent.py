@@ -27,6 +27,7 @@ from .planner import (
 )
 from .providers import CloudflareWorkersAIProvider, GeminiProvider, ZAIProvider
 from .redaction import redact_exception
+from .reliable_desktop import StableFocusDesktopBackend
 from .runtime_log import write_runtime_log
 from .schemas import AgentTask
 from .session_context import SessionContext
@@ -174,6 +175,7 @@ def run() -> None:
     executor = ActionExecutor(
         headless=cfg.browser_headless,
         desktop_enabled=cfg.desktop_enabled,
+        desktop_backend=StableFocusDesktopBackend(input_guard=stop.assert_not_triggered),
         screenshot_dir=cfg.screenshot_dir,
         emergency_stop=stop,
     )
