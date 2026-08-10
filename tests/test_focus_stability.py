@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import context_anchor.desktop as desktop_module
 import context_anchor.reliable_desktop as reliable_module
 from context_anchor.reliable_desktop import StableFocusDesktopBackend
 
@@ -24,6 +25,13 @@ class FakeGui:
 
     def size(self):
         return (1920, 1080)
+
+
+class FakeProcess:
+    pid = 12345
+
+    def poll(self):
+        return None
 
 
 def _clock(values: list[float]):
@@ -78,6 +86,48 @@ def test_waits_for_final_same_app_window_after_transient_focus(monkeypatch) -> N
     assert [event["window_id"] for event in result["focus_trace"]] == ["200", "201"]
 
 
+def test_open_application_arms_only_final_stable_same_app_window(monkeypatch) -> None:
+    backend = StableFocusDesktopBackend(
+        app_ready_timeout_seconds=2.0,
+        focus_settle_seconds=0.40,
+        focus_poll_seconds=0.0,
+    )
+    windows = iter(("100", "200", "201", "201"))
+
+    monkeypatch.setattr(
+        desktop_module.shutil,
+        "which",
+        lambda name: f"/usr/bin/{name}" if name in {"xed", "xdotool"} else None,
+    )
+    monkeypatch.setattr(backend, "_active_window_id", lambda: next(windows, "201"))
+    monkeypatch.setattr(
+        backend,
+        "_window_class",
+        lambda window_id=None: "Xed" if window_id in {"200", "201"} else "Terminal",
+    )
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: str(window_id))
+    monkeypatch.setattr(
+        reliable_module.time,
+        "monotonic",
+        _clock([0.0, 0.05, 0.10, 0.55]),
+    )
+    monkeypatch.setattr(reliable_module.time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        desktop_module.subprocess,
+        "Popen",
+        lambda *args, **kwargs: FakeProcess(),
+    )
+
+    result = backend.open_application("editor")
+
+    assert result["verified"] is True
+    assert result["window_id"] == "201"
+    assert result["app_identity_verified"] is True
+    assert backend._expected_window_id == "201"
+    assert backend._focus_guard_error is None
+    assert [event["window_id"] for event in result["focus_trace"]] == ["200", "201"]
+
+
 def test_ignores_unrelated_window_during_application_startup(monkeypatch) -> None:
     backend = StableFocusDesktopBackend(
         app_ready_timeout_seconds=2.0,
@@ -107,6 +157,31 @@ def test_ignores_unrelated_window_during_application_startup(monkeypatch) -> Non
     assert result["window_id"] == "200"
     assert result["app_identity_verified"] is True
     assert result["focus_trace"][0]["app_identity_verified"] is False
+
+
+def test_known_app_fails_closed_when_only_unrelated_window_appears(monkeypatch) -> None:
+    backend = StableFocusDesktopBackend(
+        app_ready_timeout_seconds=0.20,
+        focus_settle_seconds=0.10,
+        focus_poll_seconds=0.0,
+    )
+    backend._launch_app_id = "editor"
+
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "300")
+    monkeypatch.setattr(backend, "_window_class", lambda window_id=None: "Firefox")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Browser")
+    monkeypatch.setattr(
+        reliable_module.time,
+        "monotonic",
+        _clock([0.0, 0.05, 0.10, 0.25]),
+    )
+    monkeypatch.setattr(reliable_module.time, "sleep", lambda _: None)
+
+    result = backend._wait_for_active_window_change("100")
+
+    assert result["window_changed"] is False
+    assert result["app_identity_verified"] is False
 
 
 def test_unknown_application_keeps_stable_window_behavior(monkeypatch) -> None:
