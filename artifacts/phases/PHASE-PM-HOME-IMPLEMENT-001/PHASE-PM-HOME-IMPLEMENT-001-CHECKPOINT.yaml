@@ -11,23 +11,33 @@ functional_ci:
   run_id: 31367543844
   run_number: 318
   result: PASS
+prf_pre_audit_ci:
+  head_sha: f7da737a5c06ae85d6b7a37ec25e07b4d38448ba
+  run_id: 31368082345
+  run_number: 331
+  result: PASS
 vinicius_review:
   review_id: 4894682127
   result: PASS_WITH_REQUIREMENTS
 security:
   result: PASS_WITH_EXTERNAL_VALIDATION
+emily_audit:
+  result: PASS_TO_EXTERNAL_DEPENDENCY
+leo_gate:
+  decision: APROVAR_COM_RESSALVAS
+  merge_authorized: false
+  human_gate_required: false
 automated_validation: PASS
 physical_validation:
   status: PENDING_EXTERNAL_LOCAL_ENV
   validator: scripts/validate_home_v4_1_physical.py
-  expected_marker: PASS_GATE_HOME_V4_1_PHYSICAL
+  expected_marker: "PASS_GATE: HOME_V4_1_PHYSICAL"
 pr_state:
   open: true
   draft: true
 merge_performed: false
 human_gate:
   required: false
-next_internal_gate: AFTER_PHYSICAL_VALIDATION
 final_state: AGUARDANDO_DEPENDENCIA_EXTERNA
 next_action: EXECUTE_HOME_V4_1_PHYSICAL_VALIDATOR_ON_OPERATIONAL_LINUX_X11
 checkpoint_recipient: Mestre
