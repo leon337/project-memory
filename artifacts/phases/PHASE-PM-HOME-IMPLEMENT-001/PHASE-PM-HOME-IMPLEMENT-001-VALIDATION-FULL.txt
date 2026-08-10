@@ -47,6 +47,20 @@ SECURITY
 - .env excluded from project context.
 - no Internet publication authorized.
 
+PRF PRE-AUDIT EXACT HEAD
+head = f7da737a5c06ae85d6b7a37ec25e07b4d38448ba
+run 331 / 31368082345 = SUCCESS
+job 93390752185 = SUCCESS
+Install Playwright Chromium = PASS
+Compile = PASS
+Test = PASS
+
+AUDIT / GATE
+Emily pre-physical audit = PASS_TO_EXTERNAL_DEPENDENCY
+Léo pre-physical gate = APROVAR_COM_RESSALVAS
+HUMAN_GATE = NOT_REQUIRED
+Merge = NOT_AUTHORIZED
+
 PHYSICAL
 Validator: scripts/validate_home_v4_1_physical.py
 Expected final marker: PASS_GATE: HOME_V4_1_PHYSICAL
