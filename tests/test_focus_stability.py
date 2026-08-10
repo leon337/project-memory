@@ -184,6 +184,37 @@ def test_known_app_fails_closed_when_only_unrelated_window_appears(monkeypatch) 
     assert result["app_identity_verified"] is False
 
 
+def test_no_previous_window_still_requires_stable_known_identity(monkeypatch) -> None:
+    backend = StableFocusDesktopBackend(
+        app_ready_timeout_seconds=1.0,
+        focus_settle_seconds=0.25,
+        focus_poll_seconds=0.0,
+    )
+    backend._launch_app_id = "editor"
+    windows = iter(("300", "200", "200"))
+
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_active_window_id", lambda: next(windows, "200"))
+    monkeypatch.setattr(
+        backend,
+        "_window_class",
+        lambda window_id=None: "Firefox" if window_id == "300" else "Xed",
+    )
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: str(window_id))
+    monkeypatch.setattr(
+        reliable_module.time,
+        "monotonic",
+        _clock([0.0, 0.05, 0.10, 0.40]),
+    )
+    monkeypatch.setattr(reliable_module.time, "sleep", lambda _: None)
+
+    result = backend._wait_for_active_window_change(None)
+
+    assert result["window_changed"] is True
+    assert result["window_id"] == "200"
+    assert result["app_identity_verified"] is True
+
+
 def test_unknown_application_keeps_stable_window_behavior(monkeypatch) -> None:
     backend = StableFocusDesktopBackend(
         app_ready_timeout_seconds=2.0,
