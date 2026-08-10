@@ -117,6 +117,8 @@ def test_home_v4_1_browser_keeps_enter_in_conversation_and_execute_explicit(
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page()
+        page_errors: list[str] = []
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
         try:
             page.goto(base_url)
             expect(page.get_by_text("Conversar com a IA", exact=True)).to_be_visible()
@@ -125,7 +127,9 @@ def test_home_v4_1_browser_keeps_enter_in_conversation_and_execute_explicit(
 
             page.locator("#messageInput").fill("Em qual projeto você está?")
             page.locator("#messageInput").press("Enter")
-            expect(page.get_by_text("project-memory", exact=True).last).to_be_visible()
+            ai_bubble = page.locator("#thread .bubble.ai").last
+            expect(ai_bubble).to_contain_text("project-memory")
+            expect(ai_bubble).to_contain_text("fake-ai")
             assert conversation.messages == ["Em qual projeto você está?"]
             assert not any(call.startswith("task:") for call in controller.calls)
 
@@ -134,12 +138,9 @@ def test_home_v4_1_browser_keeps_enter_in_conversation_and_execute_explicit(
 
             page.locator("#messageInput").fill("capturar tela")
             page.locator("#executeGoal").click()
-            expect(
-                page.get_by_text(
-                    "Objetivo enfileirado. Task ID: browser-task-1",
-                    exact=True,
-                )
-            ).to_be_visible()
+            system_bubble = page.locator("#thread .bubble.system").last
+            expect(system_bubble).to_contain_text("browser-task-1")
             assert "task:capturar tela" in controller.calls
+            assert page_errors == []
         finally:
             browser.close()
