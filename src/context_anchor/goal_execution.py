@@ -188,9 +188,16 @@ def _navigation_matches(requested: str, observed: str) -> bool:
         observed
     ):
         return False
-    requested_port = requested_url.port
-    observed_port = observed_url.port
-    if requested_port not in {None, observed_port}:
+    try:
+        requested_port = requested_url.port
+        observed_port = observed_url.port
+    except ValueError:
+        return False
+    if requested_port is None:
+        observed_default_port = {"http": 80, "https": 443}.get(observed_scheme)
+        if observed_port is not None and observed_port != observed_default_port:
+            return False
+    elif requested_port != observed_port:
         return False
     requested_path = (requested_url.path or "/").rstrip("/") or "/"
     observed_path = (observed_url.path or "/").rstrip("/") or "/"
@@ -753,6 +760,8 @@ def _browser_page_is_loaded(snapshot: dict[str, Any]) -> bool:
 
 def _search_url(engine: str, query: str) -> str:
     encoded = quote_plus(query.strip())
+    if engine == "bing-rss":
+        return f"https://www.bing.com/search?format=rss&q={encoded}"
     if engine == "bing":
         return f"https://www.bing.com/search?q={encoded}"
     if engine == "google":
@@ -764,13 +773,13 @@ def _search_engines(intent: GoalIntent) -> tuple[str, ...]:
     requested_url = str(_field(intent, "url", ""))
     host = (urlparse(requested_url if "://" in requested_url else f"https://{requested_url}").hostname or "").casefold()
     if "google." in host:
-        return ("google", "bing", "duckduckgo")
+        return ("google", "bing", "duckduckgo", "bing-rss")
     if "duckduckgo." in host:
-        return ("duckduckgo", "bing", "google")
+        return ("duckduckgo", "bing", "google", "bing-rss")
     if "bing." in host:
-        return ("bing", "google", "duckduckgo")
+        return ("bing", "google", "duckduckgo", "bing-rss")
     # Bing is the currently observed healthy structured provider on this host.
-    return ("bing", "google", "duckduckgo")
+    return ("bing", "google", "duckduckgo", "bing-rss")
 
 
 def _run_structured_search(
@@ -2237,7 +2246,21 @@ def execute_goal(
             def named_observer(receipt: dict[str, Any]) -> list[_EvidenceSpec]:
                 observed: dict[str, Any] = {}
                 query_match = False
+                title_match = False
                 argument_observed = False
+                launch_proof = False
+                live_launch = False
+                preexisting_target_state = False
+                receipt_window_match = False
+                singleton_handoff = False
+                receipt_window_id = str(receipt.get("window_id") or "")
+                receipt_argv = receipt.get("argv")
+                receipt_argument_matches = bool(
+                    isinstance(receipt_argv, (list, tuple))
+                    and url in {str(item) for item in receipt_argv}
+                )
+                browser_location = ""
+                location_match = False
                 pid = receipt.get("pid") if isinstance(receipt.get("pid"), int) else None
                 for attempt in range(30):
                     observed = executor.observe_application(
@@ -2251,41 +2274,116 @@ def execute_goal(
                     title_match = all(
                         token in title_text for token in _query_tokens(query)
                     )
-                    engine_match = engines[0] in title_text
-                    query_match = bool(title_match and engine_match)
+                    browser_location = str(
+                        observed.get("browser_location") or ""
+                    ).strip()
+                    location_match = bool(
+                        observed.get("browser_location_verified") is True
+                        and observed.get("browser_location_source") == "at-spi"
+                        and browser_location
+                        and _navigation_matches(url, browser_location)
+                    )
+                    query_match = bool(
+                        location_match
+                        and _browser_query_matches(
+                            {"url": browser_location},
+                            query,
+                        )
+                    )
                     argument_observed = observed.get("argument_observed") is True
-                    window_identity_ready = bool(
+                    observed_window_id = str(observed.get("window_id") or "")
+                    receipt_window_match = bool(
+                        receipt_window_id
+                        and observed_window_id == receipt_window_id
+                    )
+                    receipt_launch_ready = bool(
+                        receipt.get("verified") is True
+                        and receipt.get("window_changed") is True
+                        and receipt_window_match
+                        and receipt_argument_matches
+                    )
+                    window_process_ready = bool(
+                        observed.get("window_process_identity_observed") is True
+                    )
+                    live_launch = bool(
+                        receipt_launch_ready
+                        and observed.get("process_alive") is True
+                        and observed.get("process_identity_observed") is True
+                        and argument_observed
+                        and window_process_ready
+                    )
+                    singleton_handoff = bool(
+                        receipt_launch_ready
+                        and observed.get("process_alive") is False
+                        and window_process_ready
+                    )
+                    launch_proof = bool(live_launch or singleton_handoff)
+                    window_state_ready = bool(
                         observed.get("identity_observed")
                         and observed.get("class_identity_observed")
-                        and observed.get("window_id")
+                        and window_process_ready
+                        and observed_window_id
+                        and receipt_window_match
+                        and receipt_argument_matches
                     )
-                    if (
-                        window_identity_ready
-                        and argument_observed
+                    preexisting_target_state = bool(
+                        window_state_ready
                         and query_match
-                    ):
+                        and not launch_proof
+                        and observed.get("process_alive") is False
+                    )
+                    window_identity_ready = bool(
+                        window_state_ready
+                        and (launch_proof or preexisting_target_state)
+                    )
+                    if window_identity_ready and query_match:
                         break
                     if attempt < 29:
                         time.sleep(0.5)
+                observed_for_evidence = dict(observed)
+                observed_for_evidence.pop("browser_location", None)
+                observed_for_evidence.pop("browser_location_frame", None)
+                observed_for_evidence.pop("window_title", None)
+                if browser_location:
+                    observed_for_evidence["browser_location_host"] = (
+                        _normalized_host(browser_location)
+                    )
+                    observed_for_evidence["browser_location_redacted"] = True
+                observed_for_evidence["title_matches_query"] = title_match
                 return [
                     _EvidenceSpec(
                         "browser_open",
                         EvidenceKind.OBSERVATION,
                         "desktop.x11_proc",
-                        bool(window_identity_ready and argument_observed),
-                        bool(window_identity_ready and argument_observed),
-                        _safe_value(observed),
+                        window_identity_ready,
+                        window_identity_ready,
+                        _safe_value(
+                            {
+                                **observed_for_evidence,
+                                "launch_proof": launch_proof,
+                                "live_launch": live_launch,
+                                "singleton_handoff": singleton_handoff,
+                                "preexisting_target_state": preexisting_target_state,
+                            }
+                        ),
                     ),
                     _EvidenceSpec(
                         "query_observed",
                         EvidenceKind.OBSERVATION,
                         "desktop.browser_window",
-                        bool(query_match and argument_observed and window_identity_ready),
-                        bool(query_match and argument_observed and window_identity_ready),
+                        bool(query_match and window_identity_ready),
+                        bool(query_match and window_identity_ready),
                         {
-                            "window_title": observed.get("window_title"),
+                            "title_matches_query": title_match,
                             "engine": engines[0],
+                            "observed_host": _normalized_host(browser_location),
+                            "location_match": location_match,
+                            "location_source": observed.get("browser_location_source"),
                             "argument_observed": argument_observed,
+                            "receipt_window_match": receipt_window_match,
+                            "receipt_argument_matches": receipt_argument_matches,
+                            "singleton_handoff": singleton_handoff,
+                            "preexisting_target_state": preexisting_target_state,
                         },
                     ),
                 ]

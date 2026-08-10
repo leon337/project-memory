@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -73,9 +74,11 @@ class FakeExecutor:
                 http_status=200,
             )
         elif plan.action == "open_app":
+            open_app_parts = shlex.split(plan.target)
             receipt.update(
                 app=plan.target,
-                executable=plan.target.split()[0],
+                executable=open_app_parts[0],
+                argv=open_app_parts[1:],
                 pid=4242,
                 window_changed=True,
                 window_id="receipt-window",
@@ -324,6 +327,8 @@ def _application_observation(
     app: str = "fake-editor",
     title: str = "Editor Mock — Documento sem título",
     verified: bool = True,
+    window_id: str = "observed-window",
+    browser_location: str | None = None,
 ) -> dict[str, Any]:
     return {
         "action": "observe_application",
@@ -331,10 +336,15 @@ def _application_observation(
         "identity_observed": verified,
         "class_identity_observed": verified,
         "process_identity_observed": verified,
+        "process_alive": True,
+        "window_process_identity_observed": verified,
         "argument_observed": verified,
-        "window_id": "observed-window",
+        "window_id": window_id,
         "window_title": title,
         "window_class": app,
+        "browser_location": browser_location,
+        "browser_location_source": "at-spi" if browser_location else None,
+        "browser_location_verified": bool(browser_location),
         "verified": verified,
     }
 
@@ -362,6 +372,7 @@ def _search_snapshot(
 ) -> dict[str, Any]:
     search_urls = {
         "bing": f"https://www.bing.com/search?q={quote_plus(query)}",
+        "bing-rss": f"https://www.bing.com/search?format=rss&q={quote_plus(query)}",
         "google": f"https://www.google.com/search?q={quote_plus(query)}",
         "duckduckgo": f"https://duckduckgo.com/?q={quote_plus(query)}",
     }
@@ -519,6 +530,8 @@ def test_basic_named_browser_search_observes_browser_identity_and_query() -> Non
             _application_observation(
                 app="brave-browser",
                 title="São Lourenço da Mata - Pesquisa Google - Brave",
+                window_id="receipt-window",
+                browser_location="google.com/search?q=São+Lourenço+da+Mata",
             ),
         )
     )
@@ -855,6 +868,7 @@ def test_compound_fast_path_cannot_report_partial_search_as_success() -> None:
         "open_url",
         "open_url",
         "open_url",
+        "open_url",
     ]
     assert "type_text" not in [plan.action for plan in executor.executed]
 
@@ -1031,6 +1045,30 @@ def test_search_falls_back_to_another_engine_and_reports_the_attempts() -> None:
     assert result["planner_fallbacks"] == ["RuntimeError"]
 
 
+def test_search_uses_bing_rss_after_html_engines_have_no_results() -> None:
+    query = "São Lourenço da Mata"
+    executor = FakeExecutor(
+        browser_observations=(
+            _search_snapshot(query, engine="bing", include_results=False),
+            _search_snapshot(query, engine="google", include_results=False),
+            _search_snapshot(query, engine="duckduckgo", include_results=False),
+            _search_snapshot(
+                query,
+                engine="bing-rss",
+                first_title="Prefeitura de São Lourenço da Mata",
+            ),
+        )
+    )
+
+    result = execute_command(executor, f"Pesquise {query}")
+
+    _assert_succeeded(result)
+    assert len(executor.executed) == 4
+    assert "format=rss" in executor.executed[-1].target
+    assert result["steps"][-1]["provider"] == "bing-rss"
+    assert result["metrics"]["fallbacks"] == 3
+
+
 def test_legacy_provider_fallback_cannot_reintroduce_free_physical_actions() -> None:
     planner = DuplicateAcrossProvidersPlanner()
     executor = FakeExecutor(
@@ -1096,13 +1134,14 @@ def test_search_fallback_cannot_combine_query_and_unrelated_results() -> None:
         "open_url",
         "open_url",
         "open_url",
+        "open_url",
     ]
     assert all(plan.action != "type_text" for plan in executor.executed)
     unrelated_results = [
         item
         for item in caught.value.result["evidence"]
         if item["criterion_id"] == "results_observed"
-        and item["metadata"].get("engine") in {"google", "duckduckgo"}
+        and item["metadata"].get("engine") in {"google", "duckduckgo", "bing-rss"}
     ]
     assert unrelated_results
     assert all(item["verified"] is False for item in unrelated_results)
@@ -1131,12 +1170,43 @@ def test_search_requires_the_observed_engine_host_not_only_matching_query() -> N
     assert all(item["metadata"]["host_match"] is False for item in query_evidence)
 
 
-def test_named_browser_requires_observed_launch_argument_as_well_as_title() -> None:
+def test_named_browser_accepts_observed_query_when_launcher_process_exits() -> None:
     observed = _application_observation(
         app="brave-browser",
         title="São Lourenço da Mata - Pesquisa Google - Brave",
+        window_id="receipt-window",
+        browser_location="google.com/search?q=São+Lourenço+da+Mata",
     )
     observed["argument_observed"] = False
+    observed["process_identity_observed"] = False
+    observed["process_alive"] = False
+    executor = FakeExecutor(application_observations=(observed,))
+
+    result = execute_command(
+        executor,
+        "Abra o navegador brave e acesse o site google.com e pesquise São Lourenço da Mata",
+        capability_resolver=MockCapabilityResolver(),
+    )
+
+    _assert_succeeded(result)
+    observations = [
+        item for item in result["evidence"] if item["kind"] == "observation"
+    ]
+    assert {item["criterion_id"] for item in observations if item["verified"]} == {
+        "browser_open",
+        "query_observed",
+    }
+
+
+def test_named_browser_rejects_missing_argument_from_a_live_launcher() -> None:
+    observed = _application_observation(
+        app="brave-browser",
+        title="São Lourenço da Mata - Pesquisa Google - Brave",
+        window_id="receipt-window",
+        browser_location="google.com/search?q=São+Lourenço+da+Mata",
+    )
+    observed["argument_observed"] = False
+    observed["process_alive"] = True
     executor = FakeExecutor(application_observations=(observed,))
 
     with pytest.raises(GoalExecutionFailed) as caught:
@@ -1148,6 +1218,149 @@ def test_named_browser_requires_observed_launch_argument_as_well_as_title() -> N
 
     assert caught.value.result["goal_completed"] is False
     assert {item["status"] for item in caught.value.result["criteria"]} == {"pending"}
+
+
+def test_named_browser_rejects_matching_title_from_the_wrong_window_class() -> None:
+    observed = _application_observation(
+        app="firefox",
+        title="São Lourenço da Mata - Pesquisa Google - Firefox",
+        window_id="receipt-window",
+        browser_location="google.com/search?q=São+Lourenço+da+Mata",
+    )
+    observed["identity_observed"] = False
+    observed["class_identity_observed"] = False
+    observed["verified"] = False
+    executor = FakeExecutor(application_observations=(observed,))
+
+    with pytest.raises(GoalExecutionFailed) as caught:
+        execute_command(
+            executor,
+            "Abra o navegador brave e acesse o site google.com e pesquise São Lourenço da Mata",
+            capability_resolver=MockCapabilityResolver(),
+        )
+
+    assert caught.value.result["goal_completed"] is False
+    assert {item["status"] for item in caught.value.result["criteria"]} == {"pending"}
+
+
+def test_named_browser_without_explicit_site_uses_observed_bing_location() -> None:
+    executor = FakeExecutor(
+        application_observations=(
+            _application_observation(
+                app="brave-browser",
+                title="gatos - Search - Brave",
+                window_id="receipt-window",
+                browser_location="bing.com/search?q=gatos",
+            ),
+        )
+    )
+
+    result = execute_command(
+        executor,
+        "No Brave, pesquise gatos",
+        capability_resolver=MockCapabilityResolver(),
+    )
+
+    _assert_succeeded(result)
+    assert len(executor.executed) == 1
+    assert "bing.com/search" in executor.executed[0].target
+    query_evidence = next(
+        item
+        for item in result["evidence"]
+        if item["criterion_id"] == "query_observed" and item["kind"] == "observation"
+    )
+    assert query_evidence["verified"] is True
+    assert query_evidence["metadata"]["location_match"] is True
+
+
+@pytest.mark.parametrize(
+    "browser_location",
+    (
+        "evil.example/?q=São+Lourenço+da+Mata",
+        "google.com/search?q=Recife",
+        "google.com:444/search?q=São+Lourenço+da+Mata",
+        "google.com:invalid/search?q=São+Lourenço+da+Mata",
+    ),
+)
+def test_named_browser_rejects_spoofed_title_without_expected_location(
+    browser_location: str,
+) -> None:
+    observed = _application_observation(
+        app="brave-browser",
+        title="São Lourenço da Mata - Pesquisa Google - Brave",
+        window_id="receipt-window",
+        browser_location=browser_location,
+    )
+    observed["argument_observed"] = False
+    observed["process_identity_observed"] = False
+    observed["process_alive"] = False
+    executor = FakeExecutor(application_observations=(observed,))
+
+    with pytest.raises(GoalExecutionFailed) as caught:
+        execute_command(
+            executor,
+            "Abra o navegador brave e acesse o site google.com e pesquise São Lourenço da Mata",
+            capability_resolver=MockCapabilityResolver(),
+        )
+
+    assert caught.value.result["goal_completed"] is False
+    query_evidence = next(
+        item
+        for item in caught.value.result["evidence"]
+        if item["criterion_id"] == "query_observed" and item["kind"] == "observation"
+    )
+    assert query_evidence["verified"] is False
+    assert query_evidence["metadata"]["location_match"] is False
+
+
+def test_named_browser_rejects_location_without_independent_atspi_source() -> None:
+    observed = _application_observation(
+        app="brave-browser",
+        title="São Lourenço da Mata - Pesquisa Google - Brave",
+        window_id="receipt-window",
+        browser_location="google.com/search?q=São+Lourenço+da+Mata",
+    )
+    observed["browser_location_source"] = "execution-receipt"
+    executor = FakeExecutor(application_observations=(observed,))
+
+    with pytest.raises(GoalExecutionFailed) as caught:
+        execute_command(
+            executor,
+            "Abra o navegador brave e acesse o site google.com e pesquise São Lourenço da Mata",
+            capability_resolver=MockCapabilityResolver(),
+        )
+
+    assert caught.value.result["goal_completed"] is False
+
+
+def test_named_browser_accepts_independently_verified_preexisting_target_state() -> None:
+    observed = _application_observation(
+        app="brave-browser",
+        title="São Lourenço da Mata - Pesquisa Google - Brave",
+        window_id="receipt-window",
+        browser_location="google.com/search?q=São+Lourenço+da+Mata",
+    )
+    observed["process_alive"] = False
+    observed["process_identity_observed"] = False
+    executor = FakeExecutor(
+        application_observations=(observed,),
+        receipt_verified=False,
+    )
+
+    result = execute_command(
+        executor,
+        "Abra o navegador brave e acesse o site google.com e pesquise São Lourenço da Mata",
+        capability_resolver=MockCapabilityResolver(),
+    )
+
+    _assert_succeeded(result)
+    receipt = next(
+        item for item in result["evidence"] if item["kind"] == "execution_receipt"
+    )
+    observations = [item for item in result["evidence"] if item["kind"] == "observation"]
+    assert receipt["verified"] is False
+    assert all(item["verified"] is True for item in observations)
+    assert observations[-1]["metadata"]["preexisting_target_state"] is True
 
 
 def test_generic_goal_without_structured_decomposition_fails_before_action() -> None:

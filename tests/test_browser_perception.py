@@ -204,6 +204,84 @@ def test_observe_browser_reports_main_document_status_when_known(
     assert snapshot["title"] == "HTTP fixture"
 
 
+def test_observe_browser_extracts_structured_results_from_rss(executor: ActionExecutor) -> None:
+    assert executor._page is not None
+    executor._page.route(
+        "https://fixture.test/search**",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/rss+xml",
+            body="""<?xml version="1.0" encoding="utf-8"?>
+              <rss version="2.0"><channel>
+                <title>Bing: São Lourenço da Mata</title>
+                <item>
+                  <title>Prefeitura de São Lourenço da Mata</title>
+                  <link>https://saolourencodamata.example/</link>
+                  <description>Informação municipal.</description>
+                </item>
+                <item>
+                  <title>São Lourenço da Mata — IBGE</title>
+                  <link>https://ibge.example/sao-lourenco</link>
+                  <description>Dados geográficos.</description>
+                </item>
+              </channel></rss>""",
+        ),
+    )
+    executor._page.goto(
+        "https://fixture.test/search?format=rss&q=S%C3%A3o+Louren%C3%A7o+da+Mata",
+        wait_until="domcontentloaded",
+    )
+
+    snapshot = executor.observe_browser()
+
+    assert snapshot["search_results"] == [
+        {
+            "title": "Prefeitura de São Lourenço da Mata",
+            "url": "https://saolourencodamata.example/",
+        },
+        {
+            "title": "São Lourenço da Mata — IBGE",
+            "url": "https://ibge.example/sao-lourenco",
+        },
+    ]
+    assert snapshot["first_result"] == snapshot["search_results"][0]
+
+
+def test_observe_browser_prefers_atom_alternate_and_default_links(
+    executor: ActionExecutor,
+) -> None:
+    assert executor._page is not None
+    executor._page.route(
+        "https://fixture.test/atom**",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/atom+xml",
+            body="""<?xml version="1.0" encoding="utf-8"?>
+              <feed xmlns="http://www.w3.org/2005/Atom">
+                <title>Busca Atom</title>
+                <entry>
+                  <title>Resultado com alternate</title>
+                  <link rel="self" href="https://fixture.test/atom/entry-1" />
+                  <link rel="alternate" href="https://example.org/result-1" />
+                </entry>
+                <entry>
+                  <title>Resultado com link padrão</title>
+                  <link rel="self" href="https://fixture.test/atom/entry-2" />
+                  <link href="https://example.org/result-2" />
+                </entry>
+              </feed>""",
+        ),
+    )
+    executor._page.goto("https://fixture.test/atom?q=teste", wait_until="domcontentloaded")
+
+    snapshot = executor.observe_browser()
+
+    assert snapshot["search_results"] == [
+        {"title": "Resultado com alternate", "url": "https://example.org/result-1"},
+        {"title": "Resultado com link padrão", "url": "https://example.org/result-2"},
+    ]
+
+
 def test_observe_browser_requires_an_existing_page() -> None:
     executor = ActionExecutor(headless=True)
 

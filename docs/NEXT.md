@@ -1,44 +1,19 @@
 # NEXT
 
-## 1. Executar a bateria física integrada A–E
+## 1. Manter a bateria de regressão ligada a mudanças do desktop/browser
 
-Usar `docs/CODEX_GOAL_RUNTIME_MISSION.md` como contrato.
+Reexecutar os casos físicos afetados quando houver mudança relevante em X11, AT-SPI, Playwright, browser, capability discovery ou proteção de foco.
 
-Executar pelo fluxo real Painel → Central → Robô os 10 testes obrigatórios, incluindo:
+O gate continua sendo o estado final observado e os critérios do GoalVerifier; screenshot ou receipt isolado não substituem evidência estruturada.
 
-- editor + `Olá mundo`;
-- navegação e busca;
-- VS Code;
-- necessidade vaga de cálculo;
-- necessidade vaga de anotação;
-- significado de Josiel;
-- pesquisa → primeiro resultado → editor → escrita comprovada;
-- condicional de `example.com`;
-- contexto entre tasks com `lá`.
+## 2. Adicionar journal durável para a janela residual de crash
 
-Critério: cada PASS precisa de estado final observado/evidência do Goal Runtime, não apenas ausência de exceção.
+O heartbeat impede expiração/reclaim enquanto o Robô está vivo, mas um crash abrupto depois de uma ação física e antes do ACK ainda pode permitir replay quando a task for reclamada.
 
-## 2. Corrigir qualquer FAIL real e fechar validação técnica
+Evoluir para journal/idempotência persistente por `task_id` + `action_key`, sem enfraquecer lease, Policy, FAILSAFE ou Emergency Stop.
 
-Para cada falha física, classificar a causa (interpretação, capability, provider, percepção, execução, evidência, contexto, lease ou progresso), corrigir e repetir o teste afetado.
+## 3. Expandir capabilities e replanning somente com contratos verificáveis
 
-Depois rodar:
+Novas capacidades e variações semânticas devem entrar com decomposição lossless, grounding local, critérios explícitos, percepção independente e regressões adversariais.
 
-- suíte completa;
-- compilação/check equivalente;
-- `git diff --check`;
-- revisão do diff;
-- CI da versão candidata quando houver push apropriado.
-
-Não mergear enquanto existir FAIL obrigatório ou falso `succeeded` conhecido.
-
-## 3. Fechar a missão e promover para `main`
-
-Quando todos os critérios passarem:
-
-- atualizar `STATUS.md`, `ARCHITECTURE.md`, `DECISIONS.md` e este `NEXT.md` para o estado final;
-- garantir que apenas código/testes/docs da missão entrem;
-- commit/push final;
-- merge/promover para `main`;
-- confirmar SHA remoto e CI;
-- registrar qualquer limitação real restante.
+Priorizar alternativas recuperáveis por step e ampliar replanning estruturado sem repetir operações físicas não idempotentes.

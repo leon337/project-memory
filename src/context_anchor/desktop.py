@@ -73,6 +73,119 @@ print(json.dumps(candidates[0] if candidates else None, ensure_ascii=False))
 """
 
 
+_ATSPI_BROWSER_LOCATION_SCRIPT = r"""
+import json
+import sys
+import pyatspi
+
+expected_title = sys.argv[1].casefold().strip()
+candidates = []
+
+def has_state(obj, state):
+    try:
+        return obj.getState().contains(state)
+    except Exception:
+        return False
+
+def attributes(obj):
+    try:
+        return {
+            item.split(":", 1)[0].casefold(): item.split(":", 1)[1]
+            for item in obj.getAttributes()
+            if ":" in item
+        }
+    except Exception:
+        return {}
+
+def walk(
+    obj,
+    app_name,
+    frame_name,
+    inside_document=False,
+    inside_toolbar=False,
+    depth=0,
+):
+    if depth > 16:
+        return
+    try:
+        role = obj.getRoleName().casefold()
+        now_inside_document = inside_document or role.startswith("document")
+        now_inside_toolbar = inside_toolbar or role in {"tool bar", "toolbar"}
+        if role == "entry" and not now_inside_document:
+            attrs = attributes(obj)
+            marker = " ".join(
+                (
+                    obj.name or "",
+                    attrs.get("class", ""),
+                    attrs.get("id", ""),
+                )
+            ).casefold()
+            strong_markers = (
+                "omnibox",
+                "urlbar",
+                "locationbar",
+            )
+            address_markers = (
+                "address",
+                "endereço",
+                "endereços",
+                "adresse",
+                "dirección",
+                "indirizzo",
+            )
+            if any(item in marker for item in strong_markers) or (
+                now_inside_toolbar
+                and any(item in marker for item in address_markers)
+            ):
+                try:
+                    text = obj.queryText()
+                    location = text.getText(0, text.characterCount).strip()
+                    if location:
+                        candidates.append(
+                            {
+                                "location": location,
+                                "app": app_name,
+                                "frame": frame_name,
+                                "role": role,
+                            }
+                        )
+                except Exception:
+                    pass
+        for child in obj:
+            walk(
+                child,
+                app_name,
+                frame_name,
+                inside_document=now_inside_document,
+                inside_toolbar=now_inside_toolbar,
+                depth=depth + 1,
+            )
+    except Exception:
+        return
+
+for desktop_index in range(pyatspi.Registry.getDesktopCount()):
+    desktop = pyatspi.Registry.getDesktop(desktop_index)
+    for app in desktop:
+        try:
+            app_name = app.name or ""
+            for child in app:
+                title = (child.name or "").casefold()
+                title_matches = bool(
+                    expected_title
+                    and (title in expected_title or expected_title in title)
+                )
+                active = has_state(child, pyatspi.STATE_ACTIVE) or has_state(
+                    child, pyatspi.STATE_FOCUSED
+                )
+                if title_matches and active:
+                    walk(child, app_name, child.name or "")
+        except Exception:
+            continue
+
+print(json.dumps(candidates[0] if candidates else None, ensure_ascii=False))
+"""
+
+
 # Known aliases remain as convenience, not as an authorization boundary.
 APP_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     "firefox": (("firefox",),),
@@ -290,6 +403,31 @@ class PyAutoGuiDesktopBackend:
         )
         value = completed.stdout.strip() if completed.returncode == 0 else ""
         return value or None
+
+    @staticmethod
+    def _process_executable(pid: int | None) -> str | None:
+        if not isinstance(pid, int) or pid <= 0:
+            return None
+        try:
+            return str((Path("/proc") / str(pid) / "exe").resolve(strict=True))
+        except OSError:
+            return None
+
+    def _window_process_id(self, window_id: str | None) -> int | None:
+        xprop = shutil.which("xprop")
+        if not xprop or not window_id:
+            return None
+        completed = subprocess.run(
+            [xprop, "-id", window_id, "_NET_WM_PID"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if completed.returncode != 0:
+            return None
+        match = re.search(r"=\s*(\d+)\s*$", completed.stdout)
+        return int(match.group(1)) if match else None
 
     def _window_class(self, window_id: str | None = None) -> str | None:
         xprop = shutil.which("xprop")
@@ -632,10 +770,7 @@ class PyAutoGuiDesktopBackend:
             process_dir = Path("/proc") / str(pid)
             process_alive = process_dir.exists()
             if process_alive:
-                try:
-                    process_executable = str((process_dir / "exe").resolve(strict=True))
-                except OSError:
-                    process_executable = None
+                process_executable = self._process_executable(pid)
                 if expected_argument is not None:
                     try:
                         raw_cmdline = (process_dir / "cmdline").read_bytes()
@@ -675,6 +810,18 @@ class PyAutoGuiDesktopBackend:
                 "google-chrome",
                 "google-chrome-stable",
             ),
+            "google-chrome": (
+                "chrome",
+                "chromium",
+                "google-chrome",
+                "google-chrome-stable",
+            ),
+            "google-chrome-stable": (
+                "chrome",
+                "chromium",
+                "google-chrome",
+                "google-chrome-stable",
+            ),
         }
         expected_identities = set(exact_identities.get(canonical, (canonical,)))
         raw_class = (window_class or "").casefold()
@@ -698,6 +845,61 @@ class PyAutoGuiDesktopBackend:
         # into one synthetic observation, and page/window titles are spoofable.
         identity_observed = bool(window_id and class_observed)
 
+        browser_location: str | None = None
+        browser_location_source: str | None = None
+        browser_location_verified = False
+        browser_location_app: str | None = None
+        browser_location_frame: str | None = None
+        window_process_id: int | None = None
+        window_process_executable: str | None = None
+        window_process_identity_observed = False
+        if (
+            identity_observed
+            and expected_argument
+            and canonical
+            in {
+                "brave-browser",
+                "firefox",
+                "chromium",
+                "chrome",
+                "google-chrome",
+                "google-chrome-stable",
+            }
+        ):
+            window_process_id = self._window_process_id(window_id)
+            window_process_executable = self._process_executable(window_process_id)
+            window_process_identity_observed = bool(
+                window_process_executable
+                and Path(window_process_executable).name.casefold()
+                in expected_identities
+            )
+            location_observation = self._observe_browser_location(window_title)
+            location_value = location_observation.get("location")
+            location_app = location_observation.get("app")
+            location_frame = location_observation.get("frame")
+            same_window = self._active_window_id() == window_id
+            frame_matches = bool(
+                isinstance(location_frame, str)
+                and window_title
+                and (
+                    location_frame.casefold() in window_title.casefold()
+                    or window_title.casefold() in location_frame.casefold()
+                )
+            )
+            if (
+                isinstance(location_value, str)
+                and location_value.strip()
+                and same_window
+                and frame_matches
+            ):
+                browser_location = location_value.strip()
+                browser_location_source = "at-spi"
+                browser_location_verified = True
+                browser_location_app = (
+                    location_app if isinstance(location_app, str) else None
+                )
+                browser_location_frame = location_frame
+
         return {
             "action": "observe_application",
             "app": canonical,
@@ -711,9 +913,44 @@ class PyAutoGuiDesktopBackend:
             "class_identity_observed": class_observed,
             "process_identity_observed": process_observed,
             "title_identity_observed": title_observed,
+            "browser_location": browser_location,
+            "browser_location_source": browser_location_source,
+            "browser_location_verified": browser_location_verified,
+            "browser_location_app": browser_location_app,
+            "browser_location_frame": browser_location_frame,
+            "window_process_id": window_process_id,
+            "window_process_executable": window_process_executable,
+            "window_process_identity_observed": window_process_identity_observed,
             "source": "x11-proc",
             "verified": identity_observed,
         }
+
+    @staticmethod
+    def _observe_browser_location(window_title: str | None) -> dict[str, Any]:
+        """Read an active browser's address field without keyboard or clipboard use."""
+
+        system_python = Path("/usr/bin/python3")
+        if not window_title or not system_python.is_file():
+            return {}
+        try:
+            completed = subprocess.run(
+                [
+                    str(system_python),
+                    "-c",
+                    _ATSPI_BROWSER_LOCATION_SCRIPT,
+                    window_title,
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=8,
+            )
+            lines = [line for line in completed.stdout.splitlines() if line.strip()]
+            observed = json.loads(lines[-1]) if completed.returncode == 0 and lines else None
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return {}
+        return observed if isinstance(observed, dict) else {}
 
     def open_application(self, app_id: str) -> dict[str, Any]:
         canonical = canonical_app_id(app_id)

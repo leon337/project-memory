@@ -6,13 +6,11 @@
 - **Central** = processo técnico `Control Plane`;
 - **Robô local** = processo técnico `local agent`.
 
-## Estado de branches
+## Estado da versão
 
-`main` mantém o MVP anterior estável.
+A arquitetura abaixo é a versão verificada do Goal Runtime. Ela foi validada na branch de recuperação `codex/goal-runtime-wip` e o mesmo SHA é promovido para `main` no encerramento da missão.
 
-A arquitetura abaixo está implementada na branch `codex/goal-runtime-wip` e ainda precisa passar a bateria física integrada antes de merge em `main`.
-
-## Arquitetura vigente na branch WIP
+## Arquitetura vigente
 
 ```text
 Usuário
@@ -84,7 +82,7 @@ A fila persiste em SQLite e mantém o ciclo:
 queued → running → succeeded | failed
 ```
 
-Na branch WIP, `succeeded` só deve ser enviado pelo Robô depois de um verdict comprovado do Goal Runtime.
+`succeeded` só é enviado pelo Robô depois de um verdict comprovado do Goal Runtime.
 
 ## 2. Goal Runtime universal
 
@@ -94,7 +92,7 @@ Módulos principais:
 - `goal_execution.py` — orquestração de uma execução completa;
 - `local_agent.py` — integra o Goal Runtime ao fluxo real do Robô.
 
-Todo comando entra em `execute_goal()` na branch WIP.
+Todo comando entra em `execute_goal()`.
 
 Fast paths e decomposição por provider são fontes diferentes de steps, mas não possuem semânticas diferentes de conclusão.
 
@@ -130,7 +128,7 @@ A classificação local é fail-closed: um fast path só é aceito quando conseg
 
 Pedidos `GENERIC` exigem decomposição estruturada completa antes da primeira ação física.
 
-## 5. Grounding de URL em busca com navegador nomeado
+## 5. Grounding e prova em navegador nomeado
 
 Fast path permitido:
 
@@ -139,6 +137,17 @@ Fast path permitido:
 - equivalentes usando Bing ou DuckDuckGo.
 
 Uma URL explícita não reconhecida como mecanismo de busca, como `example.com`, não pode ser descartada. Esse caso vai para `GENERIC`/fail-closed antes da execução.
+
+Um navegador externo como Brave não compartilha o DOM do Chromium controlado por Playwright. A comprovação usa, cumulativamente:
+
+- XID ativo revalidado antes/depois da leitura;
+- `WM_CLASS` exato para o navegador solicitado;
+- `_NET_WM_PID` do mesmo XID e executável compatível em `/proc`;
+- omnibox obtida por AT-SPI apenas no chrome do navegador, nunca dentro do documento web;
+- URL canônica com scheme sem downgrade, host, porta, path e parâmetros solicitados compatíveis;
+- `argv` do receipt contendo a URL realmente emitida.
+
+Título de janela é apenas diagnóstico e não participa do verdict. Se a janela já estiver comprovadamente no estado alvo, `window_changed=false` não invalida o objetivo: o pós-estado independente prevalece sobre o receipt técnico.
 
 ## 6. Capability Resolver
 
@@ -170,6 +179,8 @@ Hints explícitos podem operar em modo estrito para impedir trocar silenciosamen
 - resultados estruturados;
 - primeiro resultado/título/URL.
 
+Feeds RSS/Atom podem produzir resultados estruturados somente quando o content-type XML e a raiz `rss`/`feed` comprovam que o documento é um feed. Em Atom, `rel=alternate` é preferido e `rel=self` não é tratado como resultado.
+
 ### Desktop
 
 `desktop.py` usa:
@@ -179,6 +190,7 @@ Hints explícitos podem operar em modo estrito para impedir trocar silenciosamen
 - X11/`WM_CLASS`;
 - argumentos observáveis quando possível;
 - AT-SPI/readback para texto.
+- AT-SPI da omnibox para a localização de navegadores externos.
 
 Screenshot continua disponível, mas não é a prova padrão para fluxos que possuem observadores estruturados.
 
@@ -240,7 +252,7 @@ Fast paths locais evitam provider quando a intenção é inequívoca; objetivos 
 - repetições;
 - passos sem progresso.
 
-Buscas possuem fallback limitado entre mecanismos. O replanning estruturado após toda falha física ainda é limitado e permanece área de evolução posterior.
+Buscas possuem fallback limitado entre mecanismos HTML e, como última alternativa, um feed Bing RSS estruturado. O replanning estruturado após toda falha física ainda é limitado e permanece área de evolução posterior.
 
 ## 13. Privacidade e telemetria
 
@@ -258,15 +270,14 @@ Permanecem obrigatórios:
 - credenciais fora do Git/logs/prompts;
 - localhost por padrão.
 
-## 15. Gate para merge em main
+## 15. Gate de release cumprido
 
-A branch WIP não pode ser considerada pronta apenas por testes mockados.
+A versão foi fechada somente depois de:
 
-Antes do merge são obrigatórios:
-
-- bateria física integrada de `docs/CODEX_GOAL_RUNTIME_MISSION.md`;
-- correção de falhas reais encontradas;
-- suíte completa verde;
-- compilação/checks;
-- `git diff --check`;
-- documentação final coerente com o estado verificado.
+- bateria física integrada A–E pelo fluxo real Painel → Central → Robô;
+- 11 registros finais com uma tentativa, critérios/subobjetivos completos e evidência independente;
+- correção e repetição das falhas reais encontradas;
+- suíte completa com 351 testes verdes;
+- compilação de 48 arquivos Python;
+- `git diff --check` e revisão independente do diff;
+- atualização coordenada dos quatro documentos de memória.

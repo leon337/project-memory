@@ -118,6 +118,35 @@ _BROWSER_SNAPSHOT_SCRIPT = r"""
     if (links.length >= maxLinks) break;
   }
 
+  // RSS/Atom search feeds are already structured result documents. Their
+  // item nodes do not have HTML layout boxes, so treat them as data only when
+  // the document root itself proves that this is a feed.
+  const feedResults = [];
+  const feedRoot = document.querySelector(
+    "#webkit-xml-viewer-source-xml > rss, #webkit-xml-viewer-source-xml > feed, rss, feed"
+  );
+  const documentKind = String(feedRoot?.localName || "").toLocaleLowerCase();
+  const feedContentType = /(?:rss\+xml|atom\+xml|application\/xml|text\/xml)/i.test(
+    String(document.contentType || "")
+  );
+  if (feedRoot && feedContentType && (documentKind === "rss" || documentKind === "feed")) {
+    const feedItems = documentKind === "rss"
+      ? feedRoot.querySelectorAll("channel > item")
+      : feedRoot.querySelectorAll("entry");
+    for (const item of feedItems) {
+      const title = compact(item.querySelector("title")?.textContent);
+      const itemLinks = Array.from(item.querySelectorAll("link"));
+      const link = documentKind === "rss"
+        ? itemLinks[0]
+        : itemLinks.find(candidate => compact(candidate.getAttribute("rel")).toLocaleLowerCase() === "alternate")
+          || itemLinks.find(candidate => !compact(candidate.getAttribute("rel")));
+      const url = compact(link?.getAttribute("href") || link?.textContent);
+      if (!title || !/^https?:\/\//i.test(url)) continue;
+      feedResults.push({title, url});
+      if (feedResults.length >= maxResults) break;
+    }
+  }
+
   const resultSelectors = [
     "#search a:has(h3)",
     "div.g a:has(h3)",
@@ -152,8 +181,8 @@ _BROWSER_SNAPSHOT_SCRIPT = r"""
     return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
   });
 
-  const searchResults = [];
-  const seenResults = new Set();
+  const searchResults = [...feedResults];
+  const seenResults = new Set(feedResults.map(item => item.url));
   for (const anchor of candidates) {
     const heading = anchor.querySelector("h1, h2, h3") || anchor.closest("h1, h2, h3");
     const title = compact(

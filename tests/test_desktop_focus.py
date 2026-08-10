@@ -358,3 +358,87 @@ def test_observe_application_accepts_exact_xdg_startup_wm_class(monkeypatch) -> 
 
     assert result["class_identity_observed"] is True
     assert result["verified"] is True
+
+
+def test_observe_application_reads_browser_location_through_at_spi(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "704")
+    monkeypatch.setattr(
+        backend,
+        "_window_title",
+        lambda window_id=None: "gatos - Search - Brave",
+    )
+    monkeypatch.setattr(
+        backend,
+        "_window_class",
+        lambda window_id=None: "brave-browser Brave-browser",
+    )
+    monkeypatch.setattr(
+        backend,
+        "_observe_browser_location",
+        lambda window_title: {
+            "location": "bing.com/search?q=gatos",
+            "app": "Brave Browser",
+            "frame": window_title,
+        },
+    )
+    monkeypatch.setattr(backend, "_window_process_id", lambda window_id: 2461)
+    monkeypatch.setattr(
+        backend,
+        "_process_executable",
+        lambda pid: "/usr/bin/brave-browser",
+    )
+
+    result = backend.observe_application(
+        "brave-browser",
+        expected_argument="https://www.bing.com/search?q=gatos",
+    )
+
+    assert result["identity_observed"] is True
+    assert result["browser_location"] == "bing.com/search?q=gatos"
+    assert result["browser_location_source"] == "at-spi"
+    assert result["browser_location_verified"] is True
+    assert result["window_process_identity_observed"] is True
+
+
+def test_observe_application_discards_browser_location_after_focus_change(
+    monkeypatch,
+) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    active_windows = iter(("704", "different-window"))
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: next(active_windows))
+    monkeypatch.setattr(
+        backend,
+        "_window_title",
+        lambda window_id=None: "gatos - Search - Brave",
+    )
+    monkeypatch.setattr(
+        backend,
+        "_window_class",
+        lambda window_id=None: "brave-browser Brave-browser",
+    )
+    monkeypatch.setattr(
+        backend,
+        "_observe_browser_location",
+        lambda window_title: {
+            "location": "bing.com/search?q=gatos",
+            "app": "Brave Browser",
+            "frame": window_title,
+        },
+    )
+    monkeypatch.setattr(backend, "_window_process_id", lambda window_id: 2461)
+    monkeypatch.setattr(
+        backend,
+        "_process_executable",
+        lambda pid: "/usr/bin/brave-browser",
+    )
+
+    result = backend.observe_application(
+        "brave-browser",
+        expected_argument="https://www.bing.com/search?q=gatos",
+    )
+
+    assert result["browser_location"] is None
+    assert result["browser_location_verified"] is False

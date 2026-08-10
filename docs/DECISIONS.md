@@ -196,7 +196,7 @@ O teste físico
 
 foi marcado como `succeeded`, mas na prática apenas abriu uma pesquisa contendo quase a frase inteira; não leu o primeiro resultado, não abriu o editor e não escreveu o título. Esse resultado é tratado como **FAIL de objetivo** e motivou esta decisão.
 
-A arquitetura futura deve decompor o objetivo, acompanhar subobjetivos e só concluir quando houver evidência suficiente de que todos os critérios relevantes foram atendidos.
+A arquitetura implementada decompõe o objetivo, acompanha subobjetivos e só conclui quando há evidência suficiente de que todos os critérios relevantes foram atendidos.
 
 ## D-022 — Goal Runtime universal em ciclo fechado
 
@@ -204,7 +204,7 @@ Todo pedido deve possuir uma única semântica de conclusão, independentemente 
 
 A unidade de sucesso deixa de ser a ação e passa a ser o **critério de objetivo comprovado por evidência**.
 
-O runtime universal seguirá conceitualmente:
+O runtime universal segue conceitualmente:
 
 ```text
 Goal Contract
@@ -224,7 +224,7 @@ Fast paths determinísticos permanecem como otimizações/skills dentro desse ru
 
 O planner pode sugerir que não há mais trabalho, mas não possui autoridade final para declarar o objetivo concluído. Apenas o verificador de objetivo, usando critérios e evidências, pode autorizar o verdict final.
 
-No primeiro incremento, o Goal Contract deve permanecer pequeno: objetivo original, subobjetivos, critérios, artefatos produzidos e evidências. Não criar microserviços nem reescrever Painel, Central, fila, executores, FAILSAFE, parada de emergência ou providers.
+O Goal Contract permanece pequeno: objetivo original, subobjetivos, critérios, artefatos produzidos e evidências. Não criar microserviços nem reescrever Painel, Central, fila, executores, FAILSAFE, parada de emergência ou providers sem necessidade comprovada.
 
 ## D-023 — Execution Receipt não é evidência de efeito
 
@@ -233,3 +233,43 @@ O sucesso técnico de uma chamada ao executor prova somente que uma ação foi e
 Um `Execution Receipt` não satisfaz sozinho um critério final de objetivo.
 
 Para fechar um critério obrigatório, o Goal Runtime precisa de evidência posterior verificável, preferencialmente observação estruturada ou readback do estado produzido. Enquanto essa evidência não existir, o critério permanece pendente e o objetivo não pode ser marcado como `succeeded`.
+
+## D-024 — Decomposição estruturada precisa cobrir e ancorar o objetivo inteiro
+
+Um provider não pode inventar o próprio efeito e depois usar esse mesmo efeito como critério autorreferente.
+
+Objetivos fora dos intents locais tipados exigem decomposição estruturada antes da primeira ação física. A validação deve preservar, de modo lossless:
+
+- cada ação/cláusula material;
+- entidades solicitadas, como aplicativo, URL, consulta e texto;
+- cardinalidade e ordem relevantes;
+- dependências entre subobjetivos;
+- proveniência de targets e artifacts.
+
+Omissão, capability incompatível, URL não ancorada, ordem trocada ou requisito não representável resultam em fail-closed.
+
+## D-025 — Lease e contexto fazem parte da correção do resultado
+
+O Robô renova o lease durante Goals longos e verifica a posse antes/depois de ações e observações. Perda de lease interrompe execução e fallback.
+
+Contexto entre tasks é pequeno, tipado e persistido somente depois que a Central aceita o resultado final. Uma falha ou `409` descarta o contexto diferido para não publicar estado de uma task sem ACK.
+
+## D-026 — Resultado, log, contexto e SQLite são fronteiras de privacidade
+
+Valores brutos necessários ao verifier podem existir apenas em memória durante a execução. Ao atravessar uma fronteira persistente ou visível, URLs, conteúdo digitado, credenciais, exceções e campos arbitrários passam pelo sanitizador comum.
+
+O `TaskStore` também sanitiza diretamente, porque chamadas futuras podem contornar o fluxo normal do Robô.
+
+## D-027 — Navegador nomeado é comprovado pelo pós-estado independente
+
+Receipt, PID efêmero do launcher e título de janela não bastam para comprovar uma busca em Brave/Firefox/Chrome.
+
+O pós-estado exige o mesmo XID ativo, `WM_CLASS` exato, PID/executável da janela e localização lida da omnibox por AT-SPI fora do documento web. Host, path, porta e consulta são comparados à URL construída localmente.
+
+Quando um navegador singleton encerra o launcher ou a janela já está exatamente no estado alvo, `window_changed=false` pode coexistir com sucesso. Isso não transforma o receipt em evidência: a conclusão vem da observação independente do estado final, e o `argv` ainda precisa mostrar que a tentativa correta foi emitida.
+
+## D-028 — Feed estruturado é fallback de busca, não página HTML simulada
+
+O fallback Bing RSS é usado somente depois dos mecanismos HTML e somente quando o próprio documento comprova content-type XML e raiz `rss`/`feed`.
+
+Itens precisam de título e URL HTTP(S). Em Atom, `rel=alternate` ou link sem `rel` representa o resultado; `rel=self` não substitui a URL do item.
