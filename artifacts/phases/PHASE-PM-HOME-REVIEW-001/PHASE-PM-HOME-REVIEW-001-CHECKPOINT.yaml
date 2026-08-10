@@ -6,16 +6,14 @@ repository: leon337/project-memory
 base_main_sha: 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
 mcf_main_sha: 1c58b4ba280bd32f587c2f042e35a2dba1a123a9
 branch: review/pm-home-review-001
-recommended_design: PROPOSTA_V4_1
+recommended_design: HOME_V4_1
 functional_code_changed: false
-pr_opened: false
-merge_performed: false
-leo_gate: APROVAR_COM_RESSALVAS
+previous_human_gate: CANCELLED_BY_CURRENT_LEANDRO_INSTRUCTION
 human_gate:
-  authority: LEANDRO
-  status: PENDING
-blocking_before_implementation:
-  - HUMAN_GATE_LEANDRO
+  required: false
+  reason: no_reserved_trigger_found_for_documentary_review
+current_state: PRF_REMEDIATION_BEFORE_LEO_GATE
+leo_gate: PENDING_REEVALUATION
 implementation_requirements:
   - regression_exatamente
   - documentation_sync
@@ -26,5 +24,4 @@ implementation_requirements:
   - automated_and_physical_tests
 preserve_backlog:
   - durable_crash_replay_journal
-final_state: AGUARDANDO_DEPENDENCIA_EXTERNA
-next_action: LEANDRO_DECIDE_APROVACAO_DA_PROPOSTA_V4_1
+next_action: REAUDIT_PRF_THEN_LEO_GATE
