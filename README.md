@@ -17,19 +17,31 @@ SQLite — fila / leases / histórico
   ↓
 Robô local
   ↓
-Planner determinístico + MultiProviderPlanner
+Goal Runtime universal
+  ↓
+Interpretação tipada / MultiProviderPlanner
   ├─ Z.AI / GLM
   ├─ Google Gemini
-  └─ Cloudflare Workers AI (adaptador implementado)
+  └─ Cloudflare Workers AI
+  ↓
+Capability Resolver
   ↓
 Policy Layer
   ↓
 Executores
   ├─ Playwright / Chromium
   └─ Desktop Linux / PyAutoGUI / subprocess
+  ↓
+ExecutionReceipt
+  ↓
+Observação / readback independente
+  ↓
+EvidenceRecord
+  ↓
+GoalVerifier
 ```
 
-A migração vigente adiciona um **Goal Runtime universal** acima desse pipeline para que `succeeded` represente objetivo completo comprovado, não apenas uma ação executada.
+O **Goal Runtime universal já está integrado ao fluxo real**. O estado `succeeded` representa objetivo completo comprovado por critérios e evidências; uma ação executada ou um `ExecutionReceipt` isolado não conclui a tarefa.
 
 ## Estado já validado fisicamente
 
@@ -46,13 +58,15 @@ No Linux/X11 real já foram validados, entre outros:
 - abertura de aplicativos;
 - navegação e pesquisa;
 - planner multi-provider com fallback;
-- fast paths locais como `editor + escrever` e `navegador + pesquisa`.
+- fast paths locais como `editor + escrever` e `navegador + pesquisa`;
+- Goal Runtime integrado ao `local_agent.py`;
+- conclusão de objetivos condicionada ao `GoalVerifier` e a evidência independente.
 
 O baseline de autonomia também demonstrou limitações reais de interpretação, percepção, resolução de capacidades, contexto entre tarefas e um caso histórico de falso `succeeded` em objetivo composto. Esses resultados estão documentados em `docs/STATUS.md`.
 
-## Goal Runtime — migração atual
+## Goal Runtime — integrado
 
-A direção arquitetural vigente é:
+O fluxo vigente é:
 
 ```text
 Goal Contract
@@ -68,24 +82,24 @@ Goal Contract
 → continuar/replanejar ou succeeded
 ```
 
-Fundação já criada:
+Componentes principais:
 
-- `src/context_anchor/goal_runtime.py`
-- `tests/test_goal_runtime_contract.py`
+- `src/context_anchor/goal_runtime.py` — contratos, critérios, evidências e autoridade final de conclusão;
+- `src/context_anchor/goal_execution.py` — orquestração dos fast paths e decomposições estruturadas;
+- `src/context_anchor/local_agent.py` — integração do Goal Runtime ao fluxo Painel → Central → Robô;
+- `tests/test_goal_runtime_contract.py` e demais regressões — cobertura automatizada do runtime.
 
-Missão de integração completa e critérios de aceite:
-
-- `docs/CODEX_GOAL_RUNTIME_MISSION.md`
+A missão histórica e seus critérios continuam documentados em `docs/CODEX_GOAL_RUNTIME_MISSION.md`.
 
 ## Regra de conclusão
 
 Ação executada não significa objetivo concluído.
 
-Um `ExecutionReceipt` registra apenas sucesso técnico. A arquitetura nova exige evidência compatível com os critérios obrigatórios do Goal antes de permitir `succeeded`.
+Um `ExecutionReceipt` registra apenas sucesso técnico. Todo critério obrigatório precisa de evidência compatível antes de o `GoalVerifier` permitir `succeeded`.
 
 ## Fast paths e IA
 
-Fast paths determinísticos continuam importantes para latência e economia de quota, mas passam a ser **skills internas do mesmo Goal Run**, não um caminho paralelo de conclusão.
+Fast paths determinísticos continuam importantes para latência e economia de quota, mas são **skills internas do mesmo Goal Run**, não um caminho paralelo de conclusão.
 
 IA fica reservada para interpretação semântica, decomposição, condição, ambiguidade e replanejamento. Providers são intercambiáveis e podem fazer fallback antes da ação física correspondente.
 
@@ -163,8 +177,8 @@ O Painel é a interface principal para operação normal.
 pytest
 ```
 
-O GitHub Actions executa instalação, compilação e testes automatizados. A migração do Goal Runtime possui também critérios físicos obrigatórios descritos em `docs/CODEX_GOAL_RUNTIME_MISSION.md`; testes mockados sozinhos não concluem essa missão.
+O GitHub Actions executa instalação, compilação e testes automatizados. Mudanças em desktop/browser/Goal Runtime continuam sujeitas às regressões e aos testes físicos aplicáveis descritos na documentação do projeto.
 
-## Próximo passo
+## Próximo ciclo
 
-Integrar o Goal Runtime ao `local_agent.py` e continuar até atingir os critérios automatizados e físicos definidos em `docs/CODEX_GOAL_RUNTIME_MISSION.md`.
+A evolução atual é a **Home V4.1** do Painel do Robô: conversa com IA separada tecnicamente de execução, telemetria real compacta, acompanhamento do Goal Runtime, hardening da fronteira browser/localhost e acessibilidade. A implementação é rastreada pela missão `PM-HOME-IMPLEMENT-001`.

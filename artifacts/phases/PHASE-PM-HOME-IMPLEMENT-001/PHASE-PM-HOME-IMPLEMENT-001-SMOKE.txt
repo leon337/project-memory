@@ -1,0 +1,24 @@
+PM-HOME-IMPLEMENT-001 SMOKE
+
+AUTOMATED_BROWSER_SMOKE
+- test: tests/test_dashboard_browser_v4_1.py
+- engine: Playwright Chromium
+- behavior: Home carrega, Conversar não cria task, provider/model telemetry vem do backend, Executar objetivo cria task
+- final code CI: run 347 SUCCESS
+- result: PASS
+
+PHYSICAL_SMOKE
+- validator: scripts/validate_home_v4_1_physical.py
+- environment: Linux/X11 real
+- code HEAD: 1846d249b3aa8b62d935a28c62cd7bf336682934
+- provider observed: zai/glm-4.7-flash
+- command: Abra um editor de texto e escreva exatamente: Validação real número 1
+- GoalVerifier: succeeded + verified=true
+- readback: Validação real número 1
+- marker: PASS_GATE: HOME_V4_1_PHYSICAL
+- result: PASS
+
+RELIABILITY
+- FOCUS-RACE-001: tracked in Issue #4, fail-closed preserved, non-blocking for this gate
+
+OVERALL_SMOKE: PASS

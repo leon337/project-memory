@@ -80,6 +80,7 @@ def test_dashboard_serves_stateful_ultra_dark_page_and_status():
     page = client.get("/")
     assert page.status_code == 200
     assert "Painel de Operação e Controle" in page.text
+    assert "Conversar com a IA" in page.text
     assert "Laboratório de comandos guiados" in page.text
     assert 'data-theme="ultra-dark"' in page.text
     assert "--bg:#010308" in page.text
@@ -87,7 +88,7 @@ def test_dashboard_serves_stateful_ultra_dark_page_and_status():
     assert 'id="centralAction"' in page.text
     assert 'id="robotAction"' in page.text
     assert 'id="emergencyAction"' in page.text
-    assert "Ligada fora do Painel" in page.text
+    assert "Externa" in page.text
     assert "Logs reais da aplicação" in page.text
     assert 'data-log="panel"' in page.text
     assert 'data-log="central"' in page.text

@@ -1,0 +1,82 @@
+PM-HOME-IMPLEMENT-001 VALIDATION FULL
+
+BASELINE
+MCF main = 1c58b4ba280bd32f587c2f042e35a2dba1a123a9
+project-memory main = 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
+
+SELECTED TDD / CI EVIDENCE
+- run 288 / 31363942980: FAILURE — initial exatamente RED.
+- run 291 / 31364265999: FAILURE — `um editor` target mismatch.
+- run 292 / 31364557832: SUCCESS — parser slice GREEN.
+- run 294 / 31364943684: FAILURE — Home V4.1 contract RED.
+- run 298 / 31365499078: SUCCESS — V4.1 API/UI integration GREEN.
+- run 299 / 31365593830: FAILURE — conversation privacy/fingerprint regression.
+- run 300 / 31365721132: SUCCESS — sanitized stable conversation context.
+- run 301 / 31365982438: FAILURE — lease data exposure regression.
+- run 302 / 31366142008: SUCCESS — public dashboard status sanitized.
+- run 318 / 31367543844: SUCCESS — functional candidate before post-physical hardening.
+- run 343 / 31371537535: FAILURE — RED confirming missing focus-settle/identity expectations during diagnosis.
+- run 345 / 31371804853: FAILURE — one remaining legacy fixture incompatibility.
+- run 347 / 31372084077: SUCCESS — final code HEAD `1846d249b3aa8b62d935a28c62cd7bf336682934`.
+
+FINAL CODE CI
+HEAD = 1846d249b3aa8b62d935a28c62cd7bf336682934
+run id = 31372084077
+run number = 347
+result = SUCCESS
+
+CONVERSATION-IDENTITY-001
+Observed physical drift:
+- provider once answered `Robô Operador — MVP 0.3` to the canonical project-identity question.
+
+Correction:
+- `project-memory` made explicit canonical fact;
+- canonical identity is reasserted after project context;
+- explicit project-identity questions validate provider output;
+- contradictory output is rejected and normal provider fallback continues;
+- tests cover wrong provider → grounded fallback.
+
+PHYSICAL VALIDATION — FINAL EXACT CODE HEAD
+Procedure:
+- local branch synchronized with `git pull --ff-only`;
+- editable package reinstalled;
+- Panel restarted;
+- Central and Robot online;
+- Desktop active;
+- emergency normal;
+- `python scripts/validate_home_v4_1_physical.py`.
+
+Observed result:
+PASS: Central, Robô e Desktop prontos; emergência normal
+PASS: fronteira Host/Origin/status validada
+PASS: conversa isolada respondeu via zai/glm-4.7-flash
+INFO: task criada: 1bd0b464-d1e5-4aa2-8a54-bb2e76c0563e
+PASS: GoalVerifier autorizou succeeded com verified=true
+PASS: readback AT-SPI exato: 'Validação real número 1'
+PASS_GATE: HOME_V4_1_PHYSICAL
+
+Visual corroboration:
+- editor contém exatamente `Validação real número 1`;
+- Home mostra objetivo concluído, Readback Confirmado e GoalVerifier SUCCEEDED;
+- interface conversacional identifica o projeto `project-memory`.
+
+RELIABILITY FINDING
+FOCUS-RACE-001:
+- uma execução anterior recusou input porque o window id mudou;
+- segurança fail-closed funcionou;
+- finding permanece aberto na Issue #4;
+- não foi aplicado bypass de foco;
+- classificado por Emily como débito de confiabilidade não bloqueante para esta integração.
+
+FINAL REVIEW / AUDIT / GATE
+Vinicius review id = 4895247454
+Vinicius = PASS_FINAL
+Emily = PASS_FINAL_WITH_TRACKED_RELIABILITY_DEBT
+Leo = APROVAR
+HUMAN_GATE = NOT_REQUIRED
+
+INTEGRATION CONDITION
+- PRF final deve ser commitado sem alteração de código;
+- CI do HEAD documental exato deve ficar verde;
+- PR deve ser marcado ready;
+- merge só depois dessas verificações.
