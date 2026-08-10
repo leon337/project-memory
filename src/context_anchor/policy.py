@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from urllib.parse import quote_plus, urlparse
 
 from .desktop import canonical_app_id
+from .text_semantics import strip_exact_write_modifier
 
 
 @dataclass(frozen=True)
@@ -169,7 +170,7 @@ def plan_local_sequence(command: str) -> tuple[Plan, ...] | None:
         return None
 
     app_target = _strip_polite_suffix(match.group(1))
-    typed_text = match.group(2).strip()
+    typed_text = strip_exact_write_modifier(match.group(2))
     if not app_target or not typed_text or _looks_like_url_target(app_target):
         return None
 
