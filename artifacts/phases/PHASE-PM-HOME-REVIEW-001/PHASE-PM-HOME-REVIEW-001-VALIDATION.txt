@@ -1,0 +1,22 @@
+PM-HOME-REVIEW-001 VALIDATION
+
+TYPE: DOCUMENTARY_REVIEW
+FUNCTIONAL_CODE_CHANGED: false
+BASE_MAIN_SHA: 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
+BRANCH: review/pm-home-review-001
+
+CHECKS
+- issue dedicada existe: PASS
+- branch separada da main: PASS
+- merge base = baseline main: PASS
+- revisão V1–V4: PASS
+- especificação V4.1 recomendada: PASS
+- Conversar vs Executar separados: PASS
+- GoalVerifier preservado: PASS
+- segurança especificada: PASS
+- acessibilidade especificada: PASS
+- protocolo de testes definido: PASS
+- auditoria Emily: PASS_WITH_CHANGES
+- gate Léo: APROVAR_COM_RESSALVAS
+- nova validação funcional: NAO_APLICAVEL (fase documental)
+- PR/merge: NAO_EXECUTADO
