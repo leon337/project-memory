@@ -1,0 +1,23 @@
+PM-RELIABILITY-FOCUS-001 — VALIDATION
+
+AUTOMATED
+- CI 351: SUCCESS / 367 passed
+- CI 354: SUCCESS / 370 passed
+- CI 356: SUCCESS
+- focus fail-closed regression: PASS
+
+PHYSICAL
+- contaminated attempt: NOT USED AS CLEAN GATE
+- clean attempt: 5/5 consecutive PASS
+- GoalVerifier verified=true: 5/5
+- exact AT-SPI readback: 5/5
+- final marker: PASS_GATE: FOCUS_STABILITY_PHYSICAL
+
+AUDIT
+- Ricardo: PASS_WITH_PHYSICAL_VALIDATION
+- Vinícius: PASS_WITH_REQUIREMENTS
+- Renato: PASS_PHYSICAL_FINAL
+- Emily: PASS_FINAL
+- Léo: APROVAR
+
+RESULT: PASS

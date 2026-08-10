@@ -1,0 +1,31 @@
+mission_id: PM-RELIABILITY-FOCUS-001
+phase_id: FOCUS_STABILITY_X11
+repository: leon337/project-memory
+issue: 4
+pr: 5
+base_main_sha: 5cc1778523daa6051ec0b7ab496f1b1f029110af
+branch: fix/focus-race-001
+checkpoint_head_before_closeout: 5fdaf6db29b2cda4c3d89b267ca3b077db863292
+automated_validation:
+  run_351: SUCCESS_367_PASSED
+  run_354: SUCCESS_370_PASSED
+  run_356: SUCCESS_CHECKPOINT
+physical_validation:
+  first_attempt: CONTAMINATED_BY_OPERATOR_INTERACTION_NOT_GATE
+  clean_attempt:
+    status: PASS
+    consecutive_runs: 5
+    goal_verifier_verified: true
+    at_spi_exact_readback: true
+    marker: PASS_GATE_FOCUS_STABILITY_PHYSICAL
+reviews:
+  ricardo: PASS_WITH_PHYSICAL_VALIDATION
+  vinicius: PASS_WITH_REQUIREMENTS
+  renato: PASS_PHYSICAL_FINAL
+  emily: PASS_FINAL
+  leo: APROVAR
+merge_authorized: true
+human_gate:
+  required: false
+final_state: APROVADO_PARA_INTEGRACAO
+next_action: MARK_READY_VALIDATE_HEAD_AND_MERGE
