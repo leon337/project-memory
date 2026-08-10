@@ -5,23 +5,27 @@ issue: 4
 pr: 5
 base_main_sha: 5cc1778523daa6051ec0b7ab496f1b1f029110af
 branch: fix/focus-race-001
-functional_head_before_physical: 32a53a60c68952bce3bc022196c3af57f595e6ad
+checkpoint_head_before_closeout: 5fdaf6db29b2cda4c3d89b267ca3b077db863292
 automated_validation:
   run_351: SUCCESS_367_PASSED
   run_354: SUCCESS_370_PASSED
-code_review:
+  run_356: SUCCESS_CHECKPOINT
+physical_validation:
+  first_attempt: CONTAMINATED_BY_OPERATOR_INTERACTION_NOT_GATE
+  clean_attempt:
+    status: PASS
+    consecutive_runs: 5
+    goal_verifier_verified: true
+    at_spi_exact_readback: true
+    marker: PASS_GATE_FOCUS_STABILITY_PHYSICAL
+reviews:
   ricardo: PASS_WITH_PHYSICAL_VALIDATION
   vinicius: PASS_WITH_REQUIREMENTS
-physical_validation:
-  status: PENDING_EXTERNAL_LINUX_X11
-  validator: scripts/validate_focus_stability_physical.py
-  runs_required: 5
-  expected_marker: PASS_GATE: FOCUS_STABILITY_PHYSICAL
-pr_state:
-  open: true
-  draft: true
-merge_performed: false
+  renato: PASS_PHYSICAL_FINAL
+  emily: PASS_FINAL
+  leo: APROVAR
+merge_authorized: true
 human_gate:
   required: false
-final_state: AGUARDANDO_DEPENDENCIA_EXTERNA
-next_action: RUN_REPEATED_FOCUS_SMOKE_ON_OPERATIONAL_LINUX_X11
+final_state: APROVADO_PARA_INTEGRACAO
+next_action: MARK_READY_VALIDATE_HEAD_AND_MERGE

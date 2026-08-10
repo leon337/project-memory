@@ -2,15 +2,17 @@ PM-RELIABILITY-FOCUS-001 SMOKE
 
 AUTOMATED:
 - tests/test_focus_stability.py
-- full CI run 354: SUCCESS / 370 passed
-- preserves real-focus fail-closed regression
+- CI run 354: SUCCESS / 370 passed
+- CI run 356: SUCCESS on checkpoint documentation
+- real-focus fail-closed regression preserved
 
 PHYSICAL_REPEATED:
 - validator: scripts/validate_focus_stability_physical.py
-- environment: Linux/X11 + Painel + Central + Robô + Desktop enabled
+- environment: operational Linux/X11 + Painel + Central + Robô + Desktop enabled
+- first attempt: discarded as clean-gate evidence because the operator interacted with the keyboard
+- second attempt: no operator interaction during the smoke
 - repetitions: 5 consecutive
 - each repetition: task succeeded + goal_completed=true + verified=true + exact AT-SPI readback
-- expected final marker: PASS_GATE: FOCUS_STABILITY_PHYSICAL
-- current result: PENDING_EXTERNAL_LINUX_X11
+- observed final marker: PASS_GATE: FOCUS_STABILITY_PHYSICAL
 
-OVERALL_SMOKE: AUTOMATED_PASS_AWAITING_PHYSICAL
+OVERALL_SMOKE: PASS

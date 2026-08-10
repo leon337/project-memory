@@ -1,0 +1,52 @@
+PM-RELIABILITY-FOCUS-001 — VALIDATION FULL
+
+1. Baseline
+- main baseline: 5cc1778523daa6051ec0b7ab496f1b1f029110af
+- branch: fix/focus-race-001
+- issue: #4
+- PR: #5
+
+2. Failure provenance
+- original symptom: active XID changed between application launch and keyboard action;
+- keyboard was refused, preserving the safety invariant;
+- CI 350 was a wiring failure (`ModuleNotFoundError`) and is not represented as a pure behavioral RED.
+
+3. Automated recovery
+- StableFocusDesktopBackend introduced settling before arming keyboard target;
+- WM_CLASS compatibility required for known apps;
+- unrelated transient windows ignored;
+- XID changes during settling restart the timer;
+- type_text focus guard remains fail-closed after arming;
+- CI 351: SUCCESS / 367 passed;
+- CI 354: SUCCESS / 370 passed;
+- CI 356: SUCCESS on the documentary checkpoint.
+
+4. Physical validation
+Attempt A:
+- operator interacted with keyboard to capture a screenshot;
+- evidence retained but excluded from the clean repeated gate.
+
+Attempt B:
+- operator declared no keyboard/mouse interaction during the smoke;
+- validator opened five editor instances intentionally;
+- rounds 1, 2, 3, 4 and 5 each passed GoalVerifier plus exact AT-SPI readback;
+- aggregate: 5/5 consecutive physical runs;
+- final output: `PASS_GATE: FOCUS_STABILITY_PHYSICAL`.
+
+5. Safety
+- Emergency Stop unchanged;
+- PyAutoGUI FAILSAFE unchanged;
+- Policy unchanged;
+- lease handling unchanged;
+- GoalVerifier authority unchanged;
+- real focus loss after arming still refuses keyboard.
+
+6. Reviews and gates
+- Ricardo: PASS_WITH_PHYSICAL_VALIDATION;
+- Vinícius: PASS_WITH_REQUIREMENTS;
+- Renato: PASS_PHYSICAL_FINAL;
+- Emily: PASS_FINAL;
+- Léo: APROVAR;
+- HUMAN_GATE: NOT_REQUIRED.
+
+FINAL: PASS — approved for integration, conditional only on green CI for the closeout HEAD.
