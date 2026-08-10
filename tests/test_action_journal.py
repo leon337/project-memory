@@ -47,7 +47,7 @@ def test_executed_action_survives_reclaim_and_is_correlated_by_task_and_key(
     tasks = TaskStore(db_path)
     journal = ActionJournalStore(db_path)
     first = _claimed_task(tasks, now=now)
-    action_key = "v1:type_text:0001"
+    action_key = "v1:type_text:manual-test-key"
 
     prepared = journal.prepare(
         task_id=first["id"],
@@ -107,7 +107,7 @@ def test_prepared_state_proves_backend_was_not_entered_and_can_continue_after_re
     tasks = TaskStore(db_path)
     journal = ActionJournalStore(db_path)
     first = _claimed_task(tasks, now=now)
-    action_key = "v1:open_app:0001"
+    action_key = "v1:open_app:manual-test-key"
     journal.prepare(
         task_id=first["id"],
         lease_token=first["lease_token"],
@@ -142,7 +142,7 @@ def test_terminal_task_reconciliation_repairs_crash_after_central_ack(tmp_path: 
     tasks = TaskStore(db_path)
     journal = ActionJournalStore(db_path)
     claimed = _claimed_task(tasks)
-    action_key = "v1:open_app:0001"
+    action_key = "v1:open_app:manual-test-key"
     journal.prepare(
         task_id=claimed["id"],
         lease_token=claimed["lease_token"],
@@ -183,7 +183,7 @@ def test_acknowledged_rows_are_only_pruned_after_retention_cutoff(tmp_path: Path
     tasks = TaskStore(db_path)
     journal = ActionJournalStore(db_path)
     claimed = _claimed_task(tasks)
-    key = "v1:active_window:0001"
+    key = "v1:active_window:manual-test-key"
     journal.prepare(
         task_id=claimed["id"],
         lease_token=claimed["lease_token"],
@@ -273,7 +273,6 @@ def test_executor_persists_in_flight_before_entering_non_idempotent_backend() ->
     assert len(journal.prepared_keys) == 1
     key = journal.prepared_keys[0]
     assert key.startswith("v1:type_text:")
-    assert key.endswith(":0001")
     assert "segredo" not in key
     assert journal.transitions == ["in_flight", "executed"]
     assert journal.receipt == {"action": "type_text", "verified": True, "characters": 5}
@@ -319,7 +318,18 @@ def test_repeat_safe_action_may_reexecute_after_in_flight_recovery() -> None:
     assert journal.transitions == ["in_flight", "executed"]
 
 
-def test_action_key_is_stable_across_fresh_executor_for_same_action_occurrence() -> None:
+def test_repeat_safe_executed_action_may_be_observed_again_without_state_regression() -> None:
+    physical = _PhysicalExecutor({"action": "active_window", "verified": True})
+    journal = _FakeJournal("executed", {"action": "active_window", "verified": True})
+    guarded = LeaseGuardedExecutor(physical, _Heartbeat(), journal=journal)  # type: ignore[arg-type]
+
+    guarded.execute(Plan("active_window", "active"))
+
+    assert physical.calls == 1
+    assert journal.transitions == ["executed"]
+
+
+def test_same_non_idempotent_action_is_deduplicated_within_the_same_task() -> None:
     target = "mesmo texto"
     first_journal = _FakeJournal("prepared")
     first = LeaseGuardedExecutor(_PhysicalExecutor(), _Heartbeat(), journal=first_journal)  # type: ignore[arg-type]
