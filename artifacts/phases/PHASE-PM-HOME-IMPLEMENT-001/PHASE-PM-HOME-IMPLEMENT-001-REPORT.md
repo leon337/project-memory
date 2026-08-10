@@ -1,72 +1,69 @@
 # PHASE PM-HOME-IMPLEMENT-001 — REPORT
 
 ## Execução
-A missão avançou em ESEV contínua sem pausas artificiais por handoff.
+A missão foi conduzida em ESEV/loop orientado a objetivo, com falhas e recuperações preservadas.
 
-Fluxo principal:
-`Mestre → Miriam → Rafael → Renato/Patrícia → Helena → Ricardo → Tiago → Beatriz → Júlia → Augusto → Sofia → Renato → Vinícius → Ricardo → Carmem/Gabriel → Emily → Léo`.
-
-Loops de correção foram usados sempre que CI/TDD encontrou FAIL.
+Fluxo consolidado:
+`Mestre → Miriam → Rafael → Renato/Patrícia → Helena → Ricardo → Tiago → Beatriz → Júlia → Augusto → Sofia → Renato → Vinícius → Ricardo → Carmem/Gabriel → Emily → Léo → Renato → Patrícia/Tiago → Beatriz/Vinícius → Emily → Léo → Gabriel`.
 
 ## Implementado
 - regressão e correção de `exatamente:`;
-- normalização do artigo natural no fast path `um editor`;
-- sincronização do README com Goal Runtime integrado;
-- `ProjectConversationService` com contexto explícito sanitizado;
-- fallback de conversa Cloudflare → Z.AI → Gemini;
+- normalização de alvo natural `um editor`;
+- README sincronizado com Goal Runtime integrado;
 - Home V4.1 conversation-first;
-- `Conversar` separado de `Executar objetivo`;
-- controles compactos, status superior e `Agente agora`;
-- páginas secundárias para tarefas, histórico, diagnóstico e configurações;
-- TrustedHost + proteção de Origin;
-- headers/CSP locais;
-- remoção de lease ownership data de `/api/status`;
-- testes HTTP, privacidade, segurança e Chromium;
+- `Conversar` tecnicamente separado de `Executar objetivo`;
+- `ProjectConversationService` com contexto sanitizado/versionado;
+- fallback Cloudflare → Z.AI → Gemini;
+- identidade canônica `project-memory` reafirmada após o contexto documental;
+- resposta de provider incompatível com a identidade é rejeitada em perguntas explícitas sobre o projeto e o fallback continua;
+- TrustedHost, Origin e headers/CSP locais;
+- lease ownership removida de `/api/status`;
+- telemetria ausente exibida como `—`;
+- regressões HTTP, privacidade, segurança e Chromium;
 - validador físico Linux/X11.
 
-## Falhas e recuperações
-- TDD `exatamente:` iniciou RED e passou após correção compartilhada.
-- artigo `um editor` causou segundo FAIL e foi corrigido.
-- regressão de contrato do dashboard antigo foi atualizada para V4.1.
-- teste de privacidade encontrou sanitização/fingerprint insuficientes; corrigido.
-- teste de lease encontrou exposição pública; corrigido.
-- teste Chromium inicialmente dependia de fixture ausente; corrigido para `sync_playwright()`.
-- seletor Chromium excessivamente estrito foi refinado sem enfraquecer o comportamento esperado.
+## Falhas e recuperações relevantes
+- TDD `exatamente:` iniciou RED e terminou GREEN;
+- artigo `um editor` exigiu segundo ciclo de correção;
+- privacidade/fingerprint e exposição de lease foram capturadas por regressões e corrigidas;
+- Chromium exigiu correção de fixture/seletor;
+- primeira execução física controlada falhou por mudança de foco; o guard recusou a escrita corretamente (fail-closed);
+- finding `FOCUS-RACE-001` foi separado na Issue #4;
+- uma execução física da conversa respondeu `Robô Operador — MVP 0.3` em vez de `project-memory`;
+- `CONVERSATION-IDENTITY-001` foi reproduzido em teste, corrigido no Conversation Service e revalidado;
+- após a correção da Conversation API, LEANDRO repetiu o validador físico no HEAD exato.
 
-## Evidência automatizada
-Último HEAD funcional: `ddb8e0d06c1981a592f26edbcb854e54046780a4`.
+## Evidência automatizada final do código
+HEAD de código validado fisicamente:
+`1846d249b3aa8b62d935a28c62cd7bf336682934`.
 
-GitHub Actions run `31367543844` / run 318:
-- Compile: PASS;
-- Test: PASS;
-- conclusão: SUCCESS.
+GitHub Actions:
+- run id `31372084077`;
+- run number `347`;
+- conclusão `SUCCESS`.
 
-PRF pré-auditoria no HEAD `f7da737a5c06ae85d6b7a37ec25e07b4d38448ba`:
-- GitHub Actions run `31368082345` / run 331 = SUCCESS;
-- Install Playwright Chromium: PASS;
-- Compile: PASS;
-- Test: PASS.
+## Evidência física final — HEAD exato
+LEANDRO sincronizou `feat/pm-home-v4-1-implementation`, reinstalou o pacote editável, reiniciou o Painel e repetiu `scripts/validate_home_v4_1_physical.py`.
 
-Review Vinícius no PR #3:
-- review id `4894682127`;
-- sem blocker de código;
-- validação física obrigatória antes de integração.
+Resultado:
+- Central/Robô/Desktop/emergência: PASS;
+- Host/Origin/status: PASS;
+- conversa isolada: PASS via `zai/glm-4.7-flash`;
+- Home/conversa identificou `project-memory`;
+- task: `1bd0b464-d1e5-4aa2-8a54-bb2e76c0563e`;
+- GoalVerifier: `succeeded` com `verified=true`;
+- readback AT-SPI: exatamente `Validação real número 1`;
+- editor visual: exatamente `Validação real número 1`;
+- marcador final: `PASS_GATE: HOME_V4_1_PHYSICAL`.
 
-Auditoria Emily:
-- `PASS_TO_EXTERNAL_DEPENDENCY`;
-- nenhum trabalho interno recuperável conhecido antes do teste físico.
-
-Gate Léo:
-- `APROVAR_COM_RESSALVAS`;
-- próximo estado `AGUARDANDO_DEPENDENCIA_EXTERNA`;
-- merge não autorizado;
-- HUMAN_GATE não requerido.
+## Revisão, auditoria e gate final
+- Vinícius re-review: review `4895247454` = `PASS_FINAL`;
+- Emily: `PASS_FINAL_WITH_TRACKED_RELIABILITY_DEBT`;
+- Léo: `APROVAR`;
+- HUMAN_GATE: `NOT_REQUIRED`;
+- Issue #4 permanece aberta para `FOCUS-RACE-001`.
 
 ## Estado
-`AGUARDANDO_DEPENDENCIA_EXTERNA`
+`APROVADO_PARA_INTEGRACAO`
 
-Dependência: execução do validador físico na máquina Linux/X11 operacional.
-
-Nenhum HUMAN_GATE foi criado.
-Nenhum merge foi realizado.
-PR #3 permanece draft.
+Próxima ação: finalizar PRF, obter CI verde do HEAD documental exato, marcar PR #3 como ready e integrar sem alteração adicional de código.

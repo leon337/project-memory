@@ -1,7 +1,7 @@
 # PRF — PHASE-PM-HOME-IMPLEMENT-001
 
 ## Missão
-Implementação da Home V4.1 do `project-memory`.
+Implementação e validação da Home V4.1 do `project-memory`.
 
 ## Ordem de leitura
 1. `PHASE-PM-HOME-IMPLEMENT-001-PLAN.md`
@@ -13,19 +13,21 @@ Implementação da Home V4.1 do `project-memory`.
 7. `PHASE-PM-HOME-IMPLEMENT-001-DECISIONS.md`
 8. `PHASE-PM-HOME-IMPLEMENT-001-ARTIFACT-MANIFEST.sha256`
 
-## Estado
-- implementação funcional: concluída no candidato;
-- validação automatizada: PASS;
-- PRF pré-auditoria CI run 331: PASS;
-- revisão de código: PASS_WITH_REQUIREMENTS;
-- segurança automatizada: PASS_WITH_EXTERNAL_VALIDATION;
-- auditoria Emily: PASS_TO_EXTERNAL_DEPENDENCY;
-- gate Léo: APROVAR_COM_RESSALVAS;
-- validação física Linux/X11: PENDING;
-- PR: draft;
-- merge: não executado;
+## Estado verificado
+- código validado fisicamente: `1846d249b3aa8b62d935a28c62cd7bf336682934`;
+- CI do código run 347: PASS;
+- Conversation/Task separation: PASS;
+- identidade canônica `project-memory`: PASS;
+- Host/Origin/status: PASS;
+- GoalVerifier `verified=true`: PASS;
+- readback AT-SPI exato: PASS;
+- `PASS_GATE: HOME_V4_1_PHYSICAL`: PASS;
+- Vinícius final: `PASS_FINAL`;
+- Emily final: `PASS_FINAL_WITH_TRACKED_RELIABILITY_DEBT`;
+- Léo: `APROVAR`;
 - HUMAN_GATE: não requerido;
-- estado: `AGUARDANDO_DEPENDENCIA_EXTERNA`.
+- `FOCUS-RACE-001`: Issue #4, aberta e não bloqueante;
+- estado: `APROVADO_PARA_INTEGRACAO`.
 
-## Próxima ação
-Executar `scripts/validate_home_v4_1_physical.py` no ambiente operacional e devolver a evidência ao loop MCF.
+## Condição de integração
+Este pacote final é documental. Após seu commit, o HEAD exato deve obter CI verde. Em seguida o PR #3 pode ser marcado ready e integrado. Qualquer alteração adicional de código invalida o gate e exige revalidação aplicável.

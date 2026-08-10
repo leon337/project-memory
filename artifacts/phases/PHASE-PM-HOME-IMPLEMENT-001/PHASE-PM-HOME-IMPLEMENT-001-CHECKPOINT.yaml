@@ -6,38 +6,41 @@ issue: 2
 pr: 3
 base_main_sha: 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
 branch: feat/pm-home-v4-1-implementation
-last_functional_head_sha: ddb8e0d06c1981a592f26edbcb854e54046780a4
-functional_ci:
-  run_id: 31367543844
-  run_number: 318
+code_head_physically_validated: 1846d249b3aa8b62d935a28c62cd7bf336682934
+final_code_ci:
+  run_id: 31372084077
+  run_number: 347
   result: PASS
-prf_pre_audit_ci:
-  head_sha: f7da737a5c06ae85d6b7a37ec25e07b4d38448ba
-  run_id: 31368082345
-  run_number: 331
-  result: PASS
-vinicius_review:
-  review_id: 4894682127
-  result: PASS_WITH_REQUIREMENTS
-security:
-  result: PASS_WITH_EXTERNAL_VALIDATION
-emily_audit:
-  result: PASS_TO_EXTERNAL_DEPENDENCY
-leo_gate:
-  decision: APROVAR_COM_RESSALVAS
-  merge_authorized: false
-  human_gate_required: false
-automated_validation: PASS
 physical_validation:
-  status: PENDING_EXTERNAL_LOCAL_ENV
+  status: PASS
   validator: scripts/validate_home_v4_1_physical.py
-  expected_marker: "PASS_GATE: HOME_V4_1_PHYSICAL"
-pr_state:
+  provider: zai/glm-4.7-flash
+  task_id: 1bd0b464-d1e5-4aa2-8a54-bb2e76c0563e
+  goal_verifier_verified: true
+  exact_readback: "Validação real número 1"
+  marker: "PASS_GATE: HOME_V4_1_PHYSICAL"
+vinicius_final_review:
+  review_id: 4895247454
+  result: PASS_FINAL
+emily_final_audit:
+  result: PASS_FINAL_WITH_TRACKED_RELIABILITY_DEBT
+leo_gate:
+  decision: APROVAR
+  merge_authorized: true
+  human_gate_required: false
+open_findings:
+  - issue: 4
+    id: FOCUS-RACE-001
+    state: OPEN_INTERMITTENT
+    blocking: false
+    safety_behavior: FAIL_CLOSED_PRESERVED
+automated_validation: PASS
+pr_state_before_integration:
   open: true
   draft: true
 merge_performed: false
 human_gate:
   required: false
-final_state: AGUARDANDO_DEPENDENCIA_EXTERNA
-next_action: EXECUTE_HOME_V4_1_PHYSICAL_VALIDATOR_ON_OPERATIONAL_LINUX_X11
-checkpoint_recipient: Mestre
+final_state: APROVADO_PARA_INTEGRACAO
+next_action: COMMIT_FINAL_PRF_RUN_CI_MARK_READY_AND_MERGE
+checkpoint_recipient: Gabriel

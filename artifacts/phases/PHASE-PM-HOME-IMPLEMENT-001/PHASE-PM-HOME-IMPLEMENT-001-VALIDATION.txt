@@ -2,10 +2,9 @@ PM-HOME-IMPLEMENT-001 VALIDATION
 
 TYPE: CLASS_C_FUNCTIONAL_IMPLEMENTATION
 BASE_MAIN_SHA: 48712501f7d0ebc7e73e1be64d101ee40dd7aa5e
-LAST_FUNCTIONAL_HEAD: ddb8e0d06c1981a592f26edbcb854e54046780a4
+CODE_HEAD_PHYSICALLY_VALIDATED: 1846d249b3aa8b62d935a28c62cd7bf336682934
 BRANCH: feat/pm-home-v4-1-implementation
 PR: 3
-PR_DRAFT: true
 
 CHECKS
 - exatamente regression: PASS
@@ -13,18 +12,23 @@ CHECKS
 - Conversation/Task technical separation: PASS
 - user/context secret redaction: PASS
 - stable context fingerprint: PASS
+- canonical project identity grounding: PASS
+- provider contradiction fallback: PASS
 - foreign Origin rejection: PASS
 - untrusted Host rejection: PASS
 - lease token hidden from dashboard status: PASS
-- GoalVerifier untouched: PASS
+- GoalVerifier preserved: PASS
 - Home V4.1 structure: PASS
-- Chromium interaction test included: PASS
-- functional GitHub Actions run 318: PASS
-- PRF pre-audit GitHub Actions run 331: PASS
-- Vinicius code review: PASS_WITH_REQUIREMENTS
-- Ricardo security recheck: PASS_WITH_EXTERNAL_VALIDATION
-- Emily pre-physical audit: PASS_TO_EXTERNAL_DEPENDENCY
-- Leo pre-physical gate: APROVAR_COM_RESSALVAS
-- physical Linux/X11 validator: PENDING_EXTERNAL_LOCAL_ENV
+- Chromium interaction: PASS
+- code HEAD CI run 347: PASS
+- physical Linux/X11 exact-head validation: PASS
+- physical provider: zai/glm-4.7-flash
+- physical GoalVerifier verified=true: PASS
+- physical AT-SPI exact readback: PASS
+- PASS_GATE HOME_V4_1_PHYSICAL: PASS
+- Vinicius final review 4895247454: PASS_FINAL
+- Emily final audit: PASS_FINAL_WITH_TRACKED_RELIABILITY_DEBT
+- Leo final gate: APROVAR
+- FOCUS-RACE-001: TRACKED_NON_BLOCKING (#4)
 - HUMAN_GATE: NOT_REQUIRED
-- merge: NOT_EXECUTED
+- merge authorization: GRANTED_PENDING_DOC_HEAD_CI
