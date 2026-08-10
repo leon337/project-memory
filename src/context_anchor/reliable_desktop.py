@@ -32,13 +32,13 @@ _KNOWN_WINDOW_IDENTITIES: dict[str, frozenset[str]] = {
 class StableFocusDesktopBackend(PyAutoGuiDesktopBackend):
     """Desktop backend that prepares keyboard focus only after X11 settles.
 
-    Application startup can briefly activate more than one X11 window.  The base
+    Application startup can briefly activate more than one X11 window. The base
     backend intentionally fails closed if the active window changes after
     preparation; this subclass keeps that invariant, but delays preparation until
     the final application window has remained stable for a short interval.
 
     For applications with known WM_CLASS identities, unrelated transient windows
-    are ignored instead of being accepted as the keyboard target.  Unknown
+    are ignored instead of being accepted as the keyboard target. Unknown
     applications retain the previous generic behavior, but still need a stable new
     window before keyboard input is armed.
     """
@@ -77,7 +77,7 @@ class StableFocusDesktopBackend(PyAutoGuiDesktopBackend):
             return None
         expected = _KNOWN_WINDOW_IDENTITIES.get(canonical)
         if expected is None:
-            # Generic commands remain usable.  Their safety boundary is a stable
+            # Generic commands remain usable. Their safety boundary is a stable
             # new X11 window plus the unchanged per-chunk focus guard.
             return None
         return bool(self._window_class_tokens(self._window_class(window_id)) & expected)
@@ -94,7 +94,7 @@ class StableFocusDesktopBackend(PyAutoGuiDesktopBackend):
         self,
         previous_window_id: str | None,
     ) -> dict[str, Any]:
-        if not self._xdotool_path() or previous_window_id is None:
+        if not self._xdotool_path():
             result = super()._wait_for_active_window_change(previous_window_id)
             result.update(
                 {
@@ -124,7 +124,10 @@ class StableFocusDesktopBackend(PyAutoGuiDesktopBackend):
                     trace.pop(0)
                 last_traced_window = current
 
-            if current and current != previous_window_id:
+            new_target = bool(current) and (
+                previous_window_id is None or current != previous_window_id
+            )
+            if new_target:
                 identity_verified = self._window_identity_matches_launch_app(current)
                 if identity_verified is False:
                     candidate_id = None
