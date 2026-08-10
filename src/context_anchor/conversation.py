@@ -12,6 +12,8 @@ from .config import LocalAgentSettings
 from .redaction import redact_exception, redact_text
 
 
+CANONICAL_PROJECT_NAME = "project-memory"
+
 PROJECT_CONTEXT_FILES = (
     "README.md",
     "docs/STATUS.md",
@@ -30,6 +32,12 @@ REGRAS OBRIGATÓRIAS:
 - não exponha credenciais, segredos, conteúdo de .env ou cadeia privada de raciocínio;
 - quando falar de conclusão de objetivos do Robô, respeite que somente GoalVerifier + evidência autorizam succeeded;
 - responda em português do Brasil, de forma direta e útil.
+"""
+
+CANONICAL_IDENTITY_PROMPT = """IDENTIDADE CANÔNICA — PRIORIDADE MÁXIMA:
+- o nome do projeto é exatamente `project-memory`;
+- títulos de produto, versão, dashboard ou documentação, como `Robô Operador — MVP 0.3`, NÃO substituem o nome do projeto;
+- quando o usuário perguntar em qual projeto você está ou pedir o nome do projeto, responda `project-memory` como identidade canônica e não escolha um título encontrado no contexto.
 """
 
 
@@ -77,8 +85,31 @@ class ProjectConversationService:
 
     def _messages(self) -> tuple[str, str]:
         context, version = self._context()
-        system = f"{CONVERSATION_SYSTEM_PROMPT}\n\nCONTEXTO SANITIZADO DO PROJETO:\n{context}"
+        system = (
+            f"{CONVERSATION_SYSTEM_PROMPT}\n\n"
+            f"CONTEXTO SANITIZADO DO PROJETO:\n{context}\n\n"
+            f"{CANONICAL_IDENTITY_PROMPT}"
+        )
         return system, version
+
+    @staticmethod
+    def _requires_project_identity(message: str) -> bool:
+        normalized = " ".join(message.casefold().split())
+        if "projeto" not in normalized:
+            return False
+        markers = (
+            "qual projeto",
+            "em qual projeto",
+            "que projeto",
+            "nome do projeto",
+        )
+        return any(marker in normalized for marker in markers)
+
+    @staticmethod
+    def _reply_respects_known_facts(message: str, text: str) -> bool:
+        if ProjectConversationService._requires_project_identity(message):
+            return CANONICAL_PROJECT_NAME in text.casefold()
+        return True
 
     def _zai(self, system: str, message: str) -> tuple[str, str, str]:
         cfg = self.settings
@@ -177,6 +208,11 @@ class ProjectConversationService:
                 text, provider, model = call(system, safe_message)
             except Exception as exc:
                 errors.append(redact_exception(exc))
+                continue
+            if not self._reply_respects_known_facts(safe_message, text):
+                errors.append(
+                    f"{provider}: resposta contradiz identidade canônica {CANONICAL_PROJECT_NAME}"
+                )
                 continue
             return {
                 "reply": redact_text(text, max_chars=8_000),
