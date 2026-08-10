@@ -270,11 +270,15 @@ def test_executor_persists_in_flight_before_entering_non_idempotent_backend() ->
     result = guarded.execute(Plan("type_text", "segredo que não pode ir ao journal"))
 
     assert physical.calls == 1
-    assert journal.prepared_keys == ["v1:type_text:0001"]
+    assert len(journal.prepared_keys) == 1
+    key = journal.prepared_keys[0]
+    assert key.startswith("v1:type_text:")
+    assert key.endswith(":0001")
+    assert "segredo" not in key
     assert journal.transitions == ["in_flight", "executed"]
     assert journal.receipt == {"action": "type_text", "verified": True, "characters": 5}
     assert "segredo" not in repr(journal.receipt)
-    assert result["journal_action_key"] == "v1:type_text:0001"
+    assert result["journal_action_key"] == key
 
 
 def test_in_flight_non_idempotent_action_is_fail_closed_without_physical_replay() -> None:
@@ -316,15 +320,31 @@ def test_repeat_safe_action_may_reexecute_after_in_flight_recovery() -> None:
 
 
 def test_action_key_is_stable_across_fresh_executor_for_same_action_occurrence() -> None:
+    target = "mesmo texto"
     first_journal = _FakeJournal("prepared")
     first = LeaseGuardedExecutor(_PhysicalExecutor(), _Heartbeat(), journal=first_journal)  # type: ignore[arg-type]
-    first.execute(Plan("type_text", "primeira execução"))
+    first.execute(Plan("type_text", target))
 
     second_journal = _FakeJournal("executed", {"action": "type_text", "verified": True})
     second_physical = _PhysicalExecutor()
     second = LeaseGuardedExecutor(second_physical, _Heartbeat(), journal=second_journal)  # type: ignore[arg-type]
-    second.execute(Plan("type_text", "reclaim"))
+    second.execute(Plan("type_text", target))
 
-    assert first_journal.prepared_keys == ["v1:type_text:0001"]
-    assert second_journal.prepared_keys == ["v1:type_text:0001"]
+    assert first_journal.prepared_keys == second_journal.prepared_keys
     assert second_physical.calls == 0
+
+
+def test_action_key_distinguishes_different_targets_without_storing_them() -> None:
+    first_journal = _FakeJournal("prepared")
+    first = LeaseGuardedExecutor(_PhysicalExecutor(), _Heartbeat(), journal=first_journal)  # type: ignore[arg-type]
+    first.execute(Plan("type_text", "texto alfa"))
+
+    second_journal = _FakeJournal("prepared")
+    second = LeaseGuardedExecutor(_PhysicalExecutor(), _Heartbeat(), journal=second_journal)  # type: ignore[arg-type]
+    second.execute(Plan("type_text", "texto beta"))
+
+    first_key = first_journal.prepared_keys[0]
+    second_key = second_journal.prepared_keys[0]
+    assert first_key != second_key
+    assert "alfa" not in first_key
+    assert "beta" not in second_key
