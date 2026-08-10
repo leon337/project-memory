@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -56,7 +57,6 @@ class ProjectConversationService:
 
     def _context(self) -> tuple[str, str]:
         sections: list[str] = []
-        versions: list[str] = []
         budget = 18_000
         used = 0
         for relative in PROJECT_CONTEXT_FILES:
@@ -69,18 +69,13 @@ class ProjectConversationService:
                 continue
             sections.append(f"\n--- {relative} ---\n{safe}")
             used += len(safe)
-            try:
-                stat = path.stat()
-                versions.append(f"{relative}:{stat.st_mtime_ns}:{stat.st_size}")
-            except OSError:
-                versions.append(relative)
             if used >= budget:
                 break
         context = "".join(sections) or "Projeto: project-memory. Contexto documental local indisponível."
-        version = str(abs(hash("|".join(versions)))) if versions else "context-unavailable"
+        version = hashlib.sha256(context.encode("utf-8")).hexdigest()[:16]
         return context, version
 
-    def _messages(self, message: str) -> tuple[str, str]:
+    def _messages(self) -> tuple[str, str]:
         context, version = self._context()
         system = f"{CONVERSATION_SYSTEM_PROMPT}\n\nCONTEXTO SANITIZADO DO PROJETO:\n{context}"
         return system, version
@@ -174,11 +169,12 @@ class ProjectConversationService:
         if len(clean_message) > 2_000:
             raise ValueError("Mensagem longa demais para a conversa do Painel.")
 
-        system, context_version = self._messages(clean_message)
+        safe_message = redact_text(clean_message, max_chars=2_000)
+        system, context_version = self._messages()
         errors: list[str] = []
         for call in (self._cloudflare, self._zai, self._gemini):
             try:
-                text, provider, model = call(system, clean_message)
+                text, provider, model = call(system, safe_message)
             except Exception as exc:
                 errors.append(redact_exception(exc))
                 continue
