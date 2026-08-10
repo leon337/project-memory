@@ -1,21 +1,26 @@
 PM-DURABLE-JOURNAL-001 — VALIDATION FULL
 
-A suíte completa é executada pelo workflow `.github/workflows/ci.yml` em Python 3.11 com:
-1. instalação do projeto;
-2. Playwright Chromium;
-3. `python -m compileall`;
-4. `pytest -q`.
+Implementation head: 9558ddd04f852fb5835a960c7ab7adb1aef8f36b
+GitHub Actions CI: 31438287389 — SUCCESS
+Workflow: `.github/workflows/ci.yml`
 
-O pacote de fault injection está em:
+Pipeline executado:
+1. Python 3.11;
+2. instalação do projeto;
+3. Playwright Chromium;
+4. `python -m compileall`;
+5. `pytest -q`.
+
+Testes de domínio:
 - `tests/test_action_journal.py`;
 - `tests/test_action_journal_api.py`;
 - `tests/test_durable_journal_migration_faults.py`.
 
 Matriz A–E:
-A crash antes do backend: PREPARED pode prosseguir após reclaim.
-B crash durante/ao redor do backend: IN_FLIGHT não repetível bloqueia.
-C crash após efeito/retorno e antes do receipt durável: permanece IN_FLIGHT e bloqueia.
-D crash após executed e antes do ACK: receipt é recuperado sem reexecutar; GoalVerifier ainda exige percepção.
-E crash após ACK: task terminal não é reclamada; startup reconcilia journal para acknowledged.
+A antes do backend → PREPARED permite continuar com lease novo.
+B durante/ao redor do backend → IN_FLIGHT não repeat-safe bloqueia.
+C após retorno/efeito e antes do receipt durável → fault injection deixa IN_FLIGHT e recovery não chama backend.
+D após EXECUTED e antes do ACK → mesma ação não é emitida; safe receipt volta ao fluxo e percepção/GoalVerifier continuam obrigatórios.
+E após ACK → task terminal não é reclaimada; startup reconcilia journal se o crash ocorreu antes de marcar acknowledged.
 
-Smoke físico real do host do usuário não é alegado por este arquivo; a validação instrumental disponível nesta missão é CI/fault injection determinístico.
+Não há alegação de smoke físico novo neste ambiente.
