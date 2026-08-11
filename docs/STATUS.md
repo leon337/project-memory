@@ -4,7 +4,7 @@
 
 Manter um operador digital local que recebe objetivos em linguagem natural e executa ações físicas em ciclo fechado, sem declarar `succeeded` até que o estado final seja comprovado por percepção independente e GoalVerifier.
 
-A próxima direção estratégica já foi escolhida: evoluir o produto para um **Operador Digital Autônomo Multimodal**, capaz de transformar objetivos em linguagem natural em trabalho real no computador e em serviços digitais. A fase de implementação ainda não começou; o escopo e a arquitetura serão debatidos e planejados com o MCF antes de qualquer alteração de código.
+A próxima direção estratégica já foi escolhida: evoluir o produto para um **Operador Digital Autônomo Multimodal**, capaz de transformar objetivos em linguagem natural em trabalho real no computador e em serviços digitais. A fase de implementação ainda não começou; o escopo e a arquitetura serão debatidos e planejados com o MCF antes de qualquer alteração de código operacional.
 
 ## Base verificável atual
 
@@ -91,7 +91,7 @@ A decisão D-032 oficializa como direção de produto a evolução para um **Ope
 
 O nome de trabalho é `PM-UNIVERSAL-OPERATOR-001 — Natural Language → Real Computer Work`.
 
-Voz bidirecional, contexto conversacional operacional, gestão segura de credenciais e ponte ChatGPT → Robô são frentes candidatas para o debate, não arquitetura fechada. Nenhuma implementação dessa nova fase foi iniciada.
+Voz bidirecional, contexto conversacional operacional, gestão segura de credenciais e ponte ChatGPT → Robô são frentes candidatas para o debate, não arquitetura fechada. Nenhuma implementação operacional dessa nova fase foi iniciada.
 
 ## RC 3.5 pré-quarta rodada — concluída como proposta, aguardando aprovação
 
@@ -114,10 +114,23 @@ Principais conclusões propostas, ainda não incorporadas a `ARCHITECTURE.md` ou
 
 A RC também propôs manter a Home V4.1 como fundação, em vez de redesenhar o produto do zero. A candidata de UX é uma superfície principal simples com objetivo atual, progresso por etapas, distinção visual entre executado e comprovado, recuperação/falha segura e um drawer/painel de detalhes técnicos para capability, rota, journal, lease e evidências sanitizadas.
 
-Nenhum código da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
+Nenhum código operacional da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
+
+## Protótipo visual repo-local — criado para auditoria
+
+A materialização visual da RC 3.5 foi iniciada dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato está em `prototypes/pm-universal-operator-ui/` e contém:
+
+- `index.html` — estrutura da Home candidata;
+- `styles.css` — identidade visual, estados, responsividade e acessibilidade básica;
+- `app.js` — alternância local entre `executing`, `verifying`, `recovering`, falha segura e `succeeded`;
+- `README.md` — fronteira entre protótipo visual e produto operacional.
+
+O protótipo é deliberadamente estático e identifica seus dados como simulados. Ele não altera Goal Runtime, TaskStore, Durable Action Journal, Policy, lease/heartbeat, FAILSAFE, Emergency Stop, EvidenceRecord ou GoalVerifier.
+
+A finalidade é auditar arquitetura de informação e UX antes da quarta rodada. Nenhum estado mostrado no protótipo poderá ser promovido para a Home operacional sem uma fonte estruturada correspondente no runtime/Central.
 
 ## Situação
 
 PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada, e o ambiente local foi restaurado sem perda visível dos arquivos preservados. Nenhum checkpoint físico do Durable Journal permanece pendente.
 
-A direção de produto está definida e a RC 3.5 foi concluída como proposta. O próximo passo é aprovar, modificar ou rejeitar suas conclusões antes da quarta rodada. Só depois disso a arquitetura aprovada deve ser registrada em `ARCHITECTURE.md`/`DECISIONS.md` e convertida em contrato implementável.
+A direção de produto está definida, a RC 3.5 foi concluída como proposta e existe agora um protótipo HTML/CSS/JavaScript versionado no próprio repositório para auditoria visual. O próximo passo é revisar esse protótipo e aprovar, modificar ou rejeitar as conclusões da RC antes da quarta rodada. Só depois disso a arquitetura aprovada deve ser registrada em `ARCHITECTURE.md`/`DECISIONS.md` e convertida em contrato implementável.
