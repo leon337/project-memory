@@ -32,6 +32,17 @@ def _run(argv: list[str]) -> subprocess.CompletedProcess[str] | None:
         return None
 
 
+def _normalize_window_id(value: str | None) -> str | None:
+    raw = (value or "").strip().casefold()
+    if not raw:
+        return None
+    try:
+        base = 16 if raw.startswith("0x") else 10
+        return str(int(raw, base))
+    except ValueError:
+        return raw
+
+
 def _managed_window_ids() -> tuple[str, ...]:
     """Return managed X11 client windows from top-most to bottom-most."""
 
@@ -87,20 +98,16 @@ def _window_process_id(window_id: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _active_window_id() -> str | None:
+def active_window_id() -> str | None:
+    """Read the current X11 active-window id without changing focus."""
+
     xdotool = _xdotool_path()
     if not xdotool:
         return None
     completed = _run([xdotool, "getactivewindow"])
     if completed is None or completed.returncode != 0:
         return None
-    value = completed.stdout.strip()
-    if not value:
-        return None
-    try:
-        return hex(int(value))
-    except ValueError:
-        return value.casefold()
+    return _normalize_window_id(completed.stdout)
 
 
 def _process_executable(pid: int | None) -> str | None:
@@ -155,7 +162,7 @@ def observe_existing_application(app_id: str) -> dict[str, Any]:
     """
 
     expected = _expected_identities(app_id)
-    active_window = _active_window_id()
+    current_active_window = active_window_id()
 
     for window_id in _managed_window_ids():
         window_class = _window_class(window_id)
@@ -165,10 +172,11 @@ def observe_existing_application(app_id: str) -> dict[str, Any]:
         pid = _window_process_id(window_id)
         executable = _process_executable(pid)
         process_name = Path(executable).name.casefold() if executable else ""
+        normalized_window_id = _normalize_window_id(window_id)
         return {
             "action": "observe_application",
             "app": app_id,
-            "window_id": window_id,
+            "window_id": normalized_window_id,
             "window_title": _window_title(window_id),
             "window_class": window_class,
             "window_process_id": pid,
@@ -178,9 +186,8 @@ def observe_existing_application(app_id: str) -> dict[str, Any]:
             "class_identity_observed": True,
             "identity_observed": True,
             "active_window": bool(
-                active_window
-                and window_id.casefold()
-                in {active_window.casefold(), active_window.removeprefix("0x").casefold()}
+                current_active_window
+                and normalized_window_id == current_active_window
             ),
             "recovery_existing_window": True,
             "observation_method": "x11-managed-window-class",
@@ -203,4 +210,4 @@ def observe_existing_application(app_id: str) -> dict[str, Any]:
     }
 
 
-__all__ = ["observe_existing_application"]
+__all__ = ["active_window_id", "observe_existing_application"]
