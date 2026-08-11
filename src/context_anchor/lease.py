@@ -374,7 +374,10 @@ class LeaseGuardedExecutor:
 
     def observe_application(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         observed = self._guarded_call(self._executor.observe_application, *args, **kwargs)
-        if observed.get("verified") or not self._recovered_open_app_observation_pending:
+        if observed.get("verified"):
+            self._recovered_open_app_observation_pending = False
+            return observed
+        if not self._recovered_open_app_observation_pending:
             return observed
 
         app_id = ""
