@@ -13,7 +13,7 @@ Painel do Robô — 127.0.0.1:8765
   ↓
 Central — 127.0.0.1:8000
   ↓
-SQLite — fila / leases / histórico
+SQLite — fila / leases / histórico / action journal
   ↓
 Robô local
   ↓
@@ -27,6 +27,8 @@ Interpretação tipada / MultiProviderPlanner
 Capability Resolver
   ↓
 Policy Layer
+  ↓
+Durable Action Journal
   ↓
 Executores
   ├─ Playwright / Chromium
@@ -62,7 +64,9 @@ No Linux/X11 real já foram validados, entre outros:
 - Goal Runtime integrado ao `local_agent.py`;
 - conclusão de objetivos condicionada ao `GoalVerifier` e a evidência independente.
 
-O baseline de autonomia também demonstrou limitações reais de interpretação, percepção, resolução de capacidades, contexto entre tarefas e um caso histórico de falso `succeeded` em objetivo composto. Esses resultados estão documentados em `docs/STATUS.md`.
+O baseline de autonomia também demonstrou limitações reais de interpretação, percepção, resolução de capacidades e contexto entre tarefas. Esses resultados estão documentados em `docs/STATUS.md`.
+
+O Durable Action Journal foi implementado para bloquear replay cego após crash entre ação física e ACK. O smoke físico específico dessa proteção continua separado da baseline histórica e deve ser executado no host Linux/X11 real.
 
 ## Goal Runtime — integrado
 
@@ -74,6 +78,7 @@ Goal Contract
 → subobjetivos / capabilities
 → próxima etapa
 → Policy Layer
+→ Durable Action Journal
 → executor
 → Execution Receipt
 → observação
@@ -87,9 +92,8 @@ Componentes principais:
 - `src/context_anchor/goal_runtime.py` — contratos, critérios, evidências e autoridade final de conclusão;
 - `src/context_anchor/goal_execution.py` — orquestração dos fast paths e decomposições estruturadas;
 - `src/context_anchor/local_agent.py` — integração do Goal Runtime ao fluxo Painel → Central → Robô;
-- `tests/test_goal_runtime_contract.py` e demais regressões — cobertura automatizada do runtime.
-
-A missão histórica e seus critérios continuam documentados em `docs/CODEX_GOAL_RUNTIME_MISSION.md`.
+- `src/context_anchor/action_journal.py` — identidade/estado durável das ações externas;
+- `tests/` — regressões automatizadas do runtime, journal e recuperação.
 
 ## Regra de conclusão
 
@@ -132,7 +136,7 @@ sudo apt update
 sudo apt install -y xdotool scrot
 ```
 
-## Instalação
+## Instalação inicial
 
 ```bash
 git clone https://github.com/leon337/project-memory.git
@@ -145,6 +149,38 @@ cp .env.example .env
 ```
 
 As credenciais e tokens ficam somente no `.env` local.
+
+## Atualização e validação local
+
+Depois da instalação inicial, a rotina normal passa a ser:
+
+```bash
+atualizar-robo
+validar-robo
+```
+
+`atualizar-robo` recusa working tree suja ou commits locais não publicados e atualiza somente por fast-forward. Não usa `reset --hard`, `git clean` ou descarte automático.
+
+`validar-robo` executa compilação, pytest e diagnóstico dos pré-requisitos Linux/X11. O teste físico só deve começar quando terminar com:
+
+```text
+RESULTADO: PRONTO PARA TESTE FÍSICO
+```
+
+Detalhes: `docs/LOCAL-VALIDATION.md`.
+
+## Fault injection físico
+
+Para testes controlados de recuperação:
+
+```bash
+falha-robo listar
+falha-robo status
+falha-robo armar after_backend
+falha-robo limpar
+```
+
+O fault injection é local-only, desarmado por padrão e one-shot. Ele encerra propositalmente somente o processo do Robô em um checkpoint conhecido; mouse, teclado, Playwright, SQLite, journal e recovery permanecem reais.
 
 ## Operação
 
@@ -160,13 +196,16 @@ Painel:
 http://127.0.0.1:8765
 ```
 
-Também existem comandos técnicos como:
+Também existem comandos técnicos:
 
 ```bash
 central
 robo
 diagnostico-robo
 parar-robo status
+atualizar-robo
+validar-robo
+falha-robo status
 ```
 
 O Painel é a interface principal para operação normal.
@@ -179,6 +218,6 @@ pytest
 
 O GitHub Actions executa instalação, compilação e testes automatizados. Mudanças em desktop/browser/Goal Runtime continuam sujeitas às regressões e aos testes físicos aplicáveis descritos na documentação do projeto.
 
-## Próximo ciclo
+## Roadmap de validação
 
-A evolução atual é a **Home V4.1** do Painel do Robô: conversa com IA separada tecnicamente de execução, telemetria real compacta, acompanhamento do Goal Runtime, hardening da fronteira browser/localhost e acessibilidade. A implementação é rastreada pela missão `PM-HOME-IMPLEMENT-001`.
+Melhorias deliberadamente adiadas — como bateria guiada `teste-robo`, integração dos testes ao Painel, bundle automático de evidências e histórico de validações — estão publicadas em `docs/VALIDATION-ROADMAP.md`.
