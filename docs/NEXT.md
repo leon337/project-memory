@@ -1,15 +1,17 @@
 # NEXT
 
-## 1. Concluir o recovery de `after_prepare`
+## 1. Validar `after_in_flight`
 
-A primeira metade física já passou: task `c376e052-8d72-4a5f-b768-e603672df252` caiu em `prepared`, Robô ficou OFFLINE, Central permaneceu ONLINE e o Xed não abriu antes do crash.
+No host Linux/X11 já validado, fechar o Xed anterior, armar `falha-robo armar after_in_flight` e executar exatamente `Abra o editor de texto` pelo Painel.
 
-Religar somente o Robô pelo Painel e aguardar o reclaim da mesma task. Critério de PASS: a task retorna como tentativa 2, o estado `prepared` permite chamar `open_app` uma única vez, o Xed abre somente após o restart e a task conclui de forma coerente com percepção independente e GoalVerifier.
+Primeira metade esperada: o Journal já entra em `in_flight`, mas o fault injection encerra o Robô antes da chamada física ao backend neste checkpoint controlado; Xed não deve abrir antes do crash.
 
-## 2. Validar `after_in_flight`
+Após restart/reclaim, a mesma task deve encontrar estado durável ambíguo `in_flight` e falhar fechada com `ActionReplayBlocked`, sem emitir fisicamente `open_app`. Esse `failed` é PASS de segurança porque o sistema não pode provar se um efeito externo teria ocorrido numa queda real nesse estado.
 
-Depois do PASS completo de `after_prepare`, fechar o Xed, armar `falha-robo armar after_in_flight` e repetir exatamente `Abra o editor de texto`. Critério de PASS: a task recuperada encontra estado ambíguo `in_flight` e falha fechada com `ActionReplayBlocked`, sem reemitir fisicamente `open_app`.
+## 2. Validar `before_ack`
 
-## 3. Depois continuar `before_ack` e `after_ack`
+Somente após PASS de `after_in_flight`, executar `falha-robo armar before_ack` em um cenário controlado. Critério: ação física e verificação podem ter concluído, mas a queda antes da aceitação terminal da Central não pode causar replay do efeito físico no reclaim. Receipt recuperado continua insuficiente sozinho; percepção/GoalVerifier e estado terminal da Central permanecem autoridades.
 
-Executar um checkpoint por vez. `before_ack` deve provar que uma task já executada/verificada não repete efeito físico enquanto aguarda aceitação terminal; `after_ack` deve provar que task terminal não é recuperada/reexecutada. Ação física, SQLite, journal, lease, reclaim e restart permanecem reais; fake/CI não substituem prova no host.
+## 3. Validar `after_ack`
+
+Depois do PASS de `before_ack`, executar `falha-robo armar after_ack`. Critério: depois que a Central aceitou o resultado terminal, a task não pode voltar para a fila nem reexecutar efeito físico após restart. Ação física, SQLite, journal, lease, reclaim e restart permanecem reais; fake/CI não substituem prova no host.
