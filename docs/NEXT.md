@@ -1,10 +1,10 @@
 # NEXT
 
-## 1. Publicar a correção do issue #14 e atualizar o host
+## 1. Atualizar e validar o host com a correção do issue #14
 
-Finalizar revisão/CI do PR #15 `PM-DURABLE-JOURNAL-RECOVERY-OBS-001`, integrar na `main` somente com CI verde e manter o issue #14 aberto até prova física.
+O PR #15 `PM-DURABLE-JOURNAL-RECOVERY-OBS-001` já foi integrado na `main` como `5da8df2a199747a649c9ffa4ab53ff85152f8996`, com CI verde.
 
-Depois do merge, no host Linux/X11 já bootstrapado executar `atualizar-robo && validar-robo`. Só avançar se a validação terminar limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+No host Linux/X11 já bootstrapado executar `atualizar-robo && validar-robo`. Só avançar se a validação terminar limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
 ## 2. Repetir exatamente o smoke físico `after_executed`
 
