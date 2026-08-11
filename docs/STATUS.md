@@ -6,23 +6,11 @@ Manter um operador digital local que recebe objetivos em linguagem natural e exe
 
 ## Estado verificável desta versão
 
-A base consolidada contém:
+A base consolidada contém Home V4.1, Goal Runtime universal, FOCUS-RACE-001, providers Z.AI/Gemini/Cloudflare Workers AI, Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE, Emergency Stop, Session Context pós-ACK, PM-DURABLE-JOURNAL-001, PM-LOCAL-VALIDATION-001 e PM-LOCAL-VALIDATION-002.
 
-- Home V4.1;
-- Goal Runtime universal;
-- FOCUS-RACE-001 / estabilidade de foco Linux/X11;
-- providers Z.AI, Gemini e Cloudflare Workers AI;
-- Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE e Emergency Stop;
-- Session Context commitado somente depois do ACK da Central;
-- PM-DURABLE-JOURNAL-001 integrado na `main` pelo PR #9;
-- PM-LOCAL-VALIDATION-001 integrado na `main` pelo PR #11;
-- PM-LOCAL-VALIDATION-002 integrado na `main` pelo PR #13 para corrigir o teardown do probe Playwright observado no primeiro `validar-robo` físico.
+### Durable Journal
 
-## PM-DURABLE-JOURNAL-001
-
-A janela residual `ação física → crash → ACK ausente → reclaim → possível replay` recebeu proteção durável no mesmo SQLite da Central.
-
-Contrato atual:
+A janela `ação física → crash → ACK ausente → reclaim → possível replay` é protegida pelo journal durável no SQLite da Central:
 
 ```text
 task_id + action_key
@@ -36,26 +24,22 @@ executed
 acknowledged
 ```
 
-Semântica:
-
 - `prepared`: backend físico ainda não foi chamado;
 - `in_flight`: backend pode ter produzido efeito; ação não repeat-safe fica fail-closed;
-- `executed`: chamada física retornou e um receipt mínimo foi persistido; a ação não é reemitida, mas o GoalVerifier ainda exige percepção independente;
-- `acknowledged`: Central aceitou a task terminal; row passa a ser elegível a cleanup por retenção.
+- `executed`: chamada física retornou e receipt mínimo foi persistido; não autoriza conclusão sem percepção independente;
+- `acknowledged`: Central aceitou a task terminal e a row pode entrar em cleanup por retenção.
 
-`action_key` é um fingerprint task-scoped de `action + target`. O target bruto não é persistido e não existe contador implícito de retry que permita criar uma segunda identidade para a mesma ação+target.
+`action_key` é fingerprint task-scoped de `action + target`, sem target bruto persistido e sem contador implícito de retry. Apenas `active_window` e `capture_screen` são repeat-safe nesta fase.
 
-Apenas `active_window` e `capture_screen` são tratadas como repeat-safe nesta fase. Demais ações externas/físicas permanecem conservadoras.
+### Operação e validação local
 
-## PM-LOCAL-VALIDATION-001
+Comandos oficiais:
 
-A rotina repetitiva de manutenção local foi convertida em comandos oficiais:
+- `atualizar-robo`: atualização segura por fast-forward, recusando working tree suja ou commits locais não publicados;
+- `validar-robo`: compilação, pytest e requisitos Linux/X11/desktop/Chromium;
+- `falha-robo`: fault injection local-only, one-shot, sem endpoint de rede e sem simular a ação física.
 
-- `atualizar-robo`: valida o repositório, recusa working tree suja ou commits locais não publicados, faz apenas fast-forward de `main`, sincroniza `.venv`, dependências e Chromium;
-- `validar-robo`: compila `src/tests`, executa a suíte `pytest` e verifica Python, X11, desktop, PyAutoGUI/Pillow/PyScreeze, `xdotool`, `scrot` e Chromium;
-- `falha-robo`: arma localmente um crash one-shot em checkpoint conhecido, sem endpoint de rede e sem simular a ação física.
-
-Checkpoints atuais do fault injection:
+Checkpoints atuais:
 
 ```text
 after_prepare
@@ -66,67 +50,53 @@ before_ack
 after_ack
 ```
 
-O armamento fica em `runtime/`, é desarmado por padrão, é consumido atomicamente antes do encerramento proposital e persiste somente identificadores técnicos sanitizados. O processo encerrado é o Robô local; Central/Painel não recebem uma API para armar fault injection.
+O primeiro `validar-robo` físico expôs teardown assíncrono do Playwright após PASS. PM-LOCAL-VALIDATION-002 corrigiu isso isolando o probe do Chromium em subprocesso. O CI do PR #13 passou com `396 passed`, e a repetição no mesmo host Linux/X11 com Python 3.12.3 terminou limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
-Ações físicas, SQLite, journal, lease, reclaim e restart permanecem reais no smoke físico; apenas o instante do crash é controlado.
+## Validação física atual
 
-As melhorias posteriores do processo de testes foram planejadas e publicadas em `docs/VALIDATION-ROADMAP.md`. A implementação atual não inclui ainda `teste-robo`, integração de validação no Painel, bundle automático de evidências, histórico ou matriz de ambientes.
+### Cenário normal — PASS
 
-## PM-LOCAL-VALIDATION-002
+Objetivo executado pelo fluxo real Painel → Central → Robô:
 
-O primeiro `validar-robo` executado no host Linux/X11 real chegou a imprimir todos os checks como PASS e `395 passed`, mas depois de `RESULTADO: PRONTO PARA TESTE FÍSICO` o processo emitiu:
+`Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001`
 
-```text
-Task was destroyed but it is pending!
-TargetClosedError(...)
-```
+Evidências observadas:
 
-Esse resultado não foi aceito como validação limpa e o smoke físico foi interrompido antes de qualquer ação do Robô.
+- editor abriu fisicamente;
+- texto apareceu exatamente uma vez;
+- readback `Confirmado`;
+- GoalVerifier `SUCCEEDED`;
+- task `succeeded`;
+- logs de criação, claim, execução e finalização sem duplicidade visível.
 
-A origem ficou localizada no probe usado apenas para consultar `playwright.chromium.executable_path`: o validador iniciava `sync_playwright()` no próprio processo. A correção do PR #13 move esse probe para um subprocesso curto usando o Python da `.venv`, captura stdout/stderr do driver e devolve ao processo principal apenas o resultado do path.
+### Crash `after_backend` — PASS
 
-O CI do PR #13, run `31448585330`, passou integralmente com `396 passed`, zero failures. O PR foi integrado por squash na `main` como commit `4ff470250bc7868f41846488fcfd1c1b4be24fd3`; issue #12 foi encerrado como `completed`.
+Cenário físico usado: `Abra o editor de texto` com `falha-robo armar after_backend`.
 
-A repetição no mesmo host físico Linux/X11 com Python 3.12.3 passou limpa após `atualizar-robo && validar-robo`: repositório, working tree, branch, Python, compilação, `396 passed`, desktop, X11, PyAutoGUI, Pillow, PyScreeze, `xdotool`, `scrot` e Chromium ficaram PASS, terminando em `RESULTADO: PRONTO PARA TESTE FÍSICO` sem reaparecer `Task was destroyed`, `TargetClosedError` ou outra exceção visível após o resultado.
+Primeira metade observada:
 
-## Migração e compatibilidade
+- fault injection armado corretamente como one-shot;
+- editor abriu fisicamente;
+- processo do Robô encerrou após o backend retornar;
+- Central permaneceu online;
+- task ficou sem conclusão normal enquanto o lease/recovery aguardava.
 
-`tasks` recebe `journal_version` e `action_journal` é criada de forma aditiva.
+Após ligar novamente o Robô e ocorrer reclaim:
 
-- task legada nunca iniciada (`queued`, `attempts=0`) pode ser claimada e promovida para journal v1;
-- task legada já iniciada sem journal é ambígua e recebe `failed` fail-closed, em vez de ser reclamada cegamente.
+- mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` voltou como tentativa 2;
+- Home exibiu `ActionReplayBlocked` para `v1:open_app:398e481f619cbaab6816c658` em estado durável `in_flight`;
+- histórico registrou `Replay físico bloqueado ... state=in_flight`;
+- task terminou `failed` fail-closed;
+- não houve nova emissão autorizada de `open_app` após o restart.
 
-O fault injection adiciona apenas arquivos locais ignorados pelo Git; não altera o schema SQLite nem a autoridade de conclusão.
+Esse resultado comprova no host físico a propriedade principal do checkpoint `after_backend`: quando o efeito externo pode ter ocorrido mas o journal ainda não chegou a `executed`, o recovery não repete cegamente a ação.
 
-## Privacidade
+## Migração, privacidade e compatibilidade
 
-O journal não persiste texto integral digitado, screenshot ou URL completa. Receipts passam por whitelist no agente e novamente na Central. O último evento de fault injection persiste apenas checkpoint, PID e identificadores técnicos permitidos (`task_id`, `action_key`, `action_name`, status). Credenciais continuam fora de Git/logs/prompts.
+`tasks` possui `journal_version` e `action_journal` é aditiva. Task legada nunca iniciada (`queued`, `attempts=0`) pode ser promovida; task legada já iniciada sem journal falha fechada por ambiguidade.
 
-## Validação
-
-PM-DURABLE-JOURNAL-001 teve CI verde antes do merge do PR #9.
-
-Para PM-LOCAL-VALIDATION-001:
-
-- a primeira execução de CI, run `31447120929`, encontrou uma regressão real de compatibilidade: 5 testes antigos falharam porque test doubles de `LocalAgentSettings` não possuíam os novos paths de fault injection;
-- a inicialização foi corrigida com defaults locais compatíveis;
-- o CI final do PR, run `31447526239`, passou com `395 passed`;
-- o PR #11 foi integrado por squash na `main` como `e3b2a7ed31d4c18985bd2423169c06b42cf90a7b`;
-- o CI pós-merge run `31447617170` também passou integralmente.
-
-Para PM-LOCAL-VALIDATION-002:
-
-- evidência física inicial: ambiente e suíte PASS, mas teardown Playwright sujo após o resultado;
-- correção: probe Playwright isolado em subprocesso;
-- regressão automatizada adicionada;
-- CI do PR #13: run `31448585330`, `396 passed`, zero failures;
-- merge: `4ff470250bc7868f41846488fcfd1c1b4be24fd3`;
-- repetição no host Linux/X11 real com Python 3.12.3: `396 passed`, todos os pré-requisitos PASS e encerramento limpo em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
-
-Primeiro smoke físico normal do Durable Journal no fluxo real Painel → Central → Robô: PASS. O objetivo `Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001` abriu o editor, produziu o texto exatamente uma vez, apresentou readback `Confirmado`, GoalVerifier `SUCCEEDED`, task `succeeded` e logs de criação/claim/execução/finalização sem duplicidade visível.
-
-Os crashes controlados do Durable Journal ainda estão pendentes e devem ser executados um checkpoint por vez com `falha-robo`.
+O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist no agente e na Central. Fault injection persiste apenas checkpoint, PID e identificadores técnicos sanitizados.
 
 ## Situação
 
-A máquina local está validada e o cenário físico normal passou. O próximo passo é iniciar crash testing reproduzível do Durable Journal, começando por `after_backend`, para comprovar que uma ação física que já produziu efeito mas ainda não foi registrada como `executed` não é reemitida após restart/reclaim.
+Máquina local validada. Cenário físico normal: PASS. Crash físico `after_backend`: PASS. A bateria de recovery ainda não terminou; os demais checkpoints devem ser executados um por vez. O próximo checkpoint definido em `docs/NEXT.md` é `after_executed`, usando uma ação física com efeito visível e identidade estável para provar que uma ação já persistida como `executed` também não é reemitida após restart/reclaim.
