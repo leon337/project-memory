@@ -1,17 +1,15 @@
 # NEXT
 
-## 1. Concluir `before_ack`
+## 1. Validar `after_ack`
 
-A primeira metade física passou: task `3b55952e-2e99-4d86-8d1b-f537111e5c12` executou `Abra o editor de texto`, o Xed abriu, o Robô registrou resultado local de sucesso e caiu no checkpoint `before_ack` antes do aceite terminal da Central. Central permaneceu online, Robô ficou offline e a task ficou `running` na tentativa 1.
+No host Linux/X11 já validado, fechar qualquer Xed anterior, armar `falha-robo armar after_ack` e executar exatamente `Abra o editor de texto` pelo Painel.
 
-Agora religar somente o Robô pelo Painel. Manter o Xed aberto, não abrir outro editor manualmente e não enviar nova tarefa. A task pode permanecer `running` até o lease expirar.
+Critério de PASS: a ação física ocorre, a percepção/GoalVerifier concluem e a Central aceita o resultado terminal antes do crash. O fault injection deve então encerrar o Robô depois do ACK. Após restart, a mesma task deve permanecer terminal, não voltar à fila, não ganhar tentativa 2 e não reexecutar fisicamente `open_app`.
 
-Critério de PASS: a mesma task volta como tentativa 2 sem reemitir fisicamente `open_app`; o estado já existente deve ser observado novamente de forma independente e GoalVerifier deve produzir conclusão coerente. Receipt recuperado não pode, sozinho, autorizar sucesso.
+## 2. Consolidar a matriz física
 
-## 2. Validar `after_ack`
+Depois do PASS de `after_ack`, registrar no STATUS e artefatos pertinentes que cenário normal, `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack` e `after_ack` foram executados fisicamente, distinguindo PASS de sucesso normal e PASS fail-closed onde aplicável. Confirmar que nenhum checkpoint ficou pendente.
 
-Somente após PASS completo de `before_ack`, fechar o Xed anterior, armar `falha-robo armar after_ack` e repetir exatamente `Abra o editor de texto`. Critério de PASS: depois que a Central já aceitou o resultado terminal, a task permanece terminal após crash/restart, não volta à fila e não reexecuta efeito físico.
+## 3. Restaurar o ambiente local
 
-## 3. Encerrar a matriz física e restaurar o ambiente local
-
-Depois do PASS de `after_ack`, consolidar as evidências da matriz completa no STATUS e artefatos pertinentes, confirmar que não há checkpoint pendente e então restaurar com segurança o stash temporário dos arquivos locais criado antes da atualização. Não remover o stash antes dessa conferência final.
+Somente depois da consolidação final, restaurar com segurança o stash temporário criado antes da atualização, revisar conflitos/arquivos restaurados e confirmar que nenhum arquivo local foi perdido. Não remover o stash antes dessa conferência.
