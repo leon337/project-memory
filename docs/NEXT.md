@@ -1,14 +1,16 @@
 # NEXT
 
-## 1. Validar `before_ack`
+## 1. Concluir `before_ack`
 
-No host Linux/X11 já validado, fechar qualquer Xed anterior, armar `falha-robo armar before_ack` e executar exatamente `Abra o editor de texto` pelo Painel.
+A primeira metade física passou: task `3b55952e-2e99-4d86-8d1b-f537111e5c12` executou `Abra o editor de texto`, o Xed abriu, o Robô registrou resultado local de sucesso e caiu no checkpoint `before_ack` antes do aceite terminal da Central. Central permaneceu online, Robô ficou offline e a task ficou `running` na tentativa 1.
 
-Critério de PASS: a ação física pode ocorrer e ser verificada, mas o Robô deve cair antes de a Central aceitar o resultado terminal. Após restart/reclaim, a mesma task não pode repetir fisicamente `open_app`; receipt recuperado continua insuficiente sozinho, e nova percepção/GoalVerifier devem confirmar o estado real antes de qualquer conclusão.
+Agora religar somente o Robô pelo Painel. Manter o Xed aberto, não abrir outro editor manualmente e não enviar nova tarefa. A task pode permanecer `running` até o lease expirar.
+
+Critério de PASS: a mesma task volta como tentativa 2 sem reemitir fisicamente `open_app`; o estado já existente deve ser observado novamente de forma independente e GoalVerifier deve produzir conclusão coerente. Receipt recuperado não pode, sozinho, autorizar sucesso.
 
 ## 2. Validar `after_ack`
 
-Somente após PASS completo de `before_ack`, armar `falha-robo armar after_ack` e repetir o mesmo objetivo. Critério de PASS: depois que a Central já aceitou o resultado terminal, a task permanece terminal após o crash/restart, não volta à fila e não reexecuta efeito físico.
+Somente após PASS completo de `before_ack`, fechar o Xed anterior, armar `falha-robo armar after_ack` e repetir exatamente `Abra o editor de texto`. Critério de PASS: depois que a Central já aceitou o resultado terminal, a task permanece terminal após crash/restart, não volta à fila e não reexecuta efeito físico.
 
 ## 3. Encerrar a matriz física e restaurar o ambiente local
 
