@@ -104,3 +104,42 @@ def test_updater_stops_when_local_main_has_unpublished_commit(
 
     assert _git(local, "rev-parse", "HEAD") == local_head
     assert (local / "local-only.txt").exists()
+
+
+def test_playwright_probe_isolated_and_ignores_child_teardown_noise(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    browser = tmp_path / "chrome"
+    browser.write_text("", encoding="utf-8")
+    python = tmp_path / "python"
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        cwd: Path,
+        check: bool = True,
+        capture_output: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        assert cwd == tmp_path
+        assert check is False
+        assert capture_output is True
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=f"{browser}\n",
+            stderr="Task was destroyed but it is pending!\nTargetClosedError\n",
+        )
+
+    monkeypatch.setattr(maintenance, "_run", fake_run)
+
+    ok, detail = maintenance._playwright_chromium_available(python, tmp_path)
+
+    assert ok is True
+    assert detail == str(browser)
+    assert len(calls) == 1
+    assert calls[0][0] == str(python)
+    assert calls[0][1] == "-c"
+    assert "sync_playwright" in calls[0][2]
