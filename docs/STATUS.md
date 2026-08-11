@@ -103,18 +103,20 @@ Cenário: `Abra o editor de texto` com `falha-robo armar after_in_flight`.
 
 Conclusão: `in_flight` não é tratado como autorização para repetir uma ação não repeat-safe. O recovery bloqueia replay físico quando não há prova suficiente de que o efeito externo ocorreu ou não ocorreu.
 
-### Crash `before_ack` — primeira metade PASS, recovery pendente
+### Crash `before_ack` — PASS
 
 Cenário: `Abra o editor de texto` com `falha-robo armar before_ack`.
 
-- fault injection foi armado corretamente em `before_ack`;
 - task `3b55952e-2e99-4d86-8d1b-f537111e5c12` foi criada, entregue e recebida na tentativa 1;
-- o Xed abriu fisicamente antes do crash;
-- o Robô registrou localmente `Tarefa executada ... resultado=sucesso`, demonstrando que ação e verificação chegaram ao resultado de sucesso;
-- não aparece aceite terminal da Central para essa task antes da queda;
-- Central permaneceu online, Robô ficou offline e a task permaneceu `running` na tentativa 1.
+- o Xed abriu fisicamente;
+- o Robô registrou localmente `Tarefa executada ... resultado=sucesso` e caiu antes do aceite terminal da Central;
+- Central permaneceu online, Robô ficou offline e a task permaneceu `running` na tentativa 1;
+- após religar o Robô e expirar o lease, a mesma task foi entregue novamente como tentativa 2;
+- o recovery concluiu a mesma task sem evidência de nova abertura física do editor;
+- logs da tentativa 2 registraram `Tarefa recebida`, `Tarefa executada ... resultado=sucesso` e `Resultado enviado ... status=succeeded`;
+- a Central registrou a task como `succeeded` na tentativa 2.
 
-Primeira metade classificada como PASS. Falta religar somente o Robô, aguardar expiração/reclaim e comprovar que a mesma task é recuperada sem segunda emissão física de `open_app`; a conclusão deve depender de nova percepção independente/GoalVerifier, não apenas do receipt recuperado.
+Conclusão: a queda depois da ação/verificação local, mas antes do ACK terminal da Central, não força replay físico cego; o estado executado é recuperado e a task pode concluir após nova observação/GoalVerifier.
 
 ## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
 
@@ -143,4 +145,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. `after_in_flight`: PASS fail-closed. `before_ack`: primeira metade PASS, recovery pendente. Depois resta `after_ack`, sempre preservando anti-replay, percepção independente e GoalVerifier.
+Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. `after_in_flight`: PASS fail-closed. `before_ack`: PASS end-to-end. Resta somente o checkpoint físico `after_ack`; depois consolidar a matriz e restaurar com segurança o stash local.
