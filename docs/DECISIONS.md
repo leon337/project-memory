@@ -317,3 +317,17 @@ Checkpoints vigentes são `after_prepare`, `after_in_flight`, `after_backend`, `
 O evento persistente de fault injection contém apenas checkpoint, PID e identificadores técnicos permitidos. Texto bruto do objetivo/target e credenciais não fazem parte desse registro.
 
 Essa infraestrutura não altera a autoridade do GoalVerifier nem a semântica do journal. Em especial, um `in_flight` de ação não repeat-safe continua ambíguo e fail-closed, mesmo quando o teste sabe em qual ponto o processo foi encerrado; recovery deve decidir pelo estado durável, não por conhecimento externo do harness.
+
+## D-032 — Direção estratégica: Operador Digital Autônomo Multimodal
+
+A próxima evolução do produto é transformar o Robô em um **Operador Digital Autônomo Multimodal**: um sistema que recebe objetivos em linguagem natural, decompõe o trabalho necessário, executa ações reais no computador e em serviços digitais, verifica o resultado e mantém diálogo operacional com o usuário.
+
+O alvo de produto inclui operar tarefas que hoje exigem intervenção manual entre ChatGPT e o computador, como trabalhar com projetos locais, Git/GitHub, navegador, Cloudflare, Vercel, Render e outros serviços, escolhendo a interface de execução mais adequada disponível — API/MCP, CLI/terminal, automação web estruturada ou, quando necessário, mouse e teclado.
+
+Voz bidirecional, contexto conversacional operacional, gestão segura de credenciais e uma futura ponte ChatGPT → Robô fazem parte da direção de produto a ser debatida, mas **não estão aprovadas aqui como arquitetura ou escopo fechado de implementação**.
+
+O nome de trabalho da próxima fase é `PM-UNIVERSAL-OPERATOR-001 — Natural Language → Real Computer Work`. Esse nome é provisório até o planejamento com o MCF.
+
+Antes de implementação, o escopo, arquitetura, capacidades, critérios de aceitação, riscos, sequência de entrega e testes devem ser debatidos e planejados com o MCF. Até esse planejamento ser aprovado, esta decisão representa direção estratégica, não autorização para alterar a arquitetura nem iniciar código da nova fase.
+
+A nova autonomia deve crescer sobre as garantias já comprovadas, preservando Policy Layer, lease/heartbeat, Durable Journal, FAILSAFE, Emergency Stop, percepção independente, EvidenceRecord e GoalVerifier como única autoridade de conclusão. Novas capacidades físicas ou externas também precisam manter identidade durável adequada para retries/reclaims e não podem reintroduzir replay cego.
