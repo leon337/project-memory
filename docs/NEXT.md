@@ -1,17 +1,17 @@
 # NEXT
 
-## 1. Concluir `after_ack`
+## 1. Sincronizar a `main` local após a consolidação
 
-A primeira metade física passou na task `39cbc255-ee3b-4c83-a34b-678883993a47`: Xed abriu, a Central registrou `succeeded` na tentativa 1 e somente depois o checkpoint `after_ack` encerrou o Robô. Central permaneceu online e Robô ficou offline.
+A matriz física foi concluída e a documentação final foi publicada na `main` remota durante os testes. No host Linux/X11, manter o working tree limpo e executar `atualizar-robo` para trazer os commits documentais finais antes de restaurar os arquivos locais.
 
-Agora religar somente o Robô pelo Painel. Manter o Xed aberto, não enviar outra tarefa e aguardar alguns instantes.
+Critério: atualização segura por fast-forward, sem reset/clean/rebase e sem perder o stash temporário existente.
 
-Critério de PASS final: a mesma task deve continuar `succeeded` na tentativa 1, não voltar para `running`/`queued`, não ganhar tentativa 2 e não reexecutar fisicamente `open_app`.
+## 2. Restaurar o stash sem removê-lo ainda
 
-## 2. Consolidar a matriz física
+Confirmar o stash com `git stash list` e inspecionar os nomes com `git stash show --include-untracked --name-only stash@{0}`. Em seguida usar `git stash apply stash@{0}` — não `pop` — para restaurar os arquivos mantendo o backup disponível.
 
-Depois do PASS final de `after_ack`, registrar que cenário normal, `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack` e `after_ack` foram executados fisicamente, distinguindo PASS normal e PASS fail-closed onde aplicável. Confirmar que nenhum checkpoint ficou pendente.
+Depois conferir `git status --short` e verificar visualmente que PDFs, imagens e demais arquivos locais esperados reapareceram. Se houver conflito, não apagar nem sobrescrever nada; preservar o stash e resolver explicitamente.
 
-## 3. Restaurar o ambiente local
+## 3. Remover o backup somente após conferência
 
-Somente depois da consolidação final, restaurar com segurança o stash temporário criado antes da atualização, revisar os arquivos restaurados e confirmar que nenhum arquivo local foi perdido. Não remover o stash antes dessa conferência.
+Somente quando os arquivos restaurados estiverem confirmados, executar `git stash drop stash@{0}`. Depois registrar no STATUS que o ambiente local foi restaurado e definir a próxima fase de implementação; nenhum checkpoint físico do Durable Journal permanece pendente.
