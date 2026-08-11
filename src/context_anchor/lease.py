@@ -12,7 +12,7 @@ from .action_journal import ActionJournalClient, ActionReplayBlocked
 from .desktop import DesktopFailsafeTriggered
 from .emergency_stop import EmergencyStopTriggered
 from .fault_injection import FaultInjectionController
-from .recovery_observation import observe_existing_application
+from .recovery_observation import active_window_id, observe_existing_application
 from .schemas import AgentLeaseView
 from .session_context import ArtifactKind, ContextArtifact, ContextResolution, SessionContext
 
@@ -92,7 +92,6 @@ class LeaseHeartbeat:
             raise RuntimeError("Heartbeat de lease já iniciado.")
         self._client = self._client_factory()
         try:
-            # Confirm ownership immediately, before the first physical action.
             self._renew_once()
         except Exception:
             self._client.close()
@@ -181,6 +180,7 @@ class LeaseGuardedExecutor:
     """Proxy that verifies lease ownership and durable replay state around actions."""
 
     _REPEAT_SAFE_ACTIONS = frozenset({"active_window", "capture_screen"})
+    _KEYBOARD_ACTIONS = frozenset({"type_text", "press_key"})
     _SAFE_RECEIPT_FIELDS: dict[str, tuple[str, ...]] = {
         "open_url": ("action", "verified", "http_status"),
         "capture_screen": ("action", "verified"),
@@ -215,6 +215,7 @@ class LeaseGuardedExecutor:
         self._heartbeat = heartbeat
         self._fault_injection = fault_injection
         self._recovered_open_app_observation_pending = False
+        self._recovered_expected_window_id: str | None = None
         if journal is not None:
             self._journal = journal
         elif all(
@@ -227,8 +228,6 @@ class LeaseGuardedExecutor:
                 client_factory=heartbeat.new_client,
             )
         else:
-            # Test doubles and legacy direct construction remain usable. The
-            # production LocalAgent always supplies a real LeaseHeartbeat.
             self._journal = None
 
     @staticmethod
@@ -243,9 +242,6 @@ class LeaseGuardedExecutor:
         try:
             result = operation(*args, **kwargs)
         except Exception as exc:
-            # If an observation/action fails after lease loss, propagate the
-            # ownership interruption instead of letting Goal Runtime retry or
-            # enter a fallback. Existing safety controls retain priority.
             if self._must_preserve(exc):
                 raise
             self.assert_authorized()
@@ -254,18 +250,7 @@ class LeaseGuardedExecutor:
         return result
 
     def _action_key(self, action_name: str, target: str) -> str:
-        """Build a task-scoped stable identity without persisting the raw target.
-
-        A task UUID salts a compact BLAKE2 fingerprint, so identical target
-        values from different tasks are not globally correlatable. The key has
-        no retry/occurrence counter on purpose: the same non-repeat-safe
-        action+target inside one task resolves to the same journal row, so a
-        retry/reclaim cannot silently manufacture a second physical invocation.
-
-        A future capability that *legitimately* needs two identical physical
-        effects must provide a distinct stable contract-level identity instead
-        of relying on an implicit retry counter.
-        """
+        """Build a task-scoped stable identity without persisting the raw target."""
 
         task_id = str(getattr(self._heartbeat, "task_id", "legacy-task"))
         task_key = task_id.encode("utf-8")[:32] or b"legacy-task"
@@ -299,6 +284,23 @@ class LeaseGuardedExecutor:
             },
         )
 
+    def _guard_recovered_keyboard_focus(self, action_name: str) -> None:
+        expected_window_id = self._recovered_expected_window_id
+        if action_name not in self._KEYBOARD_ACTIONS or not expected_window_id:
+            return
+        current_window_id = self._guarded_call(active_window_id)
+        if not current_window_id:
+            raise RuntimeError(
+                "A janela ativa não pôde ser observada após recovery de open_app; "
+                "o Robô recusou enviar teclado para não falhar aberto."
+            )
+        if current_window_id != expected_window_id:
+            raise RuntimeError(
+                "O aplicativo recuperado continua aberto, mas não está com foco; "
+                "o Robô recusou enviar teclado para outra janela."
+            )
+        self._recovered_expected_window_id = None
+
     def execute(self, plan: Any) -> dict[str, Any]:
         self.assert_authorized()
         journal = self._journal
@@ -307,6 +309,7 @@ class LeaseGuardedExecutor:
 
         action_name = str(getattr(plan, "action", ""))
         target = str(getattr(plan, "target", ""))
+        self._guard_recovered_keyboard_focus(action_name)
         action_key = self._action_key(action_name, target)
         repeat_safe = self._repeat_safe(action_name)
         prepared = journal.prepare(
@@ -323,11 +326,8 @@ class LeaseGuardedExecutor:
             recovered["journal_recovered"] = True
             recovered["journal_action_key"] = action_key
             if action_name == "open_app":
-                # A recovered launcher PID/window focus is not a reliable proof of
-                # the current desktop state. Keep replay blocked, but allow the
-                # next independent application observation to locate an existing
-                # managed X11 window without activating or reopening it.
                 self._recovered_open_app_observation_pending = True
+                self._recovered_expected_window_id = None
             return recovered
 
         if state == "acknowledged":
@@ -342,20 +342,15 @@ class LeaseGuardedExecutor:
         if state == "prepared":
             self._fault("after_prepare", action_key=action_key, action_name=action_name)
 
-        # PREPARED proves the backend was never entered. IN_FLIGHT/EXECUTED is
-        # repeated only for explicitly repeat-safe observation-like actions.
-        # An already EXECUTED repeat-safe action stays EXECUTED while the fresh
-        # observation is performed; no unsafe state regression is required.
         if state != "executed":
             journal.transition(action_key=action_key, state="in_flight")
             self._fault("after_in_flight", action_key=action_key, action_name=action_name)
         try:
             if action_name == "open_app":
                 self._recovered_open_app_observation_pending = False
+                self._recovered_expected_window_id = None
             result = self._guarded_call(self._executor.execute, plan)
         except Exception:
-            # Deliberately leave IN_FLIGHT when backend entry was possible. A
-            # crash/error there cannot prove whether an external effect occurred.
             raise
         self._fault("after_backend", action_key=action_key, action_name=action_name)
         safe_receipt = self._safe_receipt(action_name, result)
@@ -375,6 +370,11 @@ class LeaseGuardedExecutor:
     def observe_application(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         observed = self._guarded_call(self._executor.observe_application, *args, **kwargs)
         if observed.get("verified"):
+            if self._recovered_open_app_observation_pending:
+                window_id = observed.get("window_id")
+                self._recovered_expected_window_id = (
+                    str(window_id) if window_id is not None else None
+                )
             self._recovered_open_app_observation_pending = False
             return observed
         if not self._recovered_open_app_observation_pending:
@@ -393,6 +393,10 @@ class LeaseGuardedExecutor:
             app_id,
         )
         if recovered_observation.get("verified"):
+            window_id = recovered_observation.get("window_id")
+            self._recovered_expected_window_id = (
+                str(window_id) if window_id is not None else None
+            )
             self._recovered_open_app_observation_pending = False
             return recovered_observation
 
