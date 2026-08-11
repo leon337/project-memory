@@ -15,7 +15,7 @@ A base consolidada contém:
 - Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE e Emergency Stop;
 - Session Context commitado somente depois do ACK da Central;
 - PM-DURABLE-JOURNAL-001 integrado na `main` pelo PR #9;
-- PM-LOCAL-VALIDATION-001 implementado no PR #11, com atualização/validação local simplificadas e fault injection físico controlado.
+- PM-LOCAL-VALIDATION-001 integrado na `main` pelo PR #11, com atualização/validação local simplificadas e fault injection físico controlado.
 
 ## PM-DURABLE-JOURNAL-001
 
@@ -92,8 +92,10 @@ Para PM-LOCAL-VALIDATION-001:
 
 - a primeira execução de CI, run `31447120929`, encontrou uma regressão real de compatibilidade: 5 testes antigos falharam porque test doubles de `LocalAgentSettings` não possuíam os novos paths de fault injection;
 - a inicialização foi corrigida com defaults locais compatíveis, sem alterar o contrato real de `LocalAgentSettings`;
-- o CI run `31447291227`, head `c9667c64aa4a125318423ca449e4bce6792a45f6`, passou instalação, Playwright, compilação e suíte completa;
-- resultado da suíte: `395 passed`, zero failures.
+- o CI final do PR, run `31447526239`, passou instalação, Playwright, compilação e suíte completa;
+- resultado da suíte: `395 passed`, zero failures;
+- o PR #11 foi integrado por squash na `main` como commit `e3b2a7ed31d4c18985bd2423169c06b42cf90a7b`;
+- o CI pós-merge da `main`, run `31447617170`, também passou integralmente.
 
 A cobertura nova inclui proteção do updater contra working tree suja e commits locais não publicados, fast-forward seguro, consumo one-shot do armamento, sanitização do evento e checkpoints antes/depois da chamada física.
 
@@ -101,4 +103,4 @@ Nenhum novo smoke físico do Durable Journal/fault injection no desktop Linux/X1
 
 ## Situação
 
-A implementação de PM-LOCAL-VALIDATION-001 está tecnicamente verde no CI e em revisão/integração pelo PR #11. O próximo passo humano, depois de publicada na `main`, é fazer o bootstrap local uma única vez e executar `validar-robo`; em seguida começa a bateria física controlada descrita em `docs/NEXT.md`.
+PM-LOCAL-VALIDATION-001 está integrado na `main`; o issue #10 foi encerrado como `completed`. Não há blocker técnico conhecido para iniciar a validação local. O próximo passo humano é fazer o bootstrap local uma única vez, executar `validar-robo` e, somente com resultado verde, iniciar a bateria física controlada descrita em `docs/NEXT.md`.
