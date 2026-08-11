@@ -1,18 +1,16 @@
 # NEXT
 
-## 1. Executar o smoke físico normal do Durable Journal no Linux/X11
+## 1. Executar crash físico `after_backend`
 
-A validação local no host físico passou limpa com Python 3.12.3, `396 passed` e todos os pré-requisitos de desktop/X11 em PASS.
+O smoke físico normal no fluxo real Painel → Central → Robô passou: editor abriu, `JOURNAL-SMOKE-NORMAL-001` foi digitado exatamente uma vez, readback ficou `Confirmado`, GoalVerifier `SUCCEEDED` e a task terminou `succeeded`.
 
-Executar primeiro um cenário normal pelo fluxo real Painel → Central → Robô, sem fault injection. Confirmar que uma tarefa física simples continua funcionando e que a ação não é emitida em duplicidade.
+Agora armar `falha-robo armar after_backend` e executar um cenário físico que permita observar o efeito antes do crash. Esse checkpoint encerra o processo do Robô depois que o backend físico retorna e antes de o journal transicionar para `executed`, deixando a entrada durável em `in_flight`.
 
-Só após PASS desse cenário normal avançar para crash testing.
+Após restart/reclaim, uma ação não repeat-safe nesse estado deve falhar fechada e não ser emitida novamente. A prova principal é ausência de duplicidade física.
 
-## 2. Executar os crashes reproduzíveis com `falha-robo`
+## 2. Continuar os checkpoints de crash um por vez
 
-Armar um checkpoint por vez e repetir o fluxo real, mantendo ação física, SQLite, journal, lease, reclaim e restart reais. A prova principal deve demonstrar que uma ação não repeat-safe não é emitida duas vezes após crash/restart/reclaim.
-
-Estados ambíguos continuam fail-closed. Não declarar PASS físico a partir de fake/CI.
+Depois do PASS de `after_backend`, validar os demais checkpoints relevantes (`after_prepare`, `after_in_flight`, `after_executed`, `before_ack`, `after_ack`) sem executar a bateria toda de uma vez. Ação física, SQLite, journal, lease, reclaim e restart permanecem reais; fake/CI não substituem a prova no host.
 
 ## 3. Após o PASS físico, decidir a próxima evolução
 
