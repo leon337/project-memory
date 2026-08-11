@@ -88,6 +88,19 @@ Cenário: `Abra o editor de texto` com `falha-robo armar after_prepare`.
 
 Conclusão: estado `prepared` é recuperável com segurança porque o backend físico ainda não havia sido chamado; a ação pode ser executada uma vez após reclaim e continuar sujeita à percepção independente e GoalVerifier.
 
+### Crash `after_in_flight` — primeira metade PASS, recovery pendente
+
+Cenário: `Abra o editor de texto` com `falha-robo armar after_in_flight`.
+
+- fault injection foi armado corretamente em `after_in_flight`;
+- task `8e993f29-273c-4024-9219-f4503ece4600` foi criada, entregue e recebida na tentativa 1;
+- o Robô caiu imediatamente após a transição durável para `in_flight` e antes da chamada física ao backend nesse checkpoint controlado;
+- Central permaneceu online e Robô ficou offline;
+- Xed não abriu antes do crash;
+- a task permaneceu `running` na tentativa 1, aguardando expiração do lease para reclaim.
+
+Primeira metade classificada como PASS. Falta religar somente o Robô, aguardar a expiração/reclaim e verificar que a mesma task volta como tentativa 2, encontra `in_flight` ambíguo e termina fail-closed com `ActionReplayBlocked`, sem emitir fisicamente `open_app`.
+
 ## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
 
 A correção foi integrada pelo PR #15 na `main` como commit `5da8df2a199747a649c9ffa4ab53ff85152f8996`.
@@ -115,4 +128,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. O próximo checkpoint físico é `after_in_flight`, seguido por `before_ack` e `after_ack`, sempre um por vez e preservando as invariantes de anti-replay, percepção independente e GoalVerifier.
+Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. `after_in_flight`: primeira metade PASS; recovery/reclaim ainda pendente. Depois desse checkpoint restam `before_ack` e `after_ack`, sempre um por vez e preservando as invariantes de anti-replay, percepção independente e GoalVerifier.
