@@ -4,6 +4,8 @@
 
 Manter um operador digital local que recebe objetivos em linguagem natural e executa ações físicas em ciclo fechado, sem declarar `succeeded` até que o estado final seja comprovado por percepção independente e GoalVerifier.
 
+A próxima direção estratégica já foi escolhida: evoluir o produto para um **Operador Digital Autônomo Multimodal**, capaz de transformar objetivos em linguagem natural em trabalho real no computador e em serviços digitais. A fase de implementação ainda não começou; o escopo e a arquitetura serão debatidos e planejados com o MCF antes de qualquer alteração de código.
+
 ## Base verificável atual
 
 A `main` consolidada contém Home V4.1, Goal Runtime universal, FOCUS-RACE-001, providers Z.AI/Gemini/Cloudflare Workers AI, Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE, Emergency Stop, Session Context pós-ACK, PM-DURABLE-JOURNAL-001, PM-LOCAL-VALIDATION-001, PM-LOCAL-VALIDATION-002 e PM-DURABLE-JOURNAL-RECOVERY-OBS-001.
@@ -83,6 +85,16 @@ A restauração do ambiente local foi concluída em 2026-08-11: a `main` local f
 
 O working tree local volta a conter deliberadamente esses arquivos locais não rastreados; isso é estado esperado do host e deve ser tratado antes de uma futura execução de `atualizar-robo`, que exige working tree limpa.
 
+## Próxima direção estratégica aprovada
+
+A decisão D-032 oficializa como direção de produto a evolução para um **Operador Digital Autônomo Multimodal**. O alvo é reduzir o trabalho operacional manual entre intenção e execução: receber objetivos em linguagem natural, decompor tarefas e atuar em projetos locais, Git/GitHub, navegador e serviços como Cloudflare, Vercel e Render usando a melhor interface disponível.
+
+O nome de trabalho é `PM-UNIVERSAL-OPERATOR-001 — Natural Language → Real Computer Work`.
+
+Voz bidirecional, contexto conversacional operacional, gestão segura de credenciais e ponte ChatGPT → Robô são frentes candidatas para o debate, não arquitetura fechada. Nenhuma implementação dessa nova fase foi iniciada.
+
 ## Situação
 
-PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada, e o ambiente local foi restaurado sem perda visível dos arquivos preservados. Nenhum checkpoint físico do Durable Journal permanece pendente. A próxima fase de implementação ainda não foi escolhida por Leandro.
+PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada, e o ambiente local foi restaurado sem perda visível dos arquivos preservados. Nenhum checkpoint físico do Durable Journal permanece pendente.
+
+A próxima direção de produto já está definida, mas a nova fase está **em preparação para debate e planejamento com o MCF**. O próximo passo não é escrever código: é fechar escopo, arquitetura, capacidades, critérios de aceitação, riscos, sequência de entrega e plano de testes da `PM-UNIVERSAL-OPERATOR-001`, preservando todas as garantias já comprovadas.
