@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>PM Universal Operator — Protótipo UI</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">Pular para o conteúdo principal</a>
+
+  <div class="prototype-banner" role="status">
+    PROTÓTIPO LOCAL — dados simulados para RC de UI/UX. Não conectado ao runtime real.
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">▣</div>
+        <div>
+          <strong>Painel do Robô</strong>
+          <span>Universal Operator</span>
+        </div>
+      </div>
+
+      <section class="control-stack" aria-labelledby="systemControlsTitle">
+        <h2 id="systemControlsTitle" class="eyebrow">Estado do sistema</h2>
+
+        <div class="system-control">
+          <div>
+            <span class="system-name">Central</span>
+            <span class="system-state positive">Ligada</span>
+          </div>
+          <button type="button" class="compact-button">Desligar</button>
+        </div>
+
+        <div class="system-control">
+          <div>
+            <span class="system-name">Robô</span>
+            <span class="system-state positive">Ligado</span>
+          </div>
+          <div class="inline-actions">
+            <button type="button" class="compact-button">Parar</button>
+            <button type="button" class="icon-button" aria-label="Reiniciar Robô">↻</button>
+          </div>
+        </div>
+
+        <div class="system-control">
+          <div>
+            <span class="system-name">Desktop</span>
+            <span class="system-state positive">Habilitado</span>
+          </div>
+          <button type="button" class="compact-button">Desabilitar</button>
+        </div>
+
+        <div class="system-control emergency-control">
+          <div>
+            <span class="system-name">Emergência</span>
+            <span class="system-state positive">Livre</span>
+          </div>
+          <button type="button" class="danger-button">PARAR TUDO</button>
+        </div>
+      </section>
+
+      <nav class="primary-nav" aria-label="Seções do painel">
+        <button type="button" class="nav-item active" data-section="home">Home</button>
+        <button type="button" class="nav-item" data-section="tasks">Tarefas</button>
+        <button type="button" class="nav-item" data-section="activity">Atividade</button>
+        <button type="button" class="nav-item" data-section="connections">Conexões</button>
+        <button type="button" class="nav-item" data-section="diagnostics">Diagnóstico</button>
+        <button type="button" class="nav-item" data-section="settings">Configurações</button>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="dot positive-dot" aria-hidden="true"></span>
+        <span>Ambiente local</span>
+      </div>
+    </aside>
+
+    <main id="mainContent" class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Operação atual</p>
+          <h1>Objetivo em execução</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="phasePill" class="phase-pill phase-executing">Executando</span>
+          <button id="openTechnicalDetails" type="button" class="secondary-button">Detalhes técnicos</button>
+        </div>
+      </header>
+
+      <section class="health-strip" aria-label="Resumo operacional">
+        <article>
+          <span class="health-label">Central</span>
+          <strong>Online</strong>
+          <small>Fila disponível</small>
+        </article>
+        <article>
+          <span class="health-label">Robô</span>
+          <strong>Online</strong>
+          <small>Lease válido</small>
+        </article>
+        <article>
+          <span class="health-label">Desktop</span>
+          <strong>Permitido</strong>
+          <small>X11 disponível</small>
+        </article>
+        <article>
+          <span class="health-label">IA</span>
+          <strong>Disponível</strong>
+          <small>3 providers</small>
+        </article>
+        <article>
+          <span class="health-label">Segurança</span>
+          <strong>Normal</strong>
+          <small>Emergency Stop livre</small>
+        </article>
+      </section>
+
+      <div class="workspace-grid">
+        <section class="objective-card" aria-labelledby="objectiveTitle">
+          <div class="objective-head">
+            <div>
+              <p class="eyebrow">Objetivo</p>
+              <h2 id="objectiveTitle">Publicar alteração no GitHub e abrir um Pull Request em modo draft</h2>
+              <p class="objective-meta">Task demo-001 · Sandbox local + Git + GitHub</p>
+            </div>
+            <div class="progress-number" aria-label="Progresso do objetivo">
+              <strong id="progressPercent">60%</strong>
+              <span id="progressLabel">3 de 5 etapas</span>
+            </div>
+          </div>
+
+          <div class="progress-track" aria-hidden="true">
+            <span id="progressBar" style="width:60%"></span>
+          </div>
+
+          <div id="operationNotice" class="operation-notice neutral-notice" role="status" aria-live="polite">
+            <div class="notice-icon" aria-hidden="true">●</div>
+            <div>
+              <strong id="noticeTitle">Publicando branch</strong>
+              <p id="noticeDescription">O Robô está executando a próxima ação autorizada. A conclusão ainda não foi comprovada.</p>
+            </div>
+          </div>
+
+          <ol id="stepList" class="step-list" aria-label="Etapas do objetivo">
+            <li class="step completed" data-step="1">
+              <div class="step-marker" aria-hidden="true">✓</div>
+              <button type="button" class="step-main" aria-expanded="false">
+                <span>
+                  <strong>Alterar arquivo</strong>
+                  <small>Estado final relido no workspace</small>
+                </span>
+                <span class="step-state">Comprovado</span>
+              </button>
+              <div class="step-detail">A verificação deve vir de leitura/hash/diff posterior, nunca apenas do receipt de escrita.</div>
+            </li>
+
+            <li class="step completed" data-step="2">
+              <div class="step-marker" aria-hidden="true">✓</div>
+              <button type="button" class="step-main" aria-expanded="false">
+                <span>
+                  <strong>Executar testes</strong>
+                  <small>Resultado observado em artefato verificável</small>
+                </span>
+                <span class="step-state">Comprovado</span>
+              </button>
+              <div class="step-detail">O receipt do processo não fecha o critério sozinho; o protótipo assume leitura independente de um resultado estruturado.</div>
+            </li>
+
+            <li class="step current" data-step="3">
+              <div class="step-marker" aria-hidden="true">3</div>
+              <button type="button" class="step-main" aria-expanded="false">
+                <span>
+                  <strong>Publicar branch</strong>
+                  <small id="currentStepSubtitle">Rota selecionada: Git CLI</small>
+                </span>
+                <span id="currentStepState" class="step-state">Executando</span>
+              </button>
+              <div class="step-detail">A rota fica fixada antes do backend. Se houver estado ambíguo depois de in_flight, nenhuma rota alternativa deve repetir cegamente o efeito.</div>
+            </li>
+
+            <li class="step pending" data-step="4">
+              <div class="step-marker" aria-hidden="true">4</div>
+              <button type="button" class="step-main" aria-expanded="false">
+                <span>
+                  <strong>Criar Pull Request</strong>
+                  <small>GitHub · draft</small>
+                </span>
+                <span class="step-state">Pendente</span>
+              </button>
+              <div class="step-detail">O efeito externo deverá possuir identidade semântica durável, recovery próprio e verificação independente da resposta de criação.</div>
+            </li>
+
+            <li class="step pending" data-step="5">
+              <div class="step-marker" aria-hidden="true">5</div>
+              <button type="button" class="step-main" aria-expanded="false">
+                <span>
+                  <strong>Verificar resultado final</strong>
+                  <small>Branch, commit e PR precisam corresponder ao contrato</small>
+                </span>
+                <span class="step-state">Pendente</span>
+              </button>
+              <div class="step-detail">Somente o GoalVerifier pode autorizar sucesso quando todos os critérios obrigatórios tiverem evidência suficiente.</div>
+            </li>
+          </ol>
+
+          <section class="verification-card" aria-labelledby="verificationTitle">
+            <div class="verification-icon" aria-hidden="true">◎</div>
+            <div>
+              <p class="eyebrow">Verificação</p>
+              <h3 id="verificationTitle">Executado não significa comprovado</h3>
+              <p id="verificationDescription">A próxima etapa será marcada como concluída somente depois que uma observação independente confirmar o estado esperado.</p>
+            </div>
+          </section>
+        </section>
+
+        <aside class="right-rail" aria-label="Resumo da operação">
+          <section class="summary-card">
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">Robô</p>
+                <h2>Operação ativa</h2>
+              </div>
+              <span class="live-indicator"><span aria-hidden="true"></span> vivo</span>
+            </div>
+
+            <dl class="summary-list">
+              <div><dt>Fase</dt><dd id="summaryPhase">Executando</dd></div>
+              <div><dt>Etapa</dt><dd id="summaryStep">3 / 5</dd></div>
+              <div><dt>Capacidade</dt><dd id="summaryCapability">git.branch.publish</dd></div>
+              <div><dt>Rota</dt><dd id="summaryRoute">Git CLI</dd></div>
+              <div><dt>Lease</dt><dd class="positive">Válido</dd></div>
+              <div><dt>Replay</dt><dd id="summaryReplay">Protegido</dd></div>
+            </dl>
+          </section>
+
+          <section class="evidence-card">
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">Evidência</p>
+                <h2>Última comprovação</h2>
+              </div>
+            </div>
+            <div class="evidence-item">
+              <span class="evidence-status" aria-hidden="true">✓</span>
+              <div>
+                <strong>Testes concluídos</strong>
+                <p>Resultado estruturado lido após a execução.</p>
+              </div>
+            </div>
+            <button type="button" class="text-button">Ver evidências sanitizadas</button>
+          </section>
+
+          <section class="connection-card">
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">Conexões</p>
+                <h2>Disponibilidade</h2>
+              </div>
+            </div>
+            <ul class="connection-list">
+              <li><span>GitHub</span><strong class="positive">Conectado</strong></li>
+              <li><span>Git</span><strong class="positive">Disponível</strong></li>
+              <li><span>Cloudflare</span><strong class="muted">Não usado</strong></li>
+            </ul>
+            <p class="privacy-note">A interface mostra somente disponibilidade. Segredos nunca aparecem nesta camada.</p>
+          </section>
+        </aside>
+      </div>
+
+      <section class="prototype-controls" aria-labelledby="prototypeControlsTitle">
+        <div>
+          <p class="eyebrow">RC visual</p>
+          <h2 id="prototypeControlsTitle">Simular estados críticos</h2>
+          <p>Estes controles existem apenas neste protótipo estático para revisar a experiência antes da quarta rodada.</p>
+        </div>
+        <div class="state-switcher" role="group" aria-label="Estado de demonstração">
+          <button type="button" class="state-demo active" data-demo-state="executing">Executando</button>
+          <button type="button" class="state-demo" data-demo-state="verifying">Verificando</button>
+          <button type="button" class="state-demo" data-demo-state="recovering">Recuperando</button>
+          <button type="button" class="state-demo" data-demo-state="safe-failure">Falha segura</button>
+          <button type="button" class="state-demo" data-demo-state="succeeded">Comprovado</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+  <aside id="technicalDrawer" class="technical-drawer" aria-labelledby="technicalDrawerTitle" aria-hidden="true">
+    <header>
+      <div>
+        <p class="eyebrow">Diagnóstico secundário</p>
+        <h2 id="technicalDrawerTitle">Detalhes técnicos</h2>
+      </div>
+      <button id="closeTechnicalDetails" type="button" class="icon-button" aria-label="Fechar detalhes técnicos">×</button>
+    </header>
+
+    <section>
+      <h3>Execução atual</h3>
+      <dl class="technical-list">
+        <div><dt>Capability</dt><dd id="drawerCapability">git.branch.publish</dd></div>
+        <div><dt>Route</dt><dd id="drawerRoute">git-cli</dd></div>
+        <div><dt>Journal</dt><dd id="drawerJournal">in_flight</dd></div>
+        <div><dt>Lease</dt><dd>valid</dd></div>
+        <div><dt>Recovery</dt><dd id="drawerRecovery">armed</dd></div>
+        <div><dt>Credential</dt><dd>github/default · disponível</dd></div>
+      </dl>
+    </section>
+
+    <section>
+      <h3>Garantias</h3>
+      <ul class="guarantee-list">
+        <li>Rota fixada antes da entrada no backend</li>
+        <li>Sem shell arbitrário fornecido pelo modelo</li>
+        <li>Receipt não autoriza sucesso</li>
+        <li>Recovery sem replay cego</li>
+        <li>Credenciais não expostas ao planner</li>
+      </ul>
+    </section>
+
+    <section class="drawer-warning">
+      <strong>Nota do protótipo</strong>
+      <p>Os valores desta tela são exemplos estáticos. Na implementação real, cada campo deverá vir de telemetria estruturada do runtime/Central — nunca inferido de logs.</p>
+    </section>
+  </aside>
+
+  <script src="./app.js"></script>
+</body>
+</html>
