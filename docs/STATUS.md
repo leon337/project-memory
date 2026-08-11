@@ -41,7 +41,7 @@ Comandos oficiais:
 
 Checkpoints atuais: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
 
-A validação local do host Linux/X11 com Python 3.12.3 passou limpa antes do smoke físico. A correção PM-LOCAL-VALIDATION-002 eliminou o teardown assíncrono do Playwright observado no primeiro ensaio do validador.
+Após a publicação de PM-DURABLE-JOURNAL-RECOVERY-OBS-001, o host Linux/X11 foi atualizado novamente e o `validar-robo` terminou limpo em Python 3.12.3: repositório PASS, working tree limpa, branch `main`, compilação PASS, `399 passed, 1 warning`, desktop habilitado PASS, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado final observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
 ## Validação física atual
 
@@ -84,7 +84,7 @@ Regressões adicionadas cobrem recovery `executed open_app` sem replay, localiza
 
 CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning de depreciação do stack de teste e zero failures. CI pós-merge da `main`, run `31459378475`: PASS em todas as etapas de instalação, Playwright, compilação e testes.
 
-Ainda não existe PASS físico da correção publicada; ele só poderá ser declarado depois de atualizar o host e repetir exatamente o smoke `after_executed`.
+Ainda não existe PASS físico da correção publicada; ele só poderá ser declarado depois de repetir exatamente o smoke `after_executed` no host agora revalidado.
 
 ## Migração, privacidade e compatibilidade
 
@@ -94,4 +94,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Máquina local validada antes da correção. Cenário físico normal: PASS. `after_backend`: PASS. Primeiro `after_executed`: anti-replay PASS, recovery/verificação FAIL. A correção correspondente está agora publicada na `main` e CI está verde. O próximo passo obrigatório é atualizar o host, executar `validar-robo` novamente e repetir exatamente o `after_executed`; a bateria de crashes permanece pausada até esse reteste real.
+Host atualizado e novamente validado após a correção, com `399 passed` e `RESULTADO: PRONTO PARA TESTE FÍSICO`. Cenário físico normal: PASS. `after_backend`: PASS. Primeiro `after_executed`: anti-replay PASS, recovery/verificação FAIL. A correção correspondente está publicada e o host está pronto; o próximo passo obrigatório é repetir exatamente o `after_executed`. A bateria de crashes permanece pausada até esse reteste real.
