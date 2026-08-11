@@ -74,6 +74,20 @@ Reteste físico após o PR #15:
 
 Conclusão: `after_executed` passa end-to-end no host Linux/X11 real, preservando zero replay de `open_app`, nova percepção independente e GoalVerifier como autoridade final.
 
+### Crash `after_prepare` — primeira metade PASS; recovery pendente
+
+Cenário: `Abra o editor de texto` com `falha-robo armar after_prepare`.
+
+Evidências da primeira metade física:
+
+- task `c376e052-8d72-4a5f-b768-e603672df252` foi criada, entregue e recebida como tentativa 1;
+- o fault injection encerrou o Robô logo após o journal registrar `prepared`;
+- Central permaneceu ONLINE e Robô ficou OFFLINE;
+- a task permaneceu `running` na tentativa 1 enquanto o lease ainda não havia sido recuperado;
+- o Xed não abriu antes do crash, coerente com o backend físico ainda não ter sido chamado.
+
+A segunda metade ainda precisa comprovar que, após restart/reclaim, a mesma task pode executar `open_app` uma única vez e concluir com percepção independente e GoalVerifier.
+
 ## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
 
 A correção foi integrada pelo PR #15 na `main` como commit `5da8df2a199747a649c9ffa4ab53ff85152f8996`.
@@ -101,4 +115,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. A bateria física pode continuar para os checkpoints restantes, um por vez, sem alterar as invariantes de anti-replay, percepção independente e GoalVerifier.
+Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: primeira metade PASS, segunda metade de recovery ainda pendente. A bateria física segue um checkpoint por vez.
