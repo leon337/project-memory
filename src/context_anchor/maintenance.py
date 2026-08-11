@@ -167,15 +167,37 @@ def update_repository(
     return {"repo_root": str(root), "commit": head, "branch": "main"}
 
 
-def _playwright_chromium_available() -> tuple[bool, str]:
-    try:
-        from playwright.sync_api import sync_playwright
+def _playwright_chromium_available(python: Path, repo_root: Path) -> tuple[bool, str]:
+    """Probe the Playwright browser path in an isolated child process.
 
-        with sync_playwright() as playwright:
-            executable = Path(playwright.chromium.executable_path)
-        return executable.exists(), str(executable)
-    except Exception as exc:  # diagnostic boundary: never hide which check failed
-        return False, f"{type(exc).__name__}: {exc}"
+    Some supported host combinations can leave Playwright driver tasks pending during
+    interpreter teardown when ``sync_playwright()`` is started inside the validator
+    process merely to inspect ``chromium.executable_path``. The physical validator
+    must finish cleanly before it can authorize a smoke test, so the short-lived
+    Playwright driver is isolated and all of its stdout/stderr is captured here.
+    """
+
+    probe_code = (
+        "from playwright.sync_api import sync_playwright\n"
+        "with sync_playwright() as playwright:\n"
+        "    print(playwright.chromium.executable_path)\n"
+    )
+    probe = _run(
+        [str(python), "-c", probe_code],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+    )
+    if probe.returncode != 0:
+        detail = (probe.stderr or probe.stdout or "probe Playwright falhou sem saída").strip()
+        return False, detail
+
+    paths = [line.strip() for line in (probe.stdout or "").splitlines() if line.strip()]
+    if not paths:
+        return False, "probe Playwright não retornou executable_path"
+
+    executable = Path(paths[-1])
+    return executable.exists(), str(executable)
 
 
 def validate_repository(
@@ -243,7 +265,7 @@ def validate_repository(
     add("xdotool", bool(desktop["xdotool"]), str(desktop["xdotool"] or "ausente"))
     add("scrot", bool(desktop["scrot"]), str(desktop["scrot"] or "ausente"))
 
-    chromium_ok, chromium_detail = _playwright_chromium_available()
+    chromium_ok, chromium_detail = _playwright_chromium_available(python, root)
     add("Chromium Playwright", chromium_ok, chromium_detail)
 
     for check in checks:
