@@ -35,6 +35,8 @@ class EmergencyStopSettings(BaseAppSettings):
 class DesktopSettings(EmergencyStopSettings):
     desktop_enabled: bool = True
     screenshot_dir: Path = Path("runtime/screenshots")
+    fault_injection_path: Path = Path("runtime/fault_injection.json")
+    fault_injection_last_path: Path = Path("runtime/fault_injection_last.json")
 
 
 class LocalAgentSettings(DesktopSettings):
