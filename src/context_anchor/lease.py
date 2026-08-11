@@ -12,6 +12,7 @@ from .action_journal import ActionJournalClient, ActionReplayBlocked
 from .desktop import DesktopFailsafeTriggered
 from .emergency_stop import EmergencyStopTriggered
 from .fault_injection import FaultInjectionController
+from .recovery_observation import observe_existing_application
 from .schemas import AgentLeaseView
 from .session_context import ArtifactKind, ContextArtifact, ContextResolution, SessionContext
 
@@ -213,6 +214,7 @@ class LeaseGuardedExecutor:
         self._executor = executor
         self._heartbeat = heartbeat
         self._fault_injection = fault_injection
+        self._recovered_open_app_observation_pending = False
         if journal is not None:
             self._journal = journal
         elif all(
@@ -320,6 +322,12 @@ class LeaseGuardedExecutor:
             recovered.setdefault("action", action_name)
             recovered["journal_recovered"] = True
             recovered["journal_action_key"] = action_key
+            if action_name == "open_app":
+                # A recovered launcher PID/window focus is not a reliable proof of
+                # the current desktop state. Keep replay blocked, but allow the
+                # next independent application observation to locate an existing
+                # managed X11 window without activating or reopening it.
+                self._recovered_open_app_observation_pending = True
             return recovered
 
         if state == "acknowledged":
@@ -342,6 +350,8 @@ class LeaseGuardedExecutor:
             journal.transition(action_key=action_key, state="in_flight")
             self._fault("after_in_flight", action_key=action_key, action_name=action_name)
         try:
+            if action_name == "open_app":
+                self._recovered_open_app_observation_pending = False
             result = self._guarded_call(self._executor.execute, plan)
         except Exception:
             # Deliberately leave IN_FLIGHT when backend entry was possible. A
@@ -363,7 +373,29 @@ class LeaseGuardedExecutor:
         return self._guarded_call(self._executor.observe_browser, **kwargs)
 
     def observe_application(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        return self._guarded_call(self._executor.observe_application, *args, **kwargs)
+        observed = self._guarded_call(self._executor.observe_application, *args, **kwargs)
+        if observed.get("verified") or not self._recovered_open_app_observation_pending:
+            return observed
+
+        app_id = ""
+        if args:
+            app_id = str(args[0])
+        elif kwargs.get("app_id") is not None:
+            app_id = str(kwargs["app_id"])
+        if not app_id:
+            return observed
+
+        recovered_observation = self._guarded_call(
+            observe_existing_application,
+            app_id,
+        )
+        if recovered_observation.get("verified"):
+            self._recovered_open_app_observation_pending = False
+            return recovered_observation
+
+        result = dict(observed)
+        result["recovery_existing_window_checked"] = True
+        return result
 
     def read_active_text(self, **kwargs: Any) -> dict[str, Any]:
         return self._guarded_call(self._executor.read_active_text, **kwargs)
