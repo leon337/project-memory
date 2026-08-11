@@ -74,11 +74,49 @@ Não existe `VERIFIED` no journal. Verificação continua no Evidence Ledger/Goa
 
 Apenas `active_window` e `capture_screen` são repeat-safe atualmente.
 
+## Fault injection físico controlado
+
+`fault_injection.py` adiciona uma infraestrutura local de validação, não uma nova autoridade de execução.
+
+O armamento é persistido em arquivo sob `runtime/`, fica desligado por padrão e não possui endpoint no Painel ou na Central. O comando local `falha-robo` pode armar um checkpoint one-shot.
+
+Checkpoints:
+
+```text
+LeaseGuardedExecutor
+  prepare journal
+  → after_prepare
+  transition in_flight
+  → after_in_flight
+  backend físico real retorna
+  → after_backend
+  transition executed
+  → after_executed
+  ... Goal Runtime / verifier ...
+LocalAgent
+  → before_ack
+  POST resultado terminal para Central
+  → after_ack
+```
+
+Ao atingir o checkpoint armado, `FaultInjectionController`:
+
+1. consome atomicamente o arquivo de armamento;
+2. grava um evento técnico sanitizado;
+3. encerra somente o processo do Robô local com código próprio;
+4. não rearma automaticamente no restart.
+
+O controlador não simula mouse, teclado, navegador, SQLite, journal ou lease. Ele controla somente o instante do crash para tornar a prova física reproduzível.
+
+`after_in_flight` é deliberadamente conservador: embora o checkpoint de teste ocorra antes da chamada do backend, o estado durável já é `in_flight`; um processo recuperado deve julgar apenas o que está persistido e, para ação não repeat-safe, falhar fechado.
+
 ## ACK e Session Context
 
 ACK é a resposta terminal aceita pela Central depois de `TaskStore.complete_task` validar lease/token/expiração. Contexto entre tasks só é commitado após esse ACK.
 
 O journal é marcado `acknowledged` depois da terminalização da task. Isso não é uma transação distribuída; a segurança vem do fato de a task já ser terminal e da reconciliação no startup.
+
+Os checkpoints `before_ack` e `after_ack` existem apenas para validação controlada e não alteram a ordem normal de terminalização/context commit.
 
 ## Persistência e migração
 
@@ -92,6 +130,50 @@ Migração:
 - legacy já iniciada (`running` ou attempts>0): terminaliza `failed` por ambiguidade, sem replay.
 
 `action_journal` possui PK `(task_id, action_key)`, timestamps, estado, flag repeat-safe e receipt JSON mínimo. Cleanup automático remove apenas `acknowledged` depois da retenção configurável, padrão 30 dias.
+
+Fault injection não modifica o schema SQLite. Seus arquivos locais ficam em `runtime/`, que permanece fora do Git.
+
+## Atualização e validação local
+
+`maintenance.py` fornece duas interfaces operacionais instaladas com o pacote:
+
+```text
+atualizar-robo
+validar-robo
+```
+
+### `atualizar-robo`
+
+Fluxo:
+
+```text
+confirmar repositório/origin
+→ exigir working tree limpa
+→ fetch origin/main
+→ bloquear main com commits locais não publicados
+→ switch main
+→ fast-forward only
+→ criar/reusar .venv
+→ pip install -e '.[dev]'
+→ instalar/sincronizar Chromium do Playwright
+→ mostrar commit instalado
+```
+
+Não há `reset --hard`, `git clean`, rebase automático ou reescrita de histórico.
+
+### `validar-robo`
+
+Valida sem executar ações físicas:
+
+- repositório/branch/working tree;
+- Python 3.11+;
+- compilação `src + tests`;
+- suíte pytest;
+- backend desktop habilitado e sessão X11;
+- PyAutoGUI, Pillow, PyScreeze, `xdotool` e `scrot`;
+- Chromium do Playwright.
+
+Só o resultado `PRONTO PARA TESTE FÍSICO` libera a bateria manual/real subsequente.
 
 ## Percepção e conclusão
 
@@ -124,7 +206,7 @@ Permanecem obrigatórios:
 - credenciais fora de Git/logs/prompts;
 - localhost por padrão.
 
-O journal não enfraquece nenhuma dessas barreiras e não cria um caminho paralelo de sucesso.
+Fault injection não é uma rota de operação normal, fica desarmado por padrão e não cria endpoint remoto. O journal e as ferramentas de validação não enfraquecem nenhuma dessas barreiras e não criam um caminho paralelo de sucesso.
 
 ## Providers
 
