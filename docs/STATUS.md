@@ -74,19 +74,19 @@ Reteste físico após o PR #15:
 
 Conclusão: `after_executed` passa end-to-end no host Linux/X11 real, preservando zero replay de `open_app`, nova percepção independente e GoalVerifier como autoridade final.
 
-### Crash `after_prepare` — primeira metade PASS; recovery pendente
+### Crash `after_prepare` — PASS
 
 Cenário: `Abra o editor de texto` com `falha-robo armar after_prepare`.
 
-Evidências da primeira metade física:
+- task `c376e052-8d72-4a5f-b768-e603672df252` caiu na tentativa 1 depois de persistir `prepared` e antes de chamar o backend físico;
+- antes do crash o Xed não abriu, confirmando ausência de efeito físico;
+- Central permaneceu online e Robô ficou offline;
+- após religar o Robô e ocorrer reclaim, a mesma task voltou como tentativa 2;
+- nessa segunda tentativa o Xed abriu fisicamente uma única vez;
+- a task terminou `succeeded`;
+- logs registraram `Tarefa recebida`, `Tarefa executada ... resultado=sucesso` e `Resultado enviado ... status=succeeded` para a mesma task recuperada.
 
-- task `c376e052-8d72-4a5f-b768-e603672df252` foi criada, entregue e recebida como tentativa 1;
-- o fault injection encerrou o Robô logo após o journal registrar `prepared`;
-- Central permaneceu ONLINE e Robô ficou OFFLINE;
-- a task permaneceu `running` na tentativa 1 enquanto o lease ainda não havia sido recuperado;
-- o Xed não abriu antes do crash, coerente com o backend físico ainda não ter sido chamado.
-
-A segunda metade ainda precisa comprovar que, após restart/reclaim, a mesma task pode executar `open_app` uma única vez e concluir com percepção independente e GoalVerifier.
+Conclusão: estado `prepared` é recuperável com segurança porque o backend físico ainda não havia sido chamado; a ação pode ser executada uma vez após reclaim e continuar sujeita à percepção independente e GoalVerifier.
 
 ## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
 
@@ -115,4 +115,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: primeira metade PASS, segunda metade de recovery ainda pendente. A bateria física segue um checkpoint por vez.
+Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. O próximo checkpoint físico é `after_in_flight`, seguido por `before_ack` e `after_ack`, sempre um por vez e preservando as invariantes de anti-replay, percepção independente e GoalVerifier.
