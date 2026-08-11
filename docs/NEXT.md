@@ -1,16 +1,16 @@
 # NEXT
 
-## 1. Validar `after_in_flight`
+## 1. Concluir `after_in_flight`
 
-No host Linux/X11 já validado, fechar o Xed anterior, armar `falha-robo armar after_in_flight` e executar exatamente `Abra o editor de texto` pelo Painel.
+A primeira metade física já passou: task `8e993f29-273c-4024-9219-f4503ece4600` caiu na tentativa 1 depois de persistir `in_flight`, antes da chamada ao backend no checkpoint controlado; Central ficou online, Robô offline e Xed não abriu.
 
-Primeira metade esperada: o Journal já entra em `in_flight`, mas o fault injection encerra o Robô antes da chamada física ao backend neste checkpoint controlado; Xed não deve abrir antes do crash.
+Agora religar somente o Robô pelo Painel. Não abrir o Xed manualmente e não enviar outra tarefa. A task pode permanecer `running` na tentativa 1 até o lease expirar; aguardar o reclaim normal.
 
-Após restart/reclaim, a mesma task deve encontrar estado durável ambíguo `in_flight` e falhar fechada com `ActionReplayBlocked`, sem emitir fisicamente `open_app`. Esse `failed` é PASS de segurança porque o sistema não pode provar se um efeito externo teria ocorrido numa queda real nesse estado.
+Critério de PASS: a mesma task volta como tentativa 2, encontra estado durável ambíguo `in_flight`, gera `ActionReplayBlocked`, não emite fisicamente `open_app` e termina `failed` fail-closed. Esse `failed` é o resultado correto de segurança.
 
 ## 2. Validar `before_ack`
 
-Somente após PASS de `after_in_flight`, executar `falha-robo armar before_ack` em um cenário controlado. Critério: ação física e verificação podem ter concluído, mas a queda antes da aceitação terminal da Central não pode causar replay do efeito físico no reclaim. Receipt recuperado continua insuficiente sozinho; percepção/GoalVerifier e estado terminal da Central permanecem autoridades.
+Somente após PASS completo de `after_in_flight`, executar `falha-robo armar before_ack` em um cenário controlado. Critério: ação física e verificação podem ter concluído, mas a queda antes da aceitação terminal da Central não pode causar replay do efeito físico no reclaim. Receipt recuperado continua insuficiente sozinho; percepção/GoalVerifier e estado terminal da Central permanecem autoridades.
 
 ## 3. Validar `after_ack`
 
