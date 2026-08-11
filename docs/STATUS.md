@@ -79,8 +79,10 @@ CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning 
 
 O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist. Fault injection persiste somente identificadores técnicos sanitizados.
 
-Existe um stash temporário com arquivos locais criado antes da atualização. A matriz física já foi concluída; falta sincronizar a documentação final no host e restaurar esse stash com conferência explícita antes de removê-lo.
+A restauração do ambiente local foi concluída em 2026-08-11: a `main` local foi sincronizada por `atualizar-robo`, o stash temporário `backup-local-antes-atualizacao-2026-08-10` foi aplicado, os arquivos locais reapareceram como não rastreados (`??`), o stash permaneceu disponível durante a conferência e só então foi removido com `git stash drop`. Após o drop, `git stash list` ficou sem esse backup e os arquivos locais continuaram presentes. Não foram observados marcadores de conflito na saída conferida.
+
+O working tree local volta a conter deliberadamente esses arquivos locais não rastreados; isso é estado esperado do host e deve ser tratado antes de uma futura execução de `atualizar-robo`, que exige working tree limpa.
 
 ## Situação
 
-PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para a matriz planejada. Nenhum checkpoint físico permanece pendente. Próxima atividade operacional: sincronizar a `main` local e restaurar com segurança o stash temporário, sem descartá-lo antes da conferência dos arquivos restaurados.
+PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada, e o ambiente local foi restaurado sem perda visível dos arquivos preservados. Nenhum checkpoint físico do Durable Journal permanece pendente. A próxima fase de implementação ainda não foi escolhida por Leandro.
