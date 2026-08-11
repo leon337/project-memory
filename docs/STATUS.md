@@ -14,6 +14,7 @@ O Durable Journal usa o SQLite da Central e protege a janela de replay com `task
 
 Comandos oficiais locais:
 
+- `empacotar-locais`: preservação verificada de arquivos locais não rastreados antes de limpar o working tree;
 - `atualizar-robo`: atualização segura por fast-forward;
 - `validar-robo`: compilação, pytest e requisitos Linux/X11/desktop/Chromium;
 - `falha-robo`: fault injection local-only, one-shot.
@@ -83,7 +84,19 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 A restauração do ambiente local foi concluída em 2026-08-11: a `main` local foi sincronizada por `atualizar-robo`, o stash temporário `backup-local-antes-atualizacao-2026-08-10` foi aplicado, os arquivos locais reapareceram como não rastreados (`??`), o stash permaneceu disponível durante a conferência e só então foi removido com `git stash drop`. Após o drop, `git stash list` ficou sem esse backup e os arquivos locais continuaram presentes. Não foram observados marcadores de conflito na saída conferida.
 
-O working tree local volta a conter deliberadamente esses arquivos locais não rastreados; isso é estado esperado do host e deve ser tratado antes de uma futura execução de `atualizar-robo`, que exige working tree limpa.
+O working tree local continua contendo esses arquivos locais não rastreados. Em 2026-08-11, uma nova tentativa de `atualizar-robo` retornou `RESULTADO: STOP`, corretamente, sem descartar arquivos. O `git status` confirmou que a sujeira observada é composta por materiais não monitorados pelo Git; o host ainda não foi limpo nem atualizado para a `main` nova.
+
+## Empacotamento seguro de arquivos locais — implementado na `main`, teste físico pendente
+
+Foi adicionada a rotina `context_anchor.local_archive` e registrado o comando `empacotar-locais` no pacote. A finalidade é resolver exatamente o caso em que materiais pessoais/auxiliares não rastreados impedem `atualizar-robo` de operar.
+
+A rotina seleciona somente arquivos retornados por `git ls-files --others --exclude-standard`, recusa alterações em arquivos rastreados, recusa links simbólicos e caminhos que escapem da raiz, exige destino fora do repositório, localiza a Área de Trabalho via `xdg-user-dir` com fallback local e cria um ZIP timestampado preservando caminhos relativos.
+
+Antes de remover qualquer original, o ZIP passa por `ZipFile.testzip()` e por comparação SHA-256 do conteúdo arquivado com os arquivos de origem. Os arquivos de origem também são re-hashados imediatamente antes da remoção; mudança concorrente interrompe o processo. Falha de criação/verificação remove apenas o ZIP parcial e preserva os originais. Diretórios só são removidos se ficarem vazios.
+
+Foram adicionados quatro testes dedicados cobrindo: empacotamento de arquivos não rastreados com nomes Unicode e estrutura aninhada; STOP quando existe alteração rastreada; STOP quando o destino fica dentro do repositório; e preservação dos originais quando a verificação do ZIP falha. O job de CI do commit `abd0de4ea9a65a0e660ea9efbc1464bbc0f5bdf5`, run `31547985476`, concluiu com sucesso, incluindo compile e test.
+
+O teste no host real ainda está pendente porque a versão local anterior não contém o novo comando e não pode receber a atualização enquanto o working tree estiver sujo. O bootstrap combinado é baixar apenas `src/context_anchor/local_archive.py` da `main` para fora do repositório, executá-lo contra `/home/leo/project-memory`, conferir o ZIP e o resultado de working tree limpa e somente então executar `atualizar-robo` e `validar-robo`.
 
 ## Próxima direção estratégica aprovada
 
@@ -131,6 +144,6 @@ A finalidade é auditar arquitetura de informação e UX antes da quarta rodada.
 
 ## Situação
 
-PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada, e o ambiente local foi restaurado sem perda visível dos arquivos preservados. Nenhum checkpoint físico do Durable Journal permanece pendente.
+PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada e nenhum checkpoint físico do Durable Journal permanece pendente.
 
-A direção de produto está definida, a RC 3.5 foi concluída como proposta e existe agora um protótipo HTML/CSS/JavaScript versionado no próprio repositório para auditoria visual. O próximo passo é revisar esse protótipo e aprovar, modificar ou rejeitar as conclusões da RC antes da quarta rodada. Só depois disso a arquitetura aprovada deve ser registrada em `ARCHITECTURE.md`/`DECISIONS.md` e convertida em contrato implementável.
+A direção de produto está definida, a RC 3.5 foi concluída como proposta e existe um protótipo HTML/CSS/JavaScript versionado no próprio repositório para auditoria visual. A `main` também contém agora a rotina segura de empacotamento dos arquivos locais, com CI verde, mas o host ainda precisa executar esse bootstrap, atualizar e validar antes de abrir o protótipo. Depois disso, o próximo passo de produto volta a ser revisar o protótipo e aprovar, modificar ou rejeitar as conclusões da RC antes da quarta rodada.
