@@ -4,145 +4,75 @@
 
 Manter um operador digital local que recebe objetivos em linguagem natural e executa ações físicas em ciclo fechado, sem declarar `succeeded` até que o estado final seja comprovado por percepção independente e GoalVerifier.
 
-## Estado verificável desta versão
+## Base verificável atual
 
-A base consolidada contém Home V4.1, Goal Runtime universal, FOCUS-RACE-001, providers Z.AI/Gemini/Cloudflare Workers AI, Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE, Emergency Stop, Session Context pós-ACK, PM-DURABLE-JOURNAL-001, PM-LOCAL-VALIDATION-001, PM-LOCAL-VALIDATION-002 e PM-DURABLE-JOURNAL-RECOVERY-OBS-001.
+A `main` consolidada contém Home V4.1, Goal Runtime universal, FOCUS-RACE-001, providers Z.AI/Gemini/Cloudflare Workers AI, Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE, Emergency Stop, Session Context pós-ACK, PM-DURABLE-JOURNAL-001, PM-LOCAL-VALIDATION-001, PM-LOCAL-VALIDATION-002 e PM-DURABLE-JOURNAL-RECOVERY-OBS-001.
 
-### Durable Journal
+O Durable Journal usa o mesmo SQLite da Central e protege a janela de replay com `task_id + action_key` e estados `prepared -> in_flight -> executed -> acknowledged`. Ação não repeat-safe em `in_flight` falha fechada; `executed` não substitui percepção independente nem GoalVerifier. Apenas `active_window` e `capture_screen` são repeat-safe nesta fase.
 
-A janela `ação física → crash → ACK ausente → reclaim → possível replay` é protegida pelo journal durável no SQLite da Central:
+Comandos oficiais locais:
 
-```text
-task_id + action_key
-        ↓
-prepared
-        ↓
-in_flight
-        ↓
-executed
-        ↓
-acknowledged
-```
-
-- `prepared`: backend físico ainda não foi chamado;
-- `in_flight`: backend pode ter produzido efeito; ação não repeat-safe fica fail-closed;
-- `executed`: chamada física retornou e receipt mínimo foi persistido; não autoriza conclusão sem percepção independente;
-- `acknowledged`: Central aceitou a task terminal e a row pode entrar em cleanup por retenção.
-
-`action_key` é fingerprint task-scoped de `action + target`, sem target bruto persistido e sem contador implícito de retry. Apenas `active_window` e `capture_screen` são repeat-safe nesta fase.
-
-### Operação e validação local
-
-Comandos oficiais:
-
-- `atualizar-robo`: atualização segura por fast-forward, recusando working tree suja ou commits locais não publicados;
+- `atualizar-robo`: atualização segura por fast-forward;
 - `validar-robo`: compilação, pytest e requisitos Linux/X11/desktop/Chromium;
-- `falha-robo`: fault injection local-only, one-shot, sem endpoint de rede e sem simular a ação física.
+- `falha-robo`: fault injection local-only, one-shot.
 
-Checkpoints atuais: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
+Checkpoints físicos disponíveis: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
 
-Após a publicação de PM-DURABLE-JOURNAL-RECOVERY-OBS-001, o host Linux/X11 foi atualizado e o `validar-robo` terminou limpo em Python 3.12.3: repositório PASS, working tree limpa, branch `main`, compilação PASS, `399 passed, 1 warning`, desktop habilitado PASS, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado final observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+O host Linux/X11 foi validado em Python 3.12.3 com `399 passed, 1 warning`, compilação PASS, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
-## Validação física atual
+## Matriz física atual
 
 ### Cenário normal — PASS
 
-Objetivo: `Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001`.
+Objetivo `Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001`: Xed abriu fisicamente, o texto apareceu uma única vez, readback foi confirmado, GoalVerifier marcou `SUCCEEDED` e a task terminou `succeeded`.
 
-Evidências: editor abriu fisicamente; texto apareceu exatamente uma vez; readback `Confirmado`; GoalVerifier `SUCCEEDED`; task `succeeded`; logs sem duplicidade visível.
+### `after_backend` — PASS fail-closed
 
-### Crash `after_backend` — PASS
+Task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c`: após crash/reclaim voltou como tentativa 2, encontrou `open_app` em `in_flight`, gerou `ActionReplayBlocked`, registrou replay físico bloqueado e terminou `failed` sem nova emissão física autorizada.
 
-Cenário: `Abra o editor de texto` com `falha-robo armar after_backend`.
+### `after_executed` — PASS após correção
 
-Após restart/reclaim, a mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` voltou como tentativa 2, encontrou `open_app` em `in_flight`, gerou `ActionReplayBlocked`, registrou `Replay físico bloqueado ... state=in_flight` e terminou `failed` fail-closed sem nova emissão autorizada de `open_app`.
+Primeiro ensaio revelou falha de observação do Xed já aberto após restart; isso originou o issue #14 e PM-DURABLE-JOURNAL-RECOVERY-OBS-001, integrado pelo PR #15. No reteste, task `6d07986b-5865-46bc-ac36-375b22c498e1` caiu após `executed`, permaneceu com Xed aberto, foi recuperada como tentativa 2 sem reemitir `open_app`, percebeu o Xed existente e terminou `succeeded`.
 
-### Crash `after_executed` — PASS após correção
+### `after_prepare` — PASS
 
-Primeiro ensaio físico: task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` preservou zero replay, mas falhou ao observar o Xed já aberto após restart porque Painel/Brave estava ativo. Isso originou o issue #14 e a correção PM-DURABLE-JOURNAL-RECOVERY-OBS-001.
+Task `c376e052-8d72-4a5f-b768-e603672df252`: caiu na tentativa 1 depois de `prepared` e antes do backend; Xed não abriu. Após reclaim voltou como tentativa 2, executou `open_app` uma única vez e terminou `succeeded`.
 
-Reteste físico após o PR #15:
+### `after_in_flight` — PASS fail-closed
 
-- task `6d07986b-5865-46bc-ac36-375b22c498e1` executou `Abra o editor de texto`;
-- o fault injection encerrou o Robô após o journal persistir `executed`;
-- o Xed permaneceu aberto;
-- após expiração do lease, a mesma task foi recuperada como tentativa 2;
-- não foi observada nova abertura física do editor;
-- a percepção independente reconheceu o Xed já existente no recovery;
-- a task terminou `succeeded` na tentativa 2;
-- logs registraram `Tarefa recebida`, `Tarefa executada ... resultado=sucesso` e `Resultado enviado ... status=succeeded` para a mesma task recuperada.
+Task `8e993f29-273c-4024-9219-f4503ece4600`: caiu após persistir `in_flight` e antes do backend no checkpoint controlado; Xed não abriu. Após reclaim voltou como tentativa 2, encontrou estado ambíguo, registrou `ActionReplayBlocked`, não abriu Xed e terminou `failed`, que é o resultado correto de segurança.
 
-Conclusão: `after_executed` passa end-to-end no host Linux/X11 real, preservando zero replay de `open_app`, nova percepção independente e GoalVerifier como autoridade final.
+### `before_ack` — PASS
 
-### Crash `after_prepare` — PASS
+Task `3b55952e-2e99-4d86-8d1b-f537111e5c12`: Xed abriu, o Robô chegou a resultado local de sucesso e caiu antes do aceite terminal da Central. Após expiração/reclaim voltou como tentativa 2, não houve nova abertura física observada e a task terminou `succeeded` após nova observação/GoalVerifier.
 
-Cenário: `Abra o editor de texto` com `falha-robo armar after_prepare`.
+### `after_ack` — primeira metade PASS, restart final pendente
 
-- task `c376e052-8d72-4a5f-b768-e603672df252` caiu na tentativa 1 depois de persistir `prepared` e antes de chamar o backend físico;
-- antes do crash o Xed não abriu, confirmando ausência de efeito físico;
-- Central permaneceu online e Robô ficou offline;
-- após religar o Robô e ocorrer reclaim, a mesma task voltou como tentativa 2;
-- nessa segunda tentativa o Xed abriu fisicamente uma única vez;
-- a task terminou `succeeded`;
-- logs registraram `Tarefa recebida`, `Tarefa executada ... resultado=sucesso` e `Resultado enviado ... status=succeeded` para a mesma task recuperada.
+Task `39cbc255-ee3b-4c83-a34b-678883993a47`:
 
-Conclusão: estado `prepared` é recuperável com segurança porque o backend físico ainda não havia sido chamado; a ação pode ser executada uma vez após reclaim e continuar sujeita à percepção independente e GoalVerifier.
+- `falha-robo armar after_ack` foi armado corretamente;
+- Xed abriu fisicamente;
+- a Central registrou a task como `succeeded` na tentativa 1 antes da queda;
+- o Histórico mostra `Tarefa finalizada ... status=succeeded` e o Robô registrando `Tarefa executada ... resultado=sucesso`;
+- após o checkpoint `after_ack`, Central permaneceu online e Robô ficou offline;
+- em Tarefas, a mesma task já aparece `succeeded` na tentativa 1.
 
-### Crash `after_in_flight` — PASS
+Primeira metade classificada como PASS. Falta religar somente o Robô e comprovar que a task continua terminal, não volta à fila, não ganha tentativa 2 e não reexecuta fisicamente `open_app`.
 
-Cenário: `Abra o editor de texto` com `falha-robo armar after_in_flight`.
+## PM-DURABLE-JOURNAL-RECOVERY-OBS-001
 
-- task `8e993f29-273c-4024-9219-f4503ece4600` foi criada, entregue e recebida na tentativa 1;
-- o Robô caiu depois da transição durável para `in_flight` e antes da chamada física ao backend no checkpoint controlado;
-- antes do crash o Xed não abriu;
-- Central permaneceu online e Robô ficou offline;
-- após religar o Robô e expirar o lease, a mesma task voltou como tentativa 2;
-- o Journal encontrou `open_app` em estado `in_flight`;
-- o Robô registrou `Replay físico bloqueado ... state=in_flight` e não abriu o Xed;
-- a task terminou `failed` fail-closed, que é o resultado correto de segurança neste estado ambíguo.
+Concluída e integrada pelo PR #15. O recovery de `executed open_app` permanece zero-replay; quando necessário, a observação X11 passiva localiza janelas existentes sem focar, abrir, clicar ou digitar. Um XID recuperado é usado apenas como guarda efêmera para impedir teclado na janela errada. ExecutionReceipt continua insuficiente como prova de efeito; GoalVerifier continua autoridade final.
 
-Conclusão: `in_flight` não é tratado como autorização para repetir uma ação não repeat-safe. O recovery bloqueia replay físico quando não há prova suficiente de que o efeito externo ocorreu ou não ocorreu.
+CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning e zero failures. CI pós-merge da `main`, run `31459378475`: PASS. Issue #14 encerrado como `completed` após reteste físico PASS.
 
-### Crash `before_ack` — PASS
+## Migração, privacidade e ambiente local
 
-Cenário: `Abra o editor de texto` com `falha-robo armar before_ack`.
+`tasks` possui `journal_version` e `action_journal` é aditiva. Task legada nunca iniciada pode ser promovida; task legada já iniciada sem journal falha fechada por ambiguidade.
 
-- task `3b55952e-2e99-4d86-8d1b-f537111e5c12` foi criada, entregue e recebida na tentativa 1;
-- o Xed abriu fisicamente;
-- o Robô registrou localmente `Tarefa executada ... resultado=sucesso` e caiu antes do aceite terminal da Central;
-- Central permaneceu online, Robô ficou offline e a task permaneceu `running` na tentativa 1;
-- após religar o Robô e expirar o lease, a mesma task foi entregue novamente como tentativa 2;
-- o recovery concluiu a mesma task sem evidência de nova abertura física do editor;
-- logs da tentativa 2 registraram `Tarefa recebida`, `Tarefa executada ... resultado=sucesso` e `Resultado enviado ... status=succeeded`;
-- a Central registrou a task como `succeeded` na tentativa 2.
+O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist. Fault injection persiste somente identificadores técnicos sanitizados.
 
-Conclusão: a queda depois da ação/verificação local, mas antes do ACK terminal da Central, não força replay físico cego; o estado executado é recuperado e a task pode concluir após nova observação/GoalVerifier.
-
-## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
-
-A correção foi integrada pelo PR #15 na `main` como commit `5da8df2a199747a649c9ffa4ab53ff85152f8996`.
-
-Implementação publicada:
-
-- recovery de `executed open_app` continua zero-replay; o backend físico não é chamado novamente;
-- o receipt recuperado apenas arma um marcador efêmero para exigir nova observação independente;
-- a observação normal da janela ativa continua sendo tentada primeiro;
-- se ela falhar nesse recovery específico, `recovery_observation.py` enumera passivamente janelas X11 já gerenciadas via `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST`, compara `WM_CLASS` e consulta XID/título/PID/processo quando disponíveis;
-- a observação passiva não abre, ativa, levanta ou foca janela, não clica e não digita;
-- XIDs são normalizados para comparação consistente com `xdotool`;
-- quando uma janela recuperada é reconhecida, seu XID fica apenas como guarda efêmera: `type_text`/`press_key` falham fechados se outra janela estiver ativa;
-- EvidenceRecord e GoalVerifier continuam responsáveis pela conclusão; ExecutionReceipt continua insuficiente como prova de efeito.
-
-Regressões adicionadas cobrem recovery `executed open_app` sem replay, localização passiva de Xed inativo enquanto outra janela está ativa e recusa de teclado quando o foco não está na janela recuperada.
-
-CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning e zero failures. CI pós-merge da `main`, run `31459378475`: PASS em todas as etapas. O reteste físico posterior também passou. Issue #14 encerrado como `completed`.
-
-## Migração, privacidade e compatibilidade
-
-`tasks` possui `journal_version` e `action_journal` é aditiva. Task legada nunca iniciada (`queued`, `attempts=0`) pode ser promovida; task legada já iniciada sem journal falha fechada por ambiguidade.
-
-O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist no agente e na Central. Fault injection persiste apenas checkpoint, PID e identificadores técnicos sanitizados. A observação de recovery consulta metadados atuais de janelas/processos X11 necessários à verificação e não persiste objetivo ou target bruto.
+Existe um stash temporário com arquivos locais criado antes da atualização. Ele deve permanecer preservado até o encerramento da matriz física e então ser restaurado com conferência explícita.
 
 ## Situação
 
-Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. `after_in_flight`: PASS fail-closed. `before_ack`: PASS end-to-end. Resta somente o checkpoint físico `after_ack`; depois consolidar a matriz e restaurar com segurança o stash local.
+Cenário normal: PASS. `after_backend`: PASS fail-closed. `after_executed`: PASS. `after_prepare`: PASS. `after_in_flight`: PASS fail-closed. `before_ack`: PASS. `after_ack`: primeira metade PASS e restart final pendente. Depois desse último comprovante, consolidar a matriz completa e restaurar com segurança o stash local.
