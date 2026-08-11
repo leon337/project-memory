@@ -34,6 +34,7 @@ parar-robo = "context_anchor.emergency_stop:main"
 diagnostico-robo = "context_anchor.doctor:main"
 
 # Manutenção local e validação reproduzível.
+empacotar-locais = "context_anchor.local_archive:main"
 atualizar-robo = "context_anchor.maintenance:main_update"
 validar-robo = "context_anchor.maintenance:main_validate"
 falha-robo = "context_anchor.fault_injection:main"
