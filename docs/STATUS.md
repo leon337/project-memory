@@ -41,7 +41,7 @@ Comandos oficiais:
 
 Checkpoints atuais: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
 
-Após a publicação de PM-DURABLE-JOURNAL-RECOVERY-OBS-001, o host Linux/X11 foi atualizado novamente e o `validar-robo` terminou limpo em Python 3.12.3: repositório PASS, working tree limpa, branch `main`, compilação PASS, `399 passed, 1 warning`, desktop habilitado PASS, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado final observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+Após a publicação de PM-DURABLE-JOURNAL-RECOVERY-OBS-001, o host Linux/X11 foi atualizado e o `validar-robo` terminou limpo em Python 3.12.3: repositório PASS, working tree limpa, branch `main`, compilação PASS, `399 passed, 1 warning`, desktop habilitado PASS, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado final observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
 ## Validação física atual
 
@@ -57,15 +57,24 @@ Cenário: `Abra o editor de texto` com `falha-robo armar after_backend`.
 
 Após restart/reclaim, a mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` voltou como tentativa 2, encontrou `open_app` em `in_flight`, gerou `ActionReplayBlocked`, registrou `Replay físico bloqueado ... state=in_flight` e terminou `failed` fail-closed sem nova emissão autorizada de `open_app`.
 
-### Crash `after_executed` — anti-replay PASS, recovery end-to-end FAIL no primeiro ensaio
+### Crash `after_executed` — PASS após correção
 
-Cenário: `Abra o editor de texto` com `falha-robo armar after_executed`.
+Primeiro ensaio físico: task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` preservou zero replay, mas falhou ao observar o Xed já aberto após restart porque Painel/Brave estava ativo. Isso originou o issue #14 e a correção PM-DURABLE-JOURNAL-RECOVERY-OBS-001.
 
-No primeiro ensaio físico, a task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` abriu Xed e caiu depois de persistir `executed`. No reclaim como tentativa 2 não houve nova abertura física, mas a task terminou `failed` com `GoalExecutionFailed: RuntimeError: Xed abriu, mas a capacidade não foi observada`, apesar de o Xed continuar aberto. O Painel/Brave havia se tornado a janela ativa durante o restart.
+Reteste físico após o PR #15:
 
-## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — publicada; reteste físico pendente
+- task `6d07986b-5865-46bc-ac36-375b22c498e1` executou `Abra o editor de texto`;
+- o fault injection encerrou o Robô após o journal persistir `executed`;
+- o Xed permaneceu aberto;
+- após expiração do lease, a mesma task foi recuperada como tentativa 2;
+- não foi observada nova abertura física do editor;
+- a percepção independente reconheceu o Xed já existente no recovery;
+- a task terminou `succeeded` na tentativa 2;
+- logs registraram `Tarefa recebida`, `Tarefa executada ... resultado=sucesso` e `Resultado enviado ... status=succeeded` para a mesma task recuperada.
 
-O issue #14 registra a falha acima e permanece aberto até prova física da correção.
+Conclusão: `after_executed` passa end-to-end no host Linux/X11 real, preservando zero replay de `open_app`, nova percepção independente e GoalVerifier como autoridade final.
+
+## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
 
 A correção foi integrada pelo PR #15 na `main` como commit `5da8df2a199747a649c9ffa4ab53ff85152f8996`.
 
@@ -77,14 +86,12 @@ Implementação publicada:
 - se ela falhar nesse recovery específico, `recovery_observation.py` enumera passivamente janelas X11 já gerenciadas via `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST`, compara `WM_CLASS` e consulta XID/título/PID/processo quando disponíveis;
 - a observação passiva não abre, ativa, levanta ou foca janela, não clica e não digita;
 - XIDs são normalizados para comparação consistente com `xdotool`;
-- quando uma janela recuperada é reconhecida, seu XID fica apenas como guarda efêmera: `type_text`/`press_key` falham fechados se outra janela estiver ativa, evitando teclado acidental no Painel/Brave;
+- quando uma janela recuperada é reconhecida, seu XID fica apenas como guarda efêmera: `type_text`/`press_key` falham fechados se outra janela estiver ativa;
 - EvidenceRecord e GoalVerifier continuam responsáveis pela conclusão; ExecutionReceipt continua insuficiente como prova de efeito.
 
 Regressões adicionadas cobrem recovery `executed open_app` sem replay, localização passiva de Xed inativo enquanto outra janela está ativa e recusa de teclado quando o foco não está na janela recuperada.
 
-CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning de depreciação do stack de teste e zero failures. CI pós-merge da `main`, run `31459378475`: PASS em todas as etapas de instalação, Playwright, compilação e testes.
-
-Ainda não existe PASS físico da correção publicada; ele só poderá ser declarado depois de repetir exatamente o smoke `after_executed` no host agora revalidado.
+CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning e zero failures. CI pós-merge da `main`, run `31459378475`: PASS em todas as etapas. O reteste físico posterior também passou. Issue #14 encerrado como `completed`.
 
 ## Migração, privacidade e compatibilidade
 
@@ -94,4 +101,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Host atualizado e novamente validado após a correção, com `399 passed` e `RESULTADO: PRONTO PARA TESTE FÍSICO`. Cenário físico normal: PASS. `after_backend`: PASS. Primeiro `after_executed`: anti-replay PASS, recovery/verificação FAIL. A correção correspondente está publicada e o host está pronto; o próximo passo obrigatório é repetir exatamente o `after_executed`. A bateria de crashes permanece pausada até esse reteste real.
+Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. A bateria física pode continuar para os checkpoints restantes, um por vez, sem alterar as invariantes de anti-replay, percepção independente e GoalVerifier.
