@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -11,6 +12,7 @@ from .capabilities import CapabilityResolver
 from .config import DashboardSettings, LocalAgentSettings
 from .desktop import DesktopFailsafeTriggered
 from .emergency_stop import EmergencyStop, EmergencyStopTriggered
+from .fault_injection import FaultInjectionController
 from .goal_execution import GoalExecutionFailed, execute_goal
 from .goal_interpreter import SemanticGoalInterpreter
 from .lease import (
@@ -160,6 +162,18 @@ def run() -> None:
     dashboard_cfg = DashboardSettings()
     headers = {"Authorization": f"Bearer {cfg.agent_token}"}
     stop = EmergencyStop(cfg.emergency_stop_path, cfg.agent_pid_path)
+    # Defaults keep older test doubles and local configs compatible while the
+    # real LocalAgentSettings exposes these paths explicitly.
+    fault_injection = FaultInjectionController(
+        Path(getattr(cfg, "fault_injection_path", "runtime/fault_injection.json")),
+        Path(
+            getattr(
+                cfg,
+                "fault_injection_last_path",
+                "runtime/fault_injection_last.json",
+            )
+        ),
+    )
 
     def log(message: str, *, level: str = "INFO") -> None:
         write_runtime_log("robot", message, level=level, log_dir=dashboard_cfg.log_dir)
@@ -216,7 +230,11 @@ def run() -> None:
                                     lease_token=task.lease_token,
                                     lease_seconds=task.lease_seconds,
                                 ) as lease:
-                                    leased_executor = LeaseGuardedExecutor(executor, lease)
+                                    leased_executor = LeaseGuardedExecutor(
+                                        executor,
+                                        lease,
+                                        fault_injection=fault_injection,
+                                    )
                                     try:
                                         result = execute_command(
                                             leased_executor,
@@ -334,12 +352,23 @@ def run() -> None:
                                 )
                                 continue
 
+                            fault_injection.checkpoint(
+                                "before_ack",
+                                context={"task_id": task.id},
+                            )
                             finish_payload = _submit_task_result_preserving_safety(
                                 client,
                                 task.id,
                                 payload,
                                 deferred_context,
                                 safety_interrupt,
+                            )
+                            fault_injection.checkpoint(
+                                "after_ack",
+                                context={
+                                    "task_id": task.id,
+                                    "status": finish_payload.get("status", "desconhecido"),
+                                },
                             )
                             log(
                                 f"Resultado enviado id={task.id} "

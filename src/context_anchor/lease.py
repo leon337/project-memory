@@ -11,6 +11,7 @@ import httpx
 from .action_journal import ActionJournalClient, ActionReplayBlocked
 from .desktop import DesktopFailsafeTriggered
 from .emergency_stop import EmergencyStopTriggered
+from .fault_injection import FaultInjectionController
 from .schemas import AgentLeaseView
 from .session_context import ArtifactKind, ContextArtifact, ContextResolution, SessionContext
 
@@ -207,9 +208,11 @@ class LeaseGuardedExecutor:
         executor: Any,
         heartbeat: LeaseHeartbeat,
         journal: ActionJournalClient | None = None,
+        fault_injection: FaultInjectionController | None = None,
     ) -> None:
         self._executor = executor
         self._heartbeat = heartbeat
+        self._fault_injection = fault_injection
         if journal is not None:
             self._journal = journal
         elif all(
@@ -281,6 +284,19 @@ class LeaseGuardedExecutor:
         allowed = cls._SAFE_RECEIPT_FIELDS.get(action_name, ("action", "verified"))
         return {key: receipt[key] for key in allowed if key in receipt}
 
+    def _fault(self, checkpoint: str, *, action_key: str, action_name: str) -> None:
+        controller = self._fault_injection
+        if controller is None:
+            return
+        controller.checkpoint(
+            checkpoint,
+            context={
+                "task_id": str(getattr(self._heartbeat, "task_id", "legacy-task")),
+                "action_key": action_key,
+                "action_name": action_name,
+            },
+        )
+
     def execute(self, plan: Any) -> dict[str, Any]:
         self.assert_authorized()
         journal = self._journal
@@ -315,24 +331,30 @@ class LeaseGuardedExecutor:
         if state not in {"prepared", "in_flight", "executed"}:
             raise ActionReplayBlocked(action_key, state or "unknown")
 
+        if state == "prepared":
+            self._fault("after_prepare", action_key=action_key, action_name=action_name)
+
         # PREPARED proves the backend was never entered. IN_FLIGHT/EXECUTED is
         # repeated only for explicitly repeat-safe observation-like actions.
         # An already EXECUTED repeat-safe action stays EXECUTED while the fresh
         # observation is performed; no unsafe state regression is required.
         if state != "executed":
             journal.transition(action_key=action_key, state="in_flight")
+            self._fault("after_in_flight", action_key=action_key, action_name=action_name)
         try:
             result = self._guarded_call(self._executor.execute, plan)
         except Exception:
             # Deliberately leave IN_FLIGHT when backend entry was possible. A
             # crash/error there cannot prove whether an external effect occurred.
             raise
+        self._fault("after_backend", action_key=action_key, action_name=action_name)
         safe_receipt = self._safe_receipt(action_name, result)
         journal.transition(
             action_key=action_key,
             state="executed",
             receipt=safe_receipt,
         )
+        self._fault("after_executed", action_key=action_key, action_name=action_name)
         result = dict(result)
         result["journal_action_key"] = action_key
         return result

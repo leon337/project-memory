@@ -14,7 +14,8 @@ A base consolidada contém:
 - providers Z.AI, Gemini e Cloudflare Workers AI;
 - Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE e Emergency Stop;
 - Session Context commitado somente depois do ACK da Central;
-- PM-DURABLE-JOURNAL-001 implementado e rastreado pelo PR #9.
+- PM-DURABLE-JOURNAL-001 integrado na `main` pelo PR #9;
+- PM-LOCAL-VALIDATION-001 implementado no PR #11, com atualização/validação local simplificadas e fault injection físico controlado.
 
 ## PM-DURABLE-JOURNAL-001
 
@@ -45,6 +46,31 @@ Semântica:
 
 Apenas `active_window` e `capture_screen` são tratadas como repeat-safe nesta fase. Demais ações externas/físicas permanecem conservadoras.
 
+## PM-LOCAL-VALIDATION-001
+
+A rotina repetitiva de manutenção local foi convertida em comandos oficiais:
+
+- `atualizar-robo`: valida o repositório, recusa working tree suja ou commits locais não publicados, faz apenas fast-forward de `main`, sincroniza `.venv`, dependências e Chromium;
+- `validar-robo`: compila `src/tests`, executa a suíte `pytest` e verifica Python, X11, desktop, PyAutoGUI/Pillow/PyScreeze, `xdotool`, `scrot` e Chromium;
+- `falha-robo`: arma localmente um crash one-shot em checkpoint conhecido, sem endpoint de rede e sem simular a ação física.
+
+Checkpoints atuais do fault injection:
+
+```text
+after_prepare
+after_in_flight
+after_backend
+after_executed
+before_ack
+after_ack
+```
+
+O armamento fica em `runtime/`, é desarmado por padrão, é consumido atomicamente antes do encerramento proposital e persiste somente identificadores técnicos sanitizados. O processo encerrado é o Robô local; Central/Painel não recebem uma API para armar fault injection.
+
+Ações físicas, SQLite, journal, lease, reclaim e restart permanecem reais no smoke físico; apenas o instante do crash é controlado.
+
+As melhorias posteriores do processo de testes foram planejadas e publicadas em `docs/VALIDATION-ROADMAP.md`. A implementação atual não inclui ainda `teste-robo`, integração de validação no Painel, bundle automático de evidências, histórico ou matriz de ambientes.
+
 ## Migração e compatibilidade
 
 `tasks` recebe `journal_version` e `action_journal` é criada de forma aditiva.
@@ -52,28 +78,27 @@ Apenas `active_window` e `capture_screen` são tratadas como repeat-safe nesta f
 - task legada nunca iniciada (`queued`, `attempts=0`) pode ser claimada e promovida para journal v1;
 - task legada já iniciada sem journal é ambígua e recebe `failed` fail-closed, em vez de ser reclamada cegamente.
 
+O fault injection adiciona apenas arquivos locais ignorados pelo Git; não altera o schema SQLite nem a autoridade de conclusão.
+
 ## Privacidade
 
-O journal não persiste texto integral digitado, screenshot ou URL completa. Receipts passam por whitelist no agente e novamente na Central. Credenciais continuam fora de Git/logs/prompts.
+O journal não persiste texto integral digitado, screenshot ou URL completa. Receipts passam por whitelist no agente e novamente na Central. O último evento de fault injection persiste apenas checkpoint, PID e identificadores técnicos permitidos (`task_id`, `action_key`, `action_name`, status). Credenciais continuam fora de Git/logs/prompts.
 
 ## Validação
 
-O implementation head `9558ddd04f852fb5835a960c7ab7adb1aef8f36b` passou no CI run `31438287389`.
+PM-DURABLE-JOURNAL-001 teve CI verde antes do merge do PR #9.
 
-A cobertura adicionada inclui:
+Para PM-LOCAL-VALIDATION-001:
 
-- crash antes do backend;
-- estado `in_flight` ambíguo;
-- crash após retorno físico e antes do receipt durável;
-- `executed` antes do ACK;
-- reconciliação após terminal ACK;
-- migração de tasks legadas;
-- autenticação/lease da API do journal;
-- sanitização do receipt;
-- deduplicação da mesma ação+target.
+- a primeira execução de CI, run `31447120929`, encontrou uma regressão real de compatibilidade: 5 testes antigos falharam porque test doubles de `LocalAgentSettings` não possuíam os novos paths de fault injection;
+- a inicialização foi corrigida com defaults locais compatíveis, sem alterar o contrato real de `LocalAgentSettings`;
+- o CI run `31447291227`, head `c9667c64aa4a125318423ca449e4bce6792a45f6`, passou instalação, Playwright, compilação e suíte completa;
+- resultado da suíte: `395 passed`, zero failures.
 
-Nenhum novo smoke físico no desktop Linux/X11 é alegado por esta missão, porque o ambiente instrumental desta execução foi GitHub/CI. A bateria física anterior da Home V4.1 permanece baseline histórica, não evidência desta alteração.
+A cobertura nova inclui proteção do updater contra working tree suja e commits locais não publicados, fast-forward seguro, consumo one-shot do armamento, sanitização do evento e checkpoints antes/depois da chamada física.
+
+Nenhum novo smoke físico do Durable Journal/fault injection no desktop Linux/X11 é alegado ainda. Essa prova exige o host físico real e permanece como próximo passo operacional.
 
 ## Situação
 
-Sem blocker técnico conhecido para PM-DURABLE-JOURNAL-001. O estado corrente de PR/CI é verificável no GitHub; a próxima atividade operacional está em `docs/NEXT.md`.
+A implementação de PM-LOCAL-VALIDATION-001 está tecnicamente verde no CI e em revisão/integração pelo PR #11. O próximo passo humano, depois de publicada na `main`, é fazer o bootstrap local uma única vez e executar `validar-robo`; em seguida começa a bateria física controlada descrita em `docs/NEXT.md`.

@@ -297,3 +297,23 @@ Tasks legadas já iniciadas sem journal são ambíguas e devem falhar fechadas n
 O ACK da Central torna o journal elegível a cleanup, mas não precisa ser atômico com o mundo físico. Se houver crash depois da terminalização da task e antes de marcar o journal como `acknowledged`, a Central reconcilia rows de tasks terminais no próximo startup. Cleanup automático só remove rows `acknowledged` depois da retenção configurável.
 
 O journal persiste somente identidade, estado, timestamps e receipt mínimo sanitizado. Texto integral digitado, screenshots e URLs completas não fazem parte do contrato persistente.
+
+## D-030 — Atualização e validação local são interfaces oficiais e não destrutivas
+
+A rotina local recorrente deve ser reduzida aos comandos oficiais `atualizar-robo` e `validar-robo`, em vez de depender de uma sequência manual extensa de Git, ambiente e testes.
+
+`atualizar-robo` pode atualizar somente por fast-forward. Se houver working tree suja, commits locais não publicados, origin inesperado ou qualquer condição que exija reescrita/descarte, o comando deve parar e preservar o estado existente. Não é permitido automatizar `git reset --hard`, `git clean`, rebase ou descarte silencioso como forma normal de atualização.
+
+`validar-robo` deve separar a validação automática da prova física. Ele verifica código, suíte, ambiente e pré-requisitos Linux/X11, mas não executa mouse/teclado/navegador como se isso fosse evidência física. Somente depois de um resultado local verde começa o smoke real, um cenário por vez.
+
+## D-031 — Fault injection físico é local-only, one-shot e não simula efeito
+
+Crash testing do Durable Journal deve usar checkpoints explícitos e reproduzíveis no fluxo real, em vez de depender de o operador tentar matar manualmente o processo no instante correto.
+
+O fault injection fica desarmado por padrão e só pode ser armado localmente. Nesta fase não existe endpoint no Painel/Central para armá-lo. O armamento é persistido em `runtime/`, consumido atomicamente antes do crash proposital e não se rearma no restart.
+
+Checkpoints vigentes são `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack` e `after_ack`. O controlador encerra somente o processo do Robô; backend físico, SQLite, journal, lease, reclaim, percepção e restart continuam reais.
+
+O evento persistente de fault injection contém apenas checkpoint, PID e identificadores técnicos permitidos. Texto bruto do objetivo/target e credenciais não fazem parte desse registro.
+
+Essa infraestrutura não altera a autoridade do GoalVerifier nem a semântica do journal. Em especial, um `in_flight` de ação não repeat-safe continua ambíguo e fail-closed, mesmo quando o teste sabe em qual ponto o processo foi encerrado; recovery deve decidir pelo estado durável, não por conhecimento externo do harness.

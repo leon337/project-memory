@@ -33,6 +33,11 @@ robo = "context_anchor.local_agent:run"
 parar-robo = "context_anchor.emergency_stop:main"
 diagnostico-robo = "context_anchor.doctor:main"
 
+# Manutenção local e validação reproduzível.
+atualizar-robo = "context_anchor.maintenance:main_update"
+validar-robo = "context_anchor.maintenance:main_validate"
+falha-robo = "context_anchor.fault_injection:main"
+
 # Compatibilidade com os nomes técnicos usados nas primeiras versões.
 context-anchor-control = "context_anchor.control_plane:main"
 context-anchor-agent = "context_anchor.local_agent:run"
