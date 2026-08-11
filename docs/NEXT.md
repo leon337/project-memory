@@ -1,25 +1,24 @@
 # NEXT
 
-## 1. Debater e planejar `PM-UNIVERSAL-OPERATOR-001` com o MCF
+## 1. Executar RC pré-quarta rodada da `PM-UNIVERSAL-OPERATOR-001`
 
-A direção estratégica já foi escolhida: evoluir o Robô para um **Operador Digital Autônomo Multimodal** capaz de transformar objetivos em linguagem natural em trabalho real no computador e em serviços digitais.
+Antes de congelar arquitetura ou transformar o planejamento em contrato de implementação, executar uma rodada de crítica e refinamento sobre a arquitetura V3 e sobre a experiência operacional do Painel atual.
 
-Antes de implementar código, o debate com o MCF deve fechar pelo menos:
+A RC deve cobrir principalmente:
 
-- escopo da primeira entrega e critérios de aceitação;
-- arquitetura e fronteiras entre Goal Runtime, capabilities e interfaces de execução;
-- quando usar API/MCP, CLI/terminal, automação web estruturada ou mouse/teclado;
-- tratamento de credenciais e sessões autenticadas;
-- papel de voz bidirecional, contexto conversacional e ponte ChatGPT → Robô na sequência de fases;
-- identidade durável, replay safety, percepção e verificação para novas ações físicas/externas;
-- estratégia de testes automatizados e físicos.
+- arquitetura e engenharia: necessidade e fronteiras do Durable Execution Manifest, identidade de efeito versus execução, Capability Registry, Execution Route Resolver, adapters, Credential Broker, recovery, persistência, versionamento, Policy, lease/journal, observabilidade e risco de overengineering;
+- segurança e qualidade: ambiguity/replay, prompt injection indireta, privilégios mínimos, tratamento de credenciais, contratos de observação/verificação e estratégia de testes/fault injection;
+- UI/UX/design: arquitetura de informação, fluxo Conversar versus Executar objetivo, acompanhamento visual de objetivo/subobjetivos/etapas, estados `planning/executing/verifying/blocked/recovery`, evidências, rota utilizada, credenciais sem exposição de segredo, erros/fail-closed, controles de emergência, acessibilidade, responsividade e redução de complexidade técnica para o usuário;
+- convergência front-end/back-end: nenhum estado visual pode ser ilustrativo; toda informação mostrada no Painel deve possuir fonte real e contrato observável no runtime.
 
-O nome `PM-UNIVERSAL-OPERATOR-001 — Natural Language → Real Computer Work` é provisório até esse planejamento ser aprovado.
+Não implementar código nem congelar a arquitetura durante esta RC.
 
-## 2. Converter o planejamento aprovado em contrato executável
+## 2. Consolidar as conclusões da RC para aprovação humana
 
-Depois do debate, atualizar somente as decisões/arquitetura realmente aprovadas e transformar o resultado em escopo implementável: issue/missão, critérios de aceitação, capacidades, sequência de entrega, testes e evidências exigidas. Não iniciar implementação com pontos arquiteturais ainda em aberto.
+Depois da RC, apresentar as mudanças propostas sobre a arquitetura V3, os riscos encontrados, os pontos descartados por overengineering, a arquitetura de informação candidata do Painel e os critérios de UX/observabilidade. Somente decisões explicitamente aprovadas devem entrar em `ARCHITECTURE.md` e `DECISIONS.md`.
 
-## 3. Preservar as garantias já comprovadas
+## 3. Realizar a quarta rodada e converter o desenho aprovado em contrato executável
 
-Qualquer nova capacidade deve manter Policy Layer, lease/heartbeat, Durable Journal, FAILSAFE, Emergency Stop, percepção independente, EvidenceRecord e GoalVerifier como única autoridade de conclusão. Se uma capacidade precisar repetir legitimamente duas ações físicas idênticas na mesma task, deve introduzir identidade durável explícita em vez de usar contador implícito de retry/reclaim.
+Somente após a aprovação da RC, realizar a quarta rodada para congelar os contratos do primeiro slice de Git/GitHub sandbox e transformar o resultado em issue/missão implementável, com critérios de aceitação, capacidades, sequência de entrega, testes e evidências exigidas.
+
+Toda nova capacidade deve preservar Policy Layer, lease/heartbeat, Durable Journal, FAILSAFE, Emergency Stop, percepção independente, EvidenceRecord e GoalVerifier como única autoridade de conclusão. A identidade durável de efeitos externos não pode permitir replay cego entre rotas ou retries/reclaims.
