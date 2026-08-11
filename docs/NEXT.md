@@ -1,16 +1,18 @@
 # NEXT
 
-## 1. Atualizar e validar o host com a correção do issue #14
+## 1. Repetir exatamente o smoke físico `after_executed`
 
-O PR #15 `PM-DURABLE-JOURNAL-RECOVERY-OBS-001` já foi integrado na `main` como `5da8df2a199747a649c9ffa4ab53ff85152f8996`, com CI verde.
+O host Linux/X11 já foi atualizado com a correção do issue #14 e o `validar-robo` terminou em `RESULTADO: PRONTO PARA TESTE FÍSICO`, com `399 passed`.
 
-No host Linux/X11 já bootstrapado executar `atualizar-robo && validar-robo`. Só avançar se a validação terminar limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+Fechar o Xed anterior. Em um terminal do projeto, armar `falha-robo armar after_executed`. Em seguida, pelo Painel → Central → Robô, executar exatamente `Abra o editor de texto`.
 
-## 2. Repetir exatamente o smoke físico `after_executed`
+Quando o fault injection encerrar o Robô após `executed`, manter o editor aberto e religar somente o Robô pelo Painel. Não reabrir o editor manualmente e não alterar o foco de propósito além do necessário para religar o Robô.
 
-Fechar o Xed anterior, armar `falha-robo armar after_executed` e executar novamente `Abra o editor de texto` no fluxo Painel → Central → Robô. Após o crash, manter o editor aberto e religar somente o Robô.
+Critérios de PASS: a mesma task é recuperada sem segunda emissão física de `open_app`; a percepção independente encontra o Xed já existente mesmo se Painel/Brave estiver ativo; GoalVerifier conclui de forma coerente com o estado real. Receipt recuperado não pode ser usado sozinho como prova.
 
-Critérios de PASS: mesma task é recuperada sem segunda emissão física de `open_app`; a percepção independente encontra o Xed já existente mesmo se Painel/Brave estiver ativo; GoalVerifier conclui de forma coerente com o estado real. Receipt recuperado não pode ser usado sozinho como prova.
+## 2. Se o reteste passar, registrar a evidência e fechar o issue #14
+
+Registrar task id, tentativa/reclaim, journal state, ausência de segunda abertura física, observação independente e verdict final. Só então fechar o issue #14 e atualizar STATUS.
 
 ## 3. Somente após PASS, continuar os checkpoints restantes
 
