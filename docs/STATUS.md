@@ -56,40 +56,34 @@ O primeiro `validar-robo` físico expôs teardown assíncrono do Playwright apó
 
 ### Cenário normal — PASS
 
-Objetivo executado pelo fluxo real Painel → Central → Robô:
+Objetivo: `Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001`.
 
-`Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001`
-
-Evidências observadas:
-
-- editor abriu fisicamente;
-- texto apareceu exatamente uma vez;
-- readback `Confirmado`;
-- GoalVerifier `SUCCEEDED`;
-- task `succeeded`;
-- logs de criação, claim, execução e finalização sem duplicidade visível.
+Evidências: editor abriu fisicamente; texto apareceu exatamente uma vez; readback `Confirmado`; GoalVerifier `SUCCEEDED`; task `succeeded`; logs sem duplicidade visível.
 
 ### Crash `after_backend` — PASS
 
-Cenário físico usado: `Abra o editor de texto` com `falha-robo armar after_backend`.
+Cenário: `Abra o editor de texto` com `falha-robo armar after_backend`.
+
+Após restart/reclaim, a mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` voltou como tentativa 2, encontrou `open_app` em `in_flight`, gerou `ActionReplayBlocked`, registrou `Replay físico bloqueado ... state=in_flight` e terminou `failed` fail-closed sem nova emissão autorizada de `open_app`.
+
+### Crash `after_executed` — anti-replay PASS, recovery end-to-end FAIL
+
+Cenário: `Abra o editor de texto` com `falha-robo armar after_executed`.
 
 Primeira metade observada:
 
-- fault injection armado corretamente como one-shot;
-- editor abriu fisicamente;
-- processo do Robô encerrou após o backend retornar;
-- Central permaneceu online;
-- task ficou sem conclusão normal enquanto o lease/recovery aguardava.
+- task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` abriu Xed fisicamente;
+- fault injection encerrou o Robô depois de o journal persistir a ação como `executed`;
+- Central permaneceu online e a task ficou `running` até reclaim.
 
-Após ligar novamente o Robô e ocorrer reclaim:
+Após restart/reclaim como tentativa 2:
 
-- mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` voltou como tentativa 2;
-- Home exibiu `ActionReplayBlocked` para `v1:open_app:398e481f619cbaab6816c658` em estado durável `in_flight`;
-- histórico registrou `Replay físico bloqueado ... state=in_flight`;
-- task terminou `failed` fail-closed;
-- não houve nova emissão autorizada de `open_app` após o restart.
+- não apareceu `ActionReplayBlocked` para `open_app`, coerente com recovery de `executed`;
+- não foi observada nova abertura física do editor;
+- o editor permaneceu aberto;
+- a task terminou `failed` com `GoalExecutionFailed: RuntimeError: Xed abriu, mas a capacidade não foi observada`.
 
-Esse resultado comprova no host físico a propriedade principal do checkpoint `after_backend`: quando o efeito externo pode ter ocorrido mas o journal ainda não chegou a `executed`, o recovery não repete cegamente a ação.
+Conclusão: a propriedade de **zero replay físico** para `executed` passou neste cenário, mas o recovery completo falhou porque a percepção/verificação não reconheceu de forma suficiente o aplicativo já aberto. Essa lacuna está registrada no issue #14 `PM-DURABLE-JOURNAL-RECOVERY-OBS-001`.
 
 ## Migração, privacidade e compatibilidade
 
@@ -99,4 +93,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Máquina local validada. Cenário físico normal: PASS. Crash físico `after_backend`: PASS. A bateria de recovery ainda não terminou; os demais checkpoints devem ser executados um por vez. O próximo checkpoint definido em `docs/NEXT.md` é `after_executed`, usando uma ação física com efeito visível e identidade estável para provar que uma ação já persistida como `executed` também não é reemitida após restart/reclaim.
+Máquina local validada. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: anti-replay PASS, mas recovery/verificação end-to-end FAIL. A bateria de crashes está pausada até corrigir o issue #14 e repetir `after_executed`; não avançar para os checkpoints restantes antes desse reteste.
