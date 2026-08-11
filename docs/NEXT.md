@@ -1,16 +1,16 @@
 # NEXT
 
-## 1. Corrigir o issue #14 de recovery/verificação após `executed`
+## 1. Publicar a correção do issue #14 e atualizar o host
 
-O checkpoint `after_executed` comprovou zero replay físico de `open_app`, porém a mesma task recuperada terminou `failed` com `GoalExecutionFailed: RuntimeError: Xed abriu, mas a capacidade não foi observada`, mesmo com o editor ainda aberto.
+Finalizar revisão/CI do PR #15 `PM-DURABLE-JOURNAL-RECOVERY-OBS-001`, integrar na `main` somente com CI verde e manter o issue #14 aberto até prova física.
 
-Corrigir a percepção independente usada após receipt recuperado para que o sistema consiga reconhecer o aplicativo/janela já existente sem reemitir `open_app`. Preservar GoalVerifier como única autoridade de conclusão e manter ExecutionReceipt insuficiente como prova de efeito.
+Depois do merge, no host Linux/X11 já bootstrapado executar `atualizar-robo && validar-robo`. Só avançar se a validação terminar limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
-Adicionar regressão automatizada e exigir CI completo verde.
+## 2. Repetir exatamente o smoke físico `after_executed`
 
-## 2. Atualizar o host e repetir exatamente o smoke físico `after_executed`
+Fechar o Xed anterior, armar `falha-robo armar after_executed` e executar novamente `Abra o editor de texto` no fluxo Painel → Central → Robô. Após o crash, manter o editor aberto e religar somente o Robô.
 
-Depois da correção publicada, executar `atualizar-robo && validar-robo` e repetir o mesmo cenário no Linux/X11 real. Critérios: nenhuma segunda emissão física de `open_app`, percepção independente reconhece o estado real e a task termina de forma coerente com o objetivo já satisfeito.
+Critérios de PASS: mesma task é recuperada sem segunda emissão física de `open_app`; a percepção independente encontra o Xed já existente mesmo se Painel/Brave estiver ativo; GoalVerifier conclui de forma coerente com o estado real. Receipt recuperado não pode ser usado sozinho como prova.
 
 ## 3. Somente após PASS, continuar os checkpoints restantes
 

@@ -74,6 +74,29 @@ Não existe `VERIFIED` no journal. Verificação continua no Evidence Ledger/Goa
 
 Apenas `active_window` e `capture_screen` são repeat-safe atualmente.
 
+### Percepção de aplicativo após recovery de `executed`
+
+O receipt recuperado de `open_app` continua sendo apenas registro técnico e não prova que a janela ainda existe. O fluxo tenta primeiro o observador normal de aplicação, que verifica a janela X11 ativa.
+
+Se essa observação falhar **e somente se** o `LeaseGuardedExecutor` acabou de recuperar um `open_app` não repeat-safe já persistido como `executed`, entra um fallback passivo de recovery em `recovery_observation.py`:
+
+```text
+receipt recuperado de EXECUTED
+→ NÃO reemitir open_app
+→ observação normal da janela ativa
+→ se insuficiente, enumerar janelas X11 já gerenciadas
+→ comparar WM_CLASS com a identidade esperada
+→ ler XID / título / _NET_WM_PID / /proc quando disponíveis
+→ EvidenceRecord
+→ GoalVerifier
+```
+
+Essa busca usa `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST` e é estritamente somente leitura: não lança processo, não ativa nem levanta janela, não muda foco, não clica e não digita. Isso permite reconhecer, por exemplo, um Xed que continua aberto enquanto o Painel/Brave ganhou foco durante o restart do Robô.
+
+O fallback não é executado em operação normal nem em recovery `in_flight`; ele é condicionado ao marcador efêmero criado pelo recovery de `executed open_app`. Uma observação normal bem-sucedida consome esse marcador. ExecutionReceipt continua insuficiente e GoalVerifier permanece a única autoridade de conclusão.
+
+Quando a janela recuperada é encontrada, seu XID normalizado é mantido apenas como guarda efêmera de foco. Se uma etapa posterior tentar `type_text` ou `press_key`, o `LeaseGuardedExecutor` lê novamente a janela X11 ativa e recusa o teclado se ela não for exatamente a janela recuperada. Assim, reconhecer um Xed inativo não autoriza digitação acidental no Painel/Brave.
+
 ## Fault injection físico controlado
 
 `fault_injection.py` adiciona uma infraestrutura local de validação, não uma nova autoridade de execução.
@@ -183,6 +206,8 @@ ExecutionReceipt prova apenas execução técnica. Depois da ação o runtime us
 - desktop: processo/X11/WM_CLASS;
 - texto: AT-SPI/readback.
 
+No recovery de um `open_app` já `executed`, a camada de lease pode complementar a observação ativa insuficiente com uma enumeração passiva de janelas X11 existentes; a evidência continua vindo do estado atual do sistema operacional, nunca do receipt recuperado.
+
 EvidenceRecord liga a observação aos critérios. GoalVerifier exige todos os critérios/subobjetivos necessários antes de `SUCCEEDED`.
 
 ## Capability Resolver e ações
@@ -206,7 +231,7 @@ Permanecem obrigatórios:
 - credenciais fora de Git/logs/prompts;
 - localhost por padrão.
 
-Fault injection não é uma rota de operação normal, fica desarmado por padrão e não cria endpoint remoto. O journal e as ferramentas de validação não enfraquecem nenhuma dessas barreiras e não criam um caminho paralelo de sucesso.
+Fault injection não é uma rota de operação normal, fica desarmado por padrão e não cria endpoint remoto. O journal, a observação passiva de recovery e as ferramentas de validação não enfraquecem nenhuma dessas barreiras e não criam um caminho paralelo de sucesso.
 
 ## Providers
 
