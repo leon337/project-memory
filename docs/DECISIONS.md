@@ -298,9 +298,11 @@ O ACK da Central torna o journal elegível a cleanup, mas não precisa ser atôm
 
 O journal persiste somente identidade, estado, timestamps e receipt mínimo sanitizado. Texto integral digitado, screenshots e URLs completas não fazem parte do contrato persistente.
 
-## D-030 — Atualização e validação local são interfaces oficiais e não destrutivas
+## D-030 — Empacotamento, atualização e validação local são interfaces oficiais e não destrutivas
 
-A rotina local recorrente deve ser reduzida aos comandos oficiais `atualizar-robo` e `validar-robo`, em vez de depender de uma sequência manual extensa de Git, ambiente e testes.
+A rotina local recorrente usa os comandos oficiais `empacotar-locais`, `atualizar-robo` e `validar-robo`, em vez de depender de sequências manuais extensas de Git, ambiente, cópia de arquivos e testes.
+
+`empacotar-locais` existe para o caso em que materiais pessoais/auxiliares não rastreados pelo Git deixam o working tree sujo e impedem uma atualização segura. Ele só pode selecionar arquivos retornados por `git ls-files --others --exclude-standard`; alterações em arquivos rastreados interrompem o processo. O ZIP precisa ficar fora do repositório, preferencialmente na Área de Trabalho, preservar caminhos relativos e ser verificado antes de qualquer remoção. A integridade usa o teste do próprio ZIP e comparação SHA-256 entre origem e conteúdo arquivado. Links simbólicos e caminhos inseguros falham fechados. Os originais só podem ser removidos depois da verificação completa; falha anterior preserva os arquivos locais. Esse fluxo não autoriza `git clean` nem transforma arquivos ignorados em alvo automático.
 
 `atualizar-robo` pode atualizar somente por fast-forward. Se houver working tree suja, commits locais não publicados, origin inesperado ou qualquer condição que exija reescrita/descarte, o comando deve parar e preservar o estado existente. Não é permitido automatizar `git reset --hard`, `git clean`, rebase ou descarte silencioso como forma normal de atualização.
 
