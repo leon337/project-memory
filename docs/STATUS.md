@@ -6,7 +6,7 @@ Manter um operador digital local que recebe objetivos em linguagem natural e exe
 
 ## Estado verificável desta versão
 
-A base consolidada contém Home V4.1, Goal Runtime universal, FOCUS-RACE-001, providers Z.AI/Gemini/Cloudflare Workers AI, Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE, Emergency Stop, Session Context pós-ACK, PM-DURABLE-JOURNAL-001, PM-LOCAL-VALIDATION-001 e PM-LOCAL-VALIDATION-002.
+A base consolidada contém Home V4.1, Goal Runtime universal, FOCUS-RACE-001, providers Z.AI/Gemini/Cloudflare Workers AI, Policy Layer, lease/heartbeat, LeaseGuardedExecutor, FAILSAFE, Emergency Stop, Session Context pós-ACK, PM-DURABLE-JOURNAL-001, PM-LOCAL-VALIDATION-001, PM-LOCAL-VALIDATION-002 e PM-DURABLE-JOURNAL-RECOVERY-OBS-001.
 
 ### Durable Journal
 
@@ -39,18 +39,9 @@ Comandos oficiais:
 - `validar-robo`: compilação, pytest e requisitos Linux/X11/desktop/Chromium;
 - `falha-robo`: fault injection local-only, one-shot, sem endpoint de rede e sem simular a ação física.
 
-Checkpoints atuais:
+Checkpoints atuais: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
 
-```text
-after_prepare
-after_in_flight
-after_backend
-after_executed
-before_ack
-after_ack
-```
-
-O primeiro `validar-robo` físico expôs teardown assíncrono do Playwright após PASS. PM-LOCAL-VALIDATION-002 corrigiu isso isolando o probe do Chromium em subprocesso. O CI do PR #13 passou com `396 passed`, e a repetição no mesmo host Linux/X11 com Python 3.12.3 terminou limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+A validação local do host Linux/X11 com Python 3.12.3 passou limpa antes do smoke físico. A correção PM-LOCAL-VALIDATION-002 eliminou o teardown assíncrono do Playwright observado no primeiro ensaio do validador.
 
 ## Validação física atual
 
@@ -70,46 +61,37 @@ Após restart/reclaim, a mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` volto
 
 Cenário: `Abra o editor de texto` com `falha-robo armar after_executed`.
 
-Primeiro ensaio físico:
+No primeiro ensaio físico, a task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` abriu Xed e caiu depois de persistir `executed`. No reclaim como tentativa 2 não houve nova abertura física, mas a task terminou `failed` com `GoalExecutionFailed: RuntimeError: Xed abriu, mas a capacidade não foi observada`, apesar de o Xed continuar aberto. O Painel/Brave havia se tornado a janela ativa durante o restart.
 
-- task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` abriu Xed fisicamente;
-- fault injection encerrou o Robô depois de o journal persistir a ação como `executed`;
-- após restart/reclaim como tentativa 2 não foi observada nova abertura física do editor;
-- o editor permaneceu aberto;
-- a task terminou `failed` com `GoalExecutionFailed: RuntimeError: Xed abriu, mas a capacidade não foi observada`.
+## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — publicada; reteste físico pendente
 
-Conclusão do ensaio: zero replay físico para `executed` passou, mas a percepção independente pós-recovery não reconheceu o Xed já aberto porque o Painel/Brave havia se tornado a janela ativa durante o restart.
+O issue #14 registra a falha acima e permanece aberto até prova física da correção.
 
-## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — correção implementada, reteste físico pendente
+A correção foi integrada pelo PR #15 na `main` como commit `5da8df2a199747a649c9ffa4ab53ff85152f8996`.
 
-Issue #14 documenta a falha do primeiro `after_executed`. A correção está no PR #15.
+Implementação publicada:
 
-Implementação:
-
-- `LeaseGuardedExecutor` mantém o comportamento de zero-replay quando encontra `open_app` em estado `executed`;
-- o receipt recuperado apenas arma um marcador efêmero para a próxima observação independente de aplicação;
+- recovery de `executed open_app` continua zero-replay; o backend físico não é chamado novamente;
+- o receipt recuperado apenas arma um marcador efêmero para exigir nova observação independente;
 - a observação normal da janela ativa continua sendo tentada primeiro;
-- se ela falhar nesse recovery específico, `recovery_observation.py` enumera passivamente janelas X11 já gerenciadas por `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST` e compara `WM_CLASS` com a identidade esperada;
-- a busca passiva não abre, ativa, levanta ou foca janela, não clica e não digita;
-- se uma janela existente for observada, EvidenceRecord/GoalVerifier continuam decidindo a conclusão. O receipt não vira prova de efeito.
+- se ela falhar nesse recovery específico, `recovery_observation.py` enumera passivamente janelas X11 já gerenciadas via `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST`, compara `WM_CLASS` e consulta XID/título/PID/processo quando disponíveis;
+- a observação passiva não abre, ativa, levanta ou foca janela, não clica e não digita;
+- XIDs são normalizados para comparação consistente com `xdotool`;
+- quando uma janela recuperada é reconhecida, seu XID fica apenas como guarda efêmera: `type_text`/`press_key` falham fechados se outra janela estiver ativa, evitando teclado acidental no Painel/Brave;
+- EvidenceRecord e GoalVerifier continuam responsáveis pela conclusão; ExecutionReceipt continua insuficiente como prova de efeito.
 
-Regressões adicionadas:
+Regressões adicionadas cobrem recovery `executed open_app` sem replay, localização passiva de Xed inativo enquanto outra janela está ativa e recusa de teclado quando o foco não está na janela recuperada.
 
-- recovery de `executed open_app` com Painel/Brave ativo e Xed existente deve concluir sem qualquer nova chamada física a `open_app`;
-- enumeração passiva deve ignorar a janela ativa não correspondente e localizar um Xed inativo correspondente.
+CI do head final do PR #15, run `31459234654`: PASS com `399 passed`, 1 warning de depreciação do stack de teste e zero failures. CI pós-merge da `main`, run `31459378475`: PASS em todas as etapas de instalação, Playwright, compilação e testes.
 
-CI do head de implementação `51f042642ae7e00931b7f1a74dbd14bfdcc75d2f`, run `31458732207`: PASS, `398 passed`, 1 warning de depreciação do stack de teste, zero failures.
-
-A documentação arquitetural foi atualizada no mesmo PR; commits documentais posteriores ainda precisam manter CI verde antes do merge.
+Ainda não existe PASS físico da correção publicada; ele só poderá ser declarado depois de atualizar o host e repetir exatamente o smoke `after_executed`.
 
 ## Migração, privacidade e compatibilidade
 
 `tasks` possui `journal_version` e `action_journal` é aditiva. Task legada nunca iniciada (`queued`, `attempts=0`) pode ser promovida; task legada já iniciada sem journal falha fechada por ambiguidade.
 
-O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist no agente e na Central. Fault injection persiste apenas checkpoint, PID e identificadores técnicos sanitizados.
-
-A nova observação de recovery consulta apenas metadados atuais de janelas/processos X11 necessários à verificação e não persiste o objetivo ou target bruto.
+O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist no agente e na Central. Fault injection persiste apenas checkpoint, PID e identificadores técnicos sanitizados. A observação de recovery consulta metadados atuais de janelas/processos X11 necessários à verificação e não persiste objetivo ou target bruto.
 
 ## Situação
 
-Máquina local validada. Cenário físico normal: PASS. `after_backend`: PASS. Primeiro `after_executed`: anti-replay PASS, recovery/verificação FAIL. A correção do issue #14 está implementada no PR #15 e passou sua regressão automatizada no head de código. Ainda não existe PASS físico da correção: depois do merge e atualização do host, é obrigatório repetir exatamente `after_executed`. A bateria permanece pausada até esse reteste real.
+Máquina local validada antes da correção. Cenário físico normal: PASS. `after_backend`: PASS. Primeiro `after_executed`: anti-replay PASS, recovery/verificação FAIL. A correção correspondente está agora publicada na `main` e CI está verde. O próximo passo obrigatório é atualizar o host, executar `validar-robo` novamente e repetir exatamente o `after_executed`; a bateria de crashes permanece pausada até esse reteste real.
