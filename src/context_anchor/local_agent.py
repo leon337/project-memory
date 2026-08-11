@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -161,9 +162,17 @@ def run() -> None:
     dashboard_cfg = DashboardSettings()
     headers = {"Authorization": f"Bearer {cfg.agent_token}"}
     stop = EmergencyStop(cfg.emergency_stop_path, cfg.agent_pid_path)
+    # Defaults keep older test doubles and local configs compatible while the
+    # real LocalAgentSettings exposes these paths explicitly.
     fault_injection = FaultInjectionController(
-        cfg.fault_injection_path,
-        cfg.fault_injection_last_path,
+        Path(getattr(cfg, "fault_injection_path", "runtime/fault_injection.json")),
+        Path(
+            getattr(
+                cfg,
+                "fault_injection_last_path",
+                "runtime/fault_injection_last.json",
+            )
+        ),
     )
 
     def log(message: str, *, level: str = "INFO") -> None:
