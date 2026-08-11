@@ -88,18 +88,20 @@ Cenário: `Abra o editor de texto` com `falha-robo armar after_prepare`.
 
 Conclusão: estado `prepared` é recuperável com segurança porque o backend físico ainda não havia sido chamado; a ação pode ser executada uma vez após reclaim e continuar sujeita à percepção independente e GoalVerifier.
 
-### Crash `after_in_flight` — primeira metade PASS, recovery pendente
+### Crash `after_in_flight` — PASS
 
 Cenário: `Abra o editor de texto` com `falha-robo armar after_in_flight`.
 
-- fault injection foi armado corretamente em `after_in_flight`;
 - task `8e993f29-273c-4024-9219-f4503ece4600` foi criada, entregue e recebida na tentativa 1;
-- o Robô caiu imediatamente após a transição durável para `in_flight` e antes da chamada física ao backend nesse checkpoint controlado;
+- o Robô caiu depois da transição durável para `in_flight` e antes da chamada física ao backend no checkpoint controlado;
+- antes do crash o Xed não abriu;
 - Central permaneceu online e Robô ficou offline;
-- Xed não abriu antes do crash;
-- a task permaneceu `running` na tentativa 1, aguardando expiração do lease para reclaim.
+- após religar o Robô e expirar o lease, a mesma task voltou como tentativa 2;
+- o Journal encontrou `open_app` em estado `in_flight`;
+- o Robô registrou `Replay físico bloqueado ... state=in_flight` e não abriu o Xed;
+- a task terminou `failed` fail-closed, que é o resultado correto de segurança neste estado ambíguo.
 
-Primeira metade classificada como PASS. Falta religar somente o Robô, aguardar a expiração/reclaim e verificar que a mesma task volta como tentativa 2, encontra `in_flight` ambíguo e termina fail-closed com `ActionReplayBlocked`, sem emitir fisicamente `open_app`.
+Conclusão: `in_flight` não é tratado como autorização para repetir uma ação não repeat-safe. O recovery bloqueia replay físico quando não há prova suficiente de que o efeito externo ocorreu ou não ocorreu.
 
 ## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — concluída
 
@@ -128,4 +130,4 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 ## Situação
 
-Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. `after_in_flight`: primeira metade PASS; recovery/reclaim ainda pendente. Depois desse checkpoint restam `before_ack` e `after_ack`, sempre um por vez e preservando as invariantes de anti-replay, percepção independente e GoalVerifier.
+Host Linux/X11 validado com `399 passed`. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: PASS end-to-end após correção do issue #14. `after_prepare`: PASS end-to-end. `after_in_flight`: PASS fail-closed. Restam os checkpoints físicos `before_ack` e `after_ack`, um por vez, preservando anti-replay, percepção independente e GoalVerifier.
