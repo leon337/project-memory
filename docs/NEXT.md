@@ -1,22 +1,18 @@
 # NEXT
 
-## 1. Aprovar, modificar ou rejeitar a RC 3.5 da `PM-UNIVERSAL-OPERATOR-001`
+## 1. Limpar o working tree local com preservação e sincronizar o host
 
-A crítica pré-quarta rodada de arquitetura, engenharia e UI/UX foi concluída como proposta e registrada em `STATUS.md`. Antes de alterar `ARCHITECTURE.md` ou `DECISIONS.md`, revisar principalmente:
+O host Linux ainda contém arquivos pessoais/auxiliares não rastreados pelo Git, e `atualizar-robo` para corretamente enquanto a árvore estiver suja. A `main` agora contém `context_anchor.local_archive` e o comando `empacotar-locais`, mas o host ainda precisa receber essa versão.
 
-- simplificação da arquitetura V3: evitar máquina de estados paralela para um Durable Execution Manifest e preferir evolução do journal/contrato durável existente;
-- identidade semântica determinística de efeito, rota fixada antes do backend, recovery fail-closed e Credential Broker mínimo;
-- Route Resolver determinístico e adapters tipados sem interface universal excessiva;
-- arquitetura de informação do Painel: objetivo/progresso/verificação/recovery simples na superfície e detalhes técnicos em camada secundária;
-- telemetria estruturada real para a UI, sem inferir estado a partir de logs e sem apresentar estados que o backend não possui.
+Para romper esse bootstrap sem descartar nada, executar a versão atual de `src/context_anchor/local_archive.py` diretamente a partir da `main`: ela deve selecionar somente arquivos retornados por `git ls-files --others --exclude-standard`, criar um ZIP fora do repositório na Área de Trabalho, verificar integridade e SHA-256 e somente depois remover os originais arquivados. Alteração em arquivo rastreado, symlink, destino dentro do repositório ou falha de verificação deve resultar em STOP sem remoção dos originais.
 
-## 2. Auditar o protótipo visual local no próprio repositório
+Depois de confirmar `RESULTADO: ARQUIVOS LOCAIS PRESERVADOS E REPOSITÓRIO LIMPO`, executar `atualizar-robo` e em seguida `validar-robo`. Não iniciar o teste visual enquanto a atualização ou a validação local não estiverem verdes.
 
-O desenho da RC não depende de Figma ou outra ferramenta externa. O protótipo está em `prototypes/pm-universal-operator-ui/` usando somente HTML, CSS e JavaScript versionados no Git.
+## 2. Auditar o protótipo visual repo-local e decidir a RC 3.5
 
-Revisar no protótipo os estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além da camada de detalhes técnicos. Ajustar arquitetura de informação, hierarquia visual, responsividade, acessibilidade e clareza antes de qualquer integração com a Home operacional.
+O protótipo está em `prototypes/pm-universal-operator-ui/` usando somente HTML, CSS e JavaScript versionados no Git. Depois da sincronização e validação local, abrir o protótipo e revisar os estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, a camada de detalhes técnicos, hierarquia visual, responsividade, acessibilidade e clareza.
 
-Os dados do protótipo são deliberadamente simulados e identificados como tal. Na implementação real, cada estado visual deve possuir fonte estruturada no runtime/Central; logs não podem ser usados como fonte de verdade visual e nenhum segredo pode aparecer na interface.
+A mesma revisão deve aprovar, modificar ou rejeitar as conclusões da RC 3.5 antes de alterar `ARCHITECTURE.md` ou `DECISIONS.md`. Os dados do protótipo continuam simulados; logs não podem ser fonte de verdade visual e nenhum estado sem fonte estruturada no runtime/Central pode ser promovido para a Home operacional.
 
 ## 3. Realizar a quarta rodada e converter o desenho aprovado em contrato executável
 
