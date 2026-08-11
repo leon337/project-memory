@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 import context_anchor.lease as lease_module
 import context_anchor.recovery_observation as recovery_observation
 from context_anchor.capabilities import ResolvedCapability
@@ -56,7 +58,6 @@ class _Executor:
     ) -> dict[str, Any]:
         del app_id, pid, expected_argument
         self.application_observer_calls += 1
-        # Simula o Painel/Brave ativo depois que o operador religou o Robô.
         return {
             "action": "observe_application",
             "window_id": "panel-window",
@@ -93,7 +94,7 @@ def _existing_xed_observation() -> dict[str, Any]:
     return {
         "action": "observe_application",
         "app": "xed",
-        "window_id": "0x4200007",
+        "window_id": str(int("0x4200007", 16)),
         "window_title": "Documento não-salvo 1",
         "window_class": "xed Xed",
         "window_process_id": 7001,
@@ -110,9 +111,7 @@ def _existing_xed_observation() -> dict[str, Any]:
     }
 
 
-def test_executed_open_app_recovery_uses_passive_existing_window_without_replay(
-    monkeypatch,
-) -> None:
+def _recovered_guard(monkeypatch) -> tuple[_Executor, _ExecutedJournal, LeaseGuardedExecutor]:
     executor = _Executor()
     journal = _ExecutedJournal()
     guarded = LeaseGuardedExecutor(
@@ -125,6 +124,13 @@ def test_executed_open_app_recovery_uses_passive_existing_window_without_replay(
         "observe_existing_application",
         lambda app_id: _existing_xed_observation() if app_id == "xed" else {},
     )
+    return executor, journal, guarded
+
+
+def test_executed_open_app_recovery_uses_passive_existing_window_without_replay(
+    monkeypatch,
+) -> None:
+    executor, journal, guarded = _recovered_guard(monkeypatch)
 
     result = execute_command(
         guarded,
@@ -146,6 +152,26 @@ def test_executed_open_app_recovery_uses_passive_existing_window_without_replay(
     assert observations
     assert observations[-1]["verified"] is True
     assert observations[-1]["source"] == "desktop.x11_proc"
+
+
+def test_recovered_inactive_window_does_not_authorize_keyboard_to_active_panel(
+    monkeypatch,
+) -> None:
+    executor, journal, guarded = _recovered_guard(monkeypatch)
+    result = execute_command(
+        guarded,
+        "Abra o editor de texto",
+        capability_resolver=_Resolver(),
+    )
+    assert result["status"] == "succeeded"
+    assert len(journal.prepare_calls) == 1
+
+    monkeypatch.setattr(lease_module, "active_window_id", lambda: "999999")
+    with pytest.raises(RuntimeError, match="não está com foco"):
+        guarded.execute(Plan("type_text", "não pode ir para o Painel"))
+
+    assert len(journal.prepare_calls) == 1
+    assert executor.physical_execute_calls == []
 
 
 def test_passive_recovery_observation_finds_inactive_matching_window(
@@ -184,14 +210,14 @@ def test_passive_recovery_observation_finds_inactive_matching_window(
     )
     monkeypatch.setattr(
         recovery_observation,
-        "_active_window_id",
-        lambda: "0x5000002",
+        "active_window_id",
+        lambda: str(int("0x5000002", 16)),
     )
 
     observed = recovery_observation.observe_existing_application("xed")
 
     assert observed["verified"] is True
-    assert observed["window_id"] == "0x4200007"
+    assert observed["window_id"] == str(int("0x4200007", 16))
     assert observed["window_class"] == "xed Xed"
     assert observed["active_window"] is False
     assert observed["recovery_existing_window"] is True
