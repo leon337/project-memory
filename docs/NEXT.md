@@ -1,18 +1,18 @@
 # NEXT
 
-## 1. Atualizar e repetir `validar-robo` no mesmo host físico
+## 1. Executar o smoke físico normal do Durable Journal no Linux/X11
 
-O primeiro `validar-robo` real no Linux/X11 com Python 3.12.3 encontrou um teardown assíncrono do Playwright depois de imprimir PASS. A correção PM-LOCAL-VALIDATION-002 já está na `main`.
+A validação local no host físico passou limpa com Python 3.12.3, `396 passed` e todos os pré-requisitos de desktop/X11 em PASS.
 
-Como o host já possui os comandos oficiais, executar somente `atualizar-robo` e depois `validar-robo`.
+Executar primeiro um cenário normal pelo fluxo real Painel → Central → Robô, sem fault injection. Confirmar que uma tarefa física simples continua funcionando e que a ação não é emitida em duplicidade.
 
-Só avançar se a execução terminar realmente limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`, sem `Task was destroyed`, `TargetClosedError` ou outra exceção após o resultado.
+Só após PASS desse cenário normal avançar para crash testing.
 
-## 2. Executar o smoke físico controlado do Durable Journal no Linux/X11
+## 2. Executar os crashes reproduzíveis com `falha-robo`
 
-Executar um cenário normal primeiro e, somente após PASS, testar crashes reproduzíveis com `falha-robo`, um checkpoint por vez. A prova principal deve demonstrar no fluxo real Painel → Central → Robô que uma ação não repeat-safe não é emitida duas vezes após crash/restart/reclaim.
+Armar um checkpoint por vez e repetir o fluxo real, mantendo ação física, SQLite, journal, lease, reclaim e restart reais. A prova principal deve demonstrar que uma ação não repeat-safe não é emitida duas vezes após crash/restart/reclaim.
 
-Estados ambíguos continuam fail-closed. Ação física, SQLite, journal, lease e restart devem ser reais; não declarar PASS físico a partir de fake/CI.
+Estados ambíguos continuam fail-closed. Não declarar PASS físico a partir de fake/CI.
 
 ## 3. Após o PASS físico, decidir a próxima evolução
 
