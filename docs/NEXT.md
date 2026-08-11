@@ -1,10 +1,12 @@
 # NEXT
 
-## 1. Atualizar o host físico uma única vez para a versão com as novas ferramentas
+## 1. Atualizar e repetir `validar-robo` no mesmo host físico
 
-Como a versão local anterior ainda não possui `atualizar-robo`, fazer apenas o bootstrap inicial necessário para trazer a `main` publicada e reinstalar o pacote editável. Depois desse bootstrap, a rotina recorrente passa a ser `atualizar-robo`.
+O primeiro `validar-robo` real no Linux/X11 com Python 3.12.3 encontrou um teardown assíncrono do Playwright depois de imprimir PASS. A correção PM-LOCAL-VALIDATION-002 já está na `main`.
 
-Em seguida executar `validar-robo`. Só avançar ao smoke físico se o resultado for `PRONTO PARA TESTE FÍSICO`.
+Como o host já possui os comandos oficiais, executar somente `atualizar-robo` e depois `validar-robo`.
+
+Só avançar se a execução terminar realmente limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO`, sem `Task was destroyed`, `TargetClosedError` ou outra exceção após o resultado.
 
 ## 2. Executar o smoke físico controlado do Durable Journal no Linux/X11
 
