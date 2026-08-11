@@ -66,24 +66,41 @@ Cenário: `Abra o editor de texto` com `falha-robo armar after_backend`.
 
 Após restart/reclaim, a mesma task `b0148f8c-4bfd-42f8-bb73-7ca243c68a8c` voltou como tentativa 2, encontrou `open_app` em `in_flight`, gerou `ActionReplayBlocked`, registrou `Replay físico bloqueado ... state=in_flight` e terminou `failed` fail-closed sem nova emissão autorizada de `open_app`.
 
-### Crash `after_executed` — anti-replay PASS, recovery end-to-end FAIL
+### Crash `after_executed` — anti-replay PASS, recovery end-to-end FAIL no primeiro ensaio
 
 Cenário: `Abra o editor de texto` com `falha-robo armar after_executed`.
 
-Primeira metade observada:
+Primeiro ensaio físico:
 
 - task `3225f2ef-862e-4fd3-8a63-97ca7b091bd2` abriu Xed fisicamente;
 - fault injection encerrou o Robô depois de o journal persistir a ação como `executed`;
-- Central permaneceu online e a task ficou `running` até reclaim.
-
-Após restart/reclaim como tentativa 2:
-
-- não apareceu `ActionReplayBlocked` para `open_app`, coerente com recovery de `executed`;
-- não foi observada nova abertura física do editor;
+- após restart/reclaim como tentativa 2 não foi observada nova abertura física do editor;
 - o editor permaneceu aberto;
 - a task terminou `failed` com `GoalExecutionFailed: RuntimeError: Xed abriu, mas a capacidade não foi observada`.
 
-Conclusão: a propriedade de **zero replay físico** para `executed` passou neste cenário, mas o recovery completo falhou porque a percepção/verificação não reconheceu de forma suficiente o aplicativo já aberto. Essa lacuna está registrada no issue #14 `PM-DURABLE-JOURNAL-RECOVERY-OBS-001`.
+Conclusão do ensaio: zero replay físico para `executed` passou, mas a percepção independente pós-recovery não reconheceu o Xed já aberto porque o Painel/Brave havia se tornado a janela ativa durante o restart.
+
+## PM-DURABLE-JOURNAL-RECOVERY-OBS-001 — correção implementada, reteste físico pendente
+
+Issue #14 documenta a falha do primeiro `after_executed`. A correção está no PR #15.
+
+Implementação:
+
+- `LeaseGuardedExecutor` mantém o comportamento de zero-replay quando encontra `open_app` em estado `executed`;
+- o receipt recuperado apenas arma um marcador efêmero para a próxima observação independente de aplicação;
+- a observação normal da janela ativa continua sendo tentada primeiro;
+- se ela falhar nesse recovery específico, `recovery_observation.py` enumera passivamente janelas X11 já gerenciadas por `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST` e compara `WM_CLASS` com a identidade esperada;
+- a busca passiva não abre, ativa, levanta ou foca janela, não clica e não digita;
+- se uma janela existente for observada, EvidenceRecord/GoalVerifier continuam decidindo a conclusão. O receipt não vira prova de efeito.
+
+Regressões adicionadas:
+
+- recovery de `executed open_app` com Painel/Brave ativo e Xed existente deve concluir sem qualquer nova chamada física a `open_app`;
+- enumeração passiva deve ignorar a janela ativa não correspondente e localizar um Xed inativo correspondente.
+
+CI do head de implementação `51f042642ae7e00931b7f1a74dbd14bfdcc75d2f`, run `31458732207`: PASS, `398 passed`, 1 warning de depreciação do stack de teste, zero failures.
+
+A documentação arquitetural foi atualizada no mesmo PR; commits documentais posteriores ainda precisam manter CI verde antes do merge.
 
 ## Migração, privacidade e compatibilidade
 
@@ -91,6 +108,8 @@ Conclusão: a propriedade de **zero replay físico** para `executed` passou nest
 
 O journal não persiste texto digitado integral, screenshot ou URL completa. Receipts usam whitelist no agente e na Central. Fault injection persiste apenas checkpoint, PID e identificadores técnicos sanitizados.
 
+A nova observação de recovery consulta apenas metadados atuais de janelas/processos X11 necessários à verificação e não persiste o objetivo ou target bruto.
+
 ## Situação
 
-Máquina local validada. Cenário físico normal: PASS. `after_backend`: PASS. `after_executed`: anti-replay PASS, mas recovery/verificação end-to-end FAIL. A bateria de crashes está pausada até corrigir o issue #14 e repetir `after_executed`; não avançar para os checkpoints restantes antes desse reteste.
+Máquina local validada. Cenário físico normal: PASS. `after_backend`: PASS. Primeiro `after_executed`: anti-replay PASS, recovery/verificação FAIL. A correção do issue #14 está implementada no PR #15 e passou sua regressão automatizada no head de código. Ainda não existe PASS físico da correção: depois do merge e atualização do host, é obrigatório repetir exatamente `after_executed`. A bateria permanece pausada até esse reteste real.
