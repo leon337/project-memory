@@ -87,7 +87,7 @@ A origem ficou localizada no probe usado apenas para consultar `playwright.chrom
 
 O CI do PR #13, run `31448585330`, passou integralmente com `396 passed`, zero failures. O PR foi integrado por squash na `main` como commit `4ff470250bc7868f41846488fcfd1c1b4be24fd3`; issue #12 foi encerrado como `completed`.
 
-Ainda falta a comprovação no mesmo host Python 3.12.3 de que `validar-robo` agora termina limpo, sem mensagens assíncronas após o resultado.
+A repetição no mesmo host físico Linux/X11 com Python 3.12.3 passou limpa após `atualizar-robo && validar-robo`: repositório, working tree, branch, Python, compilação, `396 passed`, desktop, X11, PyAutoGUI, Pillow, PyScreeze, `xdotool`, `scrot` e Chromium ficaram PASS, terminando em `RESULTADO: PRONTO PARA TESTE FÍSICO` sem reaparecer `Task was destroyed`, `TargetClosedError` ou outra exceção visível após o resultado.
 
 ## Migração e compatibilidade
 
@@ -120,10 +120,11 @@ Para PM-LOCAL-VALIDATION-002:
 - correção: probe Playwright isolado em subprocesso;
 - regressão automatizada adicionada;
 - CI do PR #13: run `31448585330`, `396 passed`, zero failures;
-- merge: `4ff470250bc7868f41846488fcfd1c1b4be24fd3`.
+- merge: `4ff470250bc7868f41846488fcfd1c1b4be24fd3`;
+- repetição no host Linux/X11 real com Python 3.12.3: `396 passed`, todos os pré-requisitos PASS e encerramento limpo em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
-Nenhum smoke físico do Durable Journal/fault injection foi iniciado após esse achado. A prova física permanece pendente até o validador terminar limpo no host real.
+O smoke físico do Durable Journal/fault injection ainda não foi executado. A máquina local está agora validada e liberada para iniciar essa bateria controlada.
 
 ## Situação
 
-A correção PM-LOCAL-VALIDATION-002 está publicada na `main`. O próximo passo é executar `atualizar-robo` no host já bootstrapado e repetir `validar-robo`. Só se a saída terminar realmente limpa em `RESULTADO: PRONTO PARA TESTE FÍSICO` começa a bateria física controlada descrita em `docs/NEXT.md`.
+PM-LOCAL-VALIDATION-002 está comprovada também no host físico real. O próximo passo é executar o smoke físico controlado do Durable Journal: cenário normal primeiro e, somente após PASS, crashes reproduzíveis com `falha-robo`, um checkpoint por vez, conforme `docs/NEXT.md`.
