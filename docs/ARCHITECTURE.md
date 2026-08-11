@@ -95,6 +95,8 @@ Essa busca usa `_NET_CLIENT_LIST_STACKING`/`_NET_CLIENT_LIST` e é estritamente 
 
 O fallback não é executado em operação normal nem em recovery `in_flight`; ele é condicionado ao marcador efêmero criado pelo recovery de `executed open_app`. Uma observação normal bem-sucedida consome esse marcador. ExecutionReceipt continua insuficiente e GoalVerifier permanece a única autoridade de conclusão.
 
+Quando a janela recuperada é encontrada, seu XID normalizado é mantido apenas como guarda efêmera de foco. Se uma etapa posterior tentar `type_text` ou `press_key`, o `LeaseGuardedExecutor` lê novamente a janela X11 ativa e recusa o teclado se ela não for exatamente a janela recuperada. Assim, reconhecer um Xed inativo não autoriza digitação acidental no Painel/Brave.
+
 ## Fault injection físico controlado
 
 `fault_injection.py` adiciona uma infraestrutura local de validação, não uma nova autoridade de execução.
