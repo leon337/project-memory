@@ -123,8 +123,10 @@ Para PM-LOCAL-VALIDATION-002:
 - merge: `4ff470250bc7868f41846488fcfd1c1b4be24fd3`;
 - repetição no host Linux/X11 real com Python 3.12.3: `396 passed`, todos os pré-requisitos PASS e encerramento limpo em `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
-O smoke físico do Durable Journal/fault injection ainda não foi executado. A máquina local está agora validada e liberada para iniciar essa bateria controlada.
+Primeiro smoke físico normal do Durable Journal no fluxo real Painel → Central → Robô: PASS. O objetivo `Abra o editor de texto e digite exatamente JOURNAL-SMOKE-NORMAL-001` abriu o editor, produziu o texto exatamente uma vez, apresentou readback `Confirmado`, GoalVerifier `SUCCEEDED`, task `succeeded` e logs de criação/claim/execução/finalização sem duplicidade visível.
+
+Os crashes controlados do Durable Journal ainda estão pendentes e devem ser executados um checkpoint por vez com `falha-robo`.
 
 ## Situação
 
-PM-LOCAL-VALIDATION-002 está comprovada também no host físico real. O próximo passo é executar o smoke físico controlado do Durable Journal: cenário normal primeiro e, somente após PASS, crashes reproduzíveis com `falha-robo`, um checkpoint por vez, conforme `docs/NEXT.md`.
+A máquina local está validada e o cenário físico normal passou. O próximo passo é iniciar crash testing reproduzível do Durable Journal, começando por `after_backend`, para comprovar que uma ação física que já produziu efeito mas ainda não foi registrada como `executed` não é reemitida após restart/reclaim.
