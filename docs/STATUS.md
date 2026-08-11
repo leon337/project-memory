@@ -93,8 +93,31 @@ O nome de trabalho é `PM-UNIVERSAL-OPERATOR-001 — Natural Language → Real C
 
 Voz bidirecional, contexto conversacional operacional, gestão segura de credenciais e ponte ChatGPT → Robô são frentes candidatas para o debate, não arquitetura fechada. Nenhuma implementação dessa nova fase foi iniciada.
 
+## RC 3.5 pré-quarta rodada — concluída como proposta, aguardando aprovação
+
+Foi executada uma crítica de arquitetura, engenharia e UI/UX sobre a arquitetura V3 antes de congelar contratos.
+
+Principais conclusões propostas, ainda não incorporadas a `ARCHITECTURE.md` ou `DECISIONS.md`:
+
+- evitar um `Durable Execution Manifest` como máquina de estados paralela ao journal; a alternativa preferida para a quarta rodada é evoluir o Durable Action Journal para uma identidade semântica de efeito v2 e persistir apenas um fingerprint mínimo do contrato de execução no nível da task;
+- `effect_key` deve ser produzido deterministicamente pelo runtime, nunca pelo provider; rota e efeito continuam identidades distintas;
+- a rota escolhida deve ser fixada atomicamente antes da entrada no backend e não pode trocar cegamente depois de estado ambíguo;
+- o Route Resolver deve ser determinístico e baseado em metadados de disponibilidade, autenticação, policy, replay/recovery e verificabilidade, não em ranking livre da IA;
+- Credential Broker deve entregar apenas credencial/ambiente mínimo ao adapter, sem segredo em prompt, argv, log, journal, contexto ou resultado público;
+- adapters devem ser tipados e pequenos; não criar uma interface universal excessiva antes de o slice Git/GitHub provar quais operações são realmente comuns;
+- toda escrita externa deve possuir recovery de três vias (`effect_present`, `effect_absent`, `ambiguous`) e observação posterior independente do receipt;
+- conteúdo vindo de web, GitHub, arquivos, terminal e ferramentas externas é dado não confiável e não pode adquirir autoridade de instrução sobre o runtime;
+- a UI do Operador Universal deve mostrar progresso operacional simples e verificável, mantendo detalhes técnicos em camada secundária;
+- logs não podem ser usados como fonte de estado visual. Para `planning`, `executing`, `verifying` e `recovering`, a quarta rodada deve definir um snapshot/contrato estruturado de telemetria proveniente do Goal Runtime/Journal e publicado pela Central;
+- `blocked` não deve ser apresentado como estado resumível enquanto o backend não possuir esse estado real. Falhas fail-closed devem aparecer como falha segura com código/motivo real;
+- cada componente da UI deve ter fonte real no runtime; nenhum indicador meramente ilustrativo deve entrar no Painel.
+
+A RC também propôs manter a Home V4.1 como fundação, em vez de redesenhar o produto do zero. A candidata de UX é uma superfície principal simples com objetivo atual, progresso por etapas, distinção visual entre executado e comprovado, recuperação/falha segura e um drawer/painel de detalhes técnicos para capability, rota, journal, lease e evidências sanitizadas.
+
+Nenhum código da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
+
 ## Situação
 
 PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada, e o ambiente local foi restaurado sem perda visível dos arquivos preservados. Nenhum checkpoint físico do Durable Journal permanece pendente.
 
-A próxima direção de produto já está definida, mas a nova fase está **em preparação para debate e planejamento com o MCF**. O próximo passo não é escrever código: é fechar escopo, arquitetura, capacidades, critérios de aceitação, riscos, sequência de entrega e plano de testes da `PM-UNIVERSAL-OPERATOR-001`, preservando todas as garantias já comprovadas.
+A direção de produto está definida e a RC 3.5 foi concluída como proposta. O próximo passo é aprovar, modificar ou rejeitar suas conclusões antes da quarta rodada. Só depois disso a arquitetura aprovada deve ser registrada em `ARCHITECTURE.md`/`DECISIONS.md` e convertida em contrato implementável.
