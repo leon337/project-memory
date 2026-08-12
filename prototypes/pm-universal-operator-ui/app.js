@@ -5,14 +5,19 @@ const STATES = {
     noticeClass: 'neutral-notice',
     noticeTitle: 'Publicando branch',
     noticeDescription: 'O Robô está executando a próxima ação autorizada. A conclusão ainda não foi comprovada.',
-    progress: 60,
-    progressLabel: '3 de 5 etapas',
+    progress: 40,
+    progressLabel: '2 de 5 comprovadas',
+    currentPosition: 'Etapa atual: 3 de 5',
     stepState: 'Executando',
     stepSubtitle: 'Rota selecionada: Git CLI',
-    summaryStep: '3 / 5',
+    currentClass: 'executing',
+    provedCount: 2,
+    activeCount: 1,
+    activeLabel: 'Em andamento',
+    pendingCount: 2,
+    summarySentence: 'A etapa 3 está em execução. Apenas 2 etapas contam como progresso comprovado.',
     capability: 'git.branch.publish',
     route: 'Git CLI',
-    replay: 'Protegido',
     verificationTitle: 'Executado não significa comprovado',
     verificationDescription: 'A próxima etapa será marcada como concluída somente depois que uma observação independente confirmar o estado esperado.',
     journal: 'in_flight',
@@ -24,14 +29,19 @@ const STATES = {
     noticeClass: 'verify-notice',
     noticeTitle: 'Verificando branch remota',
     noticeDescription: 'A execução técnica terminou. O Robô está lendo o estado remoto por um caminho de observação independente.',
-    progress: 72,
-    progressLabel: '3 de 5 etapas · verificando',
+    progress: 40,
+    progressLabel: '2 de 5 comprovadas',
+    currentPosition: 'Etapa atual: 3 de 5 · verificando',
     stepState: 'Verificando',
     stepSubtitle: 'Execução concluída · aguardando evidência remota',
-    summaryStep: '3 / 5',
+    currentClass: 'verifying',
+    provedCount: 2,
+    activeCount: 1,
+    activeLabel: 'Em verificação',
+    pendingCount: 2,
+    summarySentence: 'A etapa 3 foi executada, mas ainda não conta como concluída. A prova independente está em andamento.',
     capability: 'git.branch.publish',
     route: 'Git CLI + leitura remota',
-    replay: 'Sem nova emissão',
     verificationTitle: 'Aguardando prova independente',
     verificationDescription: 'O receipt de push não basta. O estado remoto precisa confirmar a branch e o commit esperados.',
     journal: 'executed',
@@ -43,14 +53,19 @@ const STATES = {
     noticeClass: 'recovery-notice',
     noticeTitle: 'Recuperando execução interrompida',
     noticeDescription: 'O Robô está verificando o estado atual antes de qualquer nova ação. Nenhum efeito será repetido cegamente.',
-    progress: 60,
-    progressLabel: '3 de 5 etapas · recovery',
+    progress: 40,
+    progressLabel: '2 de 5 comprovadas',
+    currentPosition: 'Etapa atual: 3 de 5 · recovery',
     stepState: 'Recuperando',
     stepSubtitle: 'Estado anterior precisa ser classificado antes de continuar',
-    summaryStep: '3 / 5',
+    currentClass: 'recovering',
+    provedCount: 2,
+    activeCount: 1,
+    activeLabel: 'Em recovery',
+    pendingCount: 2,
+    summarySentence: 'A etapa 3 está em recovery. O progresso comprovado permanece em 2 de 5 até existir nova evidência.',
     capability: 'git.branch.publish',
     route: 'Git CLI · rota fixada',
-    replay: 'Bloqueado até recovery',
     verificationTitle: 'Recovery antes de qualquer nova emissão',
     verificationDescription: 'O runtime deve classificar o efeito como presente, ausente ou ambíguo. Estado ambíguo falha fechado.',
     journal: 'in_flight',
@@ -62,14 +77,19 @@ const STATES = {
     noticeClass: 'failure-notice',
     noticeTitle: 'Execução interrompida com segurança',
     noticeDescription: 'Não foi possível confirmar se a ação externa ocorreu. O Robô não repetirá a ação automaticamente.',
-    progress: 60,
-    progressLabel: '3 de 5 etapas · interrompido',
+    progress: 40,
+    progressLabel: '2 de 5 comprovadas',
+    currentPosition: 'Etapa 3 de 5 · falha segura',
     stepState: 'Falha segura',
     stepSubtitle: 'Estado ambíguo · replay automático recusado',
-    summaryStep: '3 / 5',
+    currentClass: 'safe-failure',
+    provedCount: 2,
+    activeCount: 1,
+    activeLabel: 'Falha segura',
+    pendingCount: 2,
+    summarySentence: 'A etapa 3 terminou em falha segura. O sistema preservou a ambiguidade e não fabricou progresso.',
     capability: 'git.branch.publish',
     route: 'Git CLI · bloqueada',
-    replay: 'Fail-closed',
     verificationTitle: 'Ambiguidade preservada, não mascarada',
     verificationDescription: 'Falhar é o comportamento correto quando o sistema não consegue provar que repetir o efeito é seguro.',
     journal: 'in_flight',
@@ -82,13 +102,18 @@ const STATES = {
     noticeTitle: 'Objetivo comprovado',
     noticeDescription: 'Todos os critérios obrigatórios possuem evidência suficiente. O GoalVerifier pode autorizar conclusão.',
     progress: 100,
-    progressLabel: '5 de 5 etapas',
+    progressLabel: '5 de 5 comprovadas',
+    currentPosition: 'Objetivo concluído',
     stepState: 'Comprovado',
     stepSubtitle: 'Branch remota confirmada no estado esperado',
-    summaryStep: '5 / 5',
+    currentClass: 'succeeded',
+    provedCount: 5,
+    activeCount: 0,
+    activeLabel: 'Em andamento',
+    pendingCount: 0,
+    summarySentence: 'Todas as 5 etapas estão comprovadas. O percentual representa somente critérios efetivamente fechados.',
     capability: 'goal.verify',
     route: 'Observação independente',
-    replay: 'Task terminal',
     verificationTitle: 'Estado final comprovado',
     verificationDescription: 'O sucesso representa o objetivo inteiro comprovado, não apenas uma chamada técnica bem-sucedida.',
     journal: 'acknowledged',
@@ -104,19 +129,56 @@ const noticeDescription = document.getElementById('noticeDescription');
 const progressBar = document.getElementById('progressBar');
 const progressPercent = document.getElementById('progressPercent');
 const progressLabel = document.getElementById('progressLabel');
+const currentPositionLabel = document.getElementById('currentPositionLabel');
 const currentStepState = document.getElementById('currentStepState');
 const currentStepSubtitle = document.getElementById('currentStepSubtitle');
-const summaryPhase = document.getElementById('summaryPhase');
-const summaryStep = document.getElementById('summaryStep');
-const summaryCapability = document.getElementById('summaryCapability');
-const summaryRoute = document.getElementById('summaryRoute');
-const summaryReplay = document.getElementById('summaryReplay');
 const verificationTitle = document.getElementById('verificationTitle');
 const verificationDescription = document.getElementById('verificationDescription');
+const provedCount = document.getElementById('provedCount');
+const activeCount = document.getElementById('activeCount');
+const pendingCount = document.getElementById('pendingCount');
+const activeMetricLabel = activeCount?.nextElementSibling;
+const summarySentence = document.getElementById('summarySentence');
 const drawerCapability = document.getElementById('drawerCapability');
 const drawerRoute = document.getElementById('drawerRoute');
 const drawerJournal = document.getElementById('drawerJournal');
 const drawerRecovery = document.getElementById('drawerRecovery');
+const steps = [...document.querySelectorAll('.step')];
+
+function resetStepVisuals(state) {
+  steps.forEach((step, index) => {
+    const marker = step.querySelector('.step-marker');
+    const stepState = step.querySelector('.step-state');
+    const stepNumber = index + 1;
+
+    step.className = 'step';
+
+    if (state.currentClass === 'succeeded') {
+      step.classList.add('completed');
+      marker.textContent = '✓';
+      stepState.textContent = 'Comprovado';
+      return;
+    }
+
+    if (stepNumber <= 2) {
+      step.classList.add('completed');
+      marker.textContent = '✓';
+      stepState.textContent = 'Comprovado';
+      return;
+    }
+
+    if (stepNumber === 3) {
+      step.classList.add('current', state.currentClass);
+      marker.textContent = '3';
+      stepState.textContent = state.stepState;
+      return;
+    }
+
+    step.classList.add('pending');
+    marker.textContent = String(stepNumber);
+    stepState.textContent = 'Pendente';
+  });
+}
 
 function applyState(key) {
   const state = STATES[key];
@@ -132,15 +194,17 @@ function applyState(key) {
   progressBar.style.width = `${state.progress}%`;
   progressPercent.textContent = `${state.progress}%`;
   progressLabel.textContent = state.progressLabel;
+  currentPositionLabel.textContent = state.currentPosition;
 
   currentStepState.textContent = state.stepState;
   currentStepSubtitle.textContent = state.stepSubtitle;
+  resetStepVisuals(state);
 
-  summaryPhase.textContent = state.phase;
-  summaryStep.textContent = state.summaryStep;
-  summaryCapability.textContent = state.capability;
-  summaryRoute.textContent = state.route;
-  summaryReplay.textContent = state.replay;
+  provedCount.textContent = String(state.provedCount);
+  activeCount.textContent = String(state.activeCount);
+  pendingCount.textContent = String(state.pendingCount);
+  if (activeMetricLabel) activeMetricLabel.textContent = state.activeLabel;
+  summarySentence.textContent = state.summarySentence;
 
   verificationTitle.textContent = state.verificationTitle;
   verificationDescription.textContent = state.verificationDescription;
