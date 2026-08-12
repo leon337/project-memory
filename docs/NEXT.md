@@ -1,18 +1,18 @@
 # NEXT
 
-## 1. Reabrir a segunda revisão do protótipo e confirmar a versão local
+## 1. Continuar a RC física da segunda revisão a partir do estado `verifying`
 
-A `main` contém a segunda revisão de `prototypes/pm-universal-operator-ui/`, com progresso comprovado separado da etapa atual, detalhes técnicos movidos para drawer, conexões retiradas da Home, escala responsiva relativa e testes dedicados de proteção.
+A segunda revisão de `prototypes/pm-universal-operator-ui/` já foi sincronizada, validada e reaberta no host Linux. O estado inicial `executing` foi inspecionado fisicamente no Firefox com zoom de 110% e confirmou a correção semântica principal: `40%`, `2 de 5 comprovadas` e `Etapa atual: 3 de 5` aparecem como informações distintas.
 
-O host Linux já executou `atualizar-robo` e `validar-robo` com sucesso; a validação mais recente passou com `406 passed, 1 warning`, working tree limpa e todos os pré-requisitos Linux/X11/desktop/Chromium verdes.
+A Home também deixou de expor permanentemente capability, rota, journal, lease e recovery, e o bloco de conexões não ocupa mais a área principal do objetivo. Esse primeiro estado passa na inspeção inicial, mas isso ainda não fecha a RC visual inteira.
 
-Reabrir agora `prototypes/pm-universal-operator-ui/index.html` no navegador e confirmar visualmente que a versão local corresponde à revisão nova antes de iniciar a auditoria de estados.
+O próximo teste físico é alternar o protótipo para `Verificando` e confirmar que o progresso comprovado permanece em 40%, a etapa atual continua 3 de 5 e a linguagem visual deixa claro que execução técnica não equivale a resultado comprovado.
 
 ## 2. Concluir a RC visual e decidir a RC 3.5
 
-Auditar fisicamente os estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, o drawer `Detalhes técnicos`, responsividade, zoom, hierarquia visual, acessibilidade e clareza.
+Depois de `verifying`, auditar um estado por vez: `recovering`, falha segura e `succeeded`, além do drawer `Detalhes técnicos`, responsividade, zoom, hierarquia visual, acessibilidade e clareza.
 
-Confirmar especialmente que `Etapa atual: 3 de 5` não é confundida com percentual comprovado, que estados ainda não comprovados não avançam além de `40%`, que a Home não expõe capability/rota/journal/lease/recovery permanentemente e que a escala baseada em `rem`, `%`, `fr`, `clamp()` e `minmax()` mantém consistência em diferentes tamanhos de tela.
+Confirmar especialmente que estados ainda não comprovados não avançam além de `40%`, que `succeeded` só chega a `100%` quando as cinco etapas aparecem comprovadas, que os detalhes técnicos permanecem em camada secundária e que a escala baseada em `rem`, `%`, `fr`, `clamp()` e `minmax()` mantém consistência em diferentes tamanhos de tela.
 
 Depois dessa auditoria, aprovar, modificar ou rejeitar as conclusões da RC 3.5. A arquitetura operacional ainda não deve ser alterada antes dessa decisão.
 
