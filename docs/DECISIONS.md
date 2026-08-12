@@ -333,3 +333,13 @@ O nome de trabalho da próxima fase é `PM-UNIVERSAL-OPERATOR-001 — Natural La
 Antes de implementação, o escopo, arquitetura, capacidades, critérios de aceitação, riscos, sequência de entrega e testes devem ser debatidos e planejados com o MCF. Até esse planejamento ser aprovado, esta decisão representa direção estratégica, não autorização para alterar a arquitetura nem iniciar código da nova fase.
 
 A nova autonomia deve crescer sobre as garantias já comprovadas, preservando Policy Layer, lease/heartbeat, Durable Journal, FAILSAFE, Emergency Stop, percepção independente, EvidenceRecord e GoalVerifier como única autoridade de conclusão. Novas capacidades físicas ou externas também precisam manter identidade durável adequada para retries/reclaims e não podem reintroduzir replay cego.
+
+## D-033 — UI usa escala relativa e responsiva como padrão
+
+A interface do projeto deve usar unidades relativas e responsivas como regra de construção para preservar consistência visual entre desktop grande, notebook, tablet, mobile e diferentes níveis de zoom do navegador.
+
+`rem` é a unidade principal para tipografia, espaçamento, raio, dimensões mínimas e controles. `%` é usada para proporções relativas ao contêiner, `fr` para distribuição em CSS Grid, `clamp()` para escalas fluidas com limites e `minmax()` para impedir painéis excessivamente pequenos ou grandes. `vw`, `vh` ou `dvh` são usados quando a dimensão precisa realmente acompanhar a viewport. Breakpoints devem preferir unidades relativas, como `rem`.
+
+Valores fixos em `px` não devem ser a base do layout. Eles ficam restritos a necessidades técnicas finas, como bordas de `1px`, ou a casos explicitamente justificados.
+
+A mesma regra vale para protótipos HTML/CSS/JavaScript e para a UI operacional futura. O objetivo é evitar uma interface calibrada para uma resolução específica e manter hierarquia, proporção, legibilidade e usabilidade de forma previsível conforme o espaço disponível muda.
