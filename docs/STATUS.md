@@ -149,9 +149,19 @@ O `README.md` do protótipo documenta a semântica de progresso e a regra de med
 
 No host real, `atualizar-robo` trouxe a revisão por fast-forward seguro e `validar-robo` passou com `406 passed, 1 warning`, working tree limpa e todos os pré-requisitos Linux/X11/desktop/Chromium verdes.
 
-A segunda revisão foi então reaberta fisicamente no Firefox e o estado inicial `executing` foi inspecionado com zoom de 110%. O resultado inicial é PASS para as correções principais: a tela mostra `40%`, `2 de 5 comprovadas` e `Etapa atual: 3 de 5` como informações separadas; a leitura rápida mostra 2 comprovadas, 1 em andamento e 2 pendentes; capability, rota, journal, lease e recovery não aparecem permanentemente na Home; o bloco de conexões também não ocupa mais a superfície principal. O layout permaneceu coerente nesse viewport/zoom observado, mas isso ainda não comprova responsividade geral.
+A segunda revisão foi então reaberta fisicamente no navegador. O estado inicial `executing` passou: mostrou `40%`, `2 de 5 comprovadas` e `Etapa atual: 3 de 5` como informações distintas, com 2 comprovadas, 1 em andamento e 2 pendentes, sem exposição permanente de capability/rota/journal/lease/recovery e sem o bloco de conexões na Home.
 
-Ainda permanecem pendentes na RC física os estados `verifying`, `recovering`, falha segura e `succeeded`, o drawer `Detalhes técnicos`, outros tamanhos de viewport/zoom e a checagem final de acessibilidade/clareza.
+O estado `verifying` também passou: o progresso comprovado permaneceu em `40%`, a etapa atual permaneceu `3 de 5`, a leitura rápida mudou para 2 comprovadas, 1 em verificação e 2 pendentes, e a UI deixou explícito que a execução técnica terminou mas ainda aguarda prova independente.
+
+Os três estados críticos restantes foram inspecionados fisicamente e passaram:
+
+- `recovering`: permaneceu em `40%` e 2 de 5 comprovadas; a etapa 3 passou a recovery sem fabricar progresso e a linguagem informou que o sistema verifica o estado atual antes de qualquer nova ação e não repete efeito cegamente;
+- falha segura: permaneceu em `40%` e 2 de 5 comprovadas; a etapa 3 foi mostrada como falha segura por estado ambíguo, com replay automático recusado e sem mascarar a ambiguidade como sucesso;
+- `succeeded`: avançou somente então para `100%`, com `5 de 5 comprovadas`, leitura rápida em 5 comprovadas, 0 em andamento e 0 pendentes, todas as cinco etapas visualmente comprovadas e mensagem de objetivo/estado final comprovado.
+
+Conclusão parcial da RC física: os cinco estados de demonstração (`executing`, `verifying`, `recovering`, falha segura e `succeeded`) passam na semântica visual observada. A regra de que execução não equivale a comprovação foi preservada em todos os estados não terminais, e `100%` apareceu apenas no estado comprovado.
+
+Ainda permanecem pendentes na RC física o drawer `Detalhes técnicos`, responsividade em outros tamanhos/zooms e a checagem final de acessibilidade/clareza. A aprovação da RC 3.5 continua pendente até fechar essas inspeções.
 
 ## Situação
 
@@ -159,4 +169,4 @@ PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a 
 
 O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; a validação mais recente passou com 406 testes e todos os pré-requisitos do host verdes.
 
-A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript está em RC física. O estado `executing` passou na inspeção inicial; o próximo passo é testar `verifying` e então os demais estados/drawer/responsividade antes de aprovar ou modificar a RC 3.5 e realizar a quarta rodada.
+A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript está em RC física. Os cinco estados críticos passaram na inspeção visual; o próximo passo é auditar o drawer `Detalhes técnicos`, depois responsividade/zoom/acessibilidade, e só então decidir a RC 3.5 antes da quarta rodada.
