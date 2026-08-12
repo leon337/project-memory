@@ -1,18 +1,18 @@
 # NEXT
 
-## 1. Limpar o working tree local com preservação e sincronizar o host
+## 1. Sincronizar e revalidar a segunda revisão do protótipo no host
 
-O host Linux ainda contém arquivos pessoais/auxiliares não rastreados pelo Git, e `atualizar-robo` para corretamente enquanto a árvore estiver suja. A `main` agora contém `context_anchor.local_archive` e o comando `empacotar-locais`, mas o host ainda precisa receber essa versão.
+A `main` contém a segunda revisão de `prototypes/pm-universal-operator-ui/`, com progresso comprovado separado da etapa atual, detalhes técnicos movidos para drawer, conexões retiradas da Home, escala responsiva relativa e testes dedicados de proteção.
 
-Para romper esse bootstrap sem descartar nada, executar a versão atual de `src/context_anchor/local_archive.py` diretamente a partir da `main`: ela deve selecionar somente arquivos retornados por `git ls-files --others --exclude-standard`, criar um ZIP fora do repositório na Área de Trabalho, verificar integridade e SHA-256 e somente depois remover os originais arquivados. Alteração em arquivo rastreado, symlink, destino dentro do repositório ou falha de verificação deve resultar em STOP sem remoção dos originais.
+No host Linux, executar `atualizar-robo` e depois `validar-robo`. Só após ambos concluírem verdes, reabrir o protótipo no navegador e confirmar que a versão local corresponde à revisão nova.
 
-Depois de confirmar `RESULTADO: ARQUIVOS LOCAIS PRESERVADOS E REPOSITÓRIO LIMPO`, executar `atualizar-robo` e em seguida `validar-robo`. Não iniciar o teste visual enquanto a atualização ou a validação local não estiverem verdes.
+## 2. Concluir a RC visual e decidir a RC 3.5
 
-## 2. Auditar o protótipo visual repo-local e decidir a RC 3.5
+Auditar fisicamente os estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, o drawer `Detalhes técnicos`, responsividade, zoom, hierarquia visual, acessibilidade e clareza.
 
-O protótipo está em `prototypes/pm-universal-operator-ui/` usando somente HTML, CSS e JavaScript versionados no Git. Depois da sincronização e validação local, abrir o protótipo e revisar os estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, a camada de detalhes técnicos, hierarquia visual, responsividade, acessibilidade e clareza.
+Confirmar especialmente que `Etapa atual: 3 de 5` não é confundida com percentual comprovado, que estados ainda não comprovados não avançam além de `40%`, que a Home não expõe capability/rota/journal/lease/recovery permanentemente e que a escala baseada em `rem`, `%`, `fr`, `clamp()` e `minmax()` mantém consistência em diferentes tamanhos de tela.
 
-A mesma revisão deve aprovar, modificar ou rejeitar as conclusões da RC 3.5 antes de alterar `ARCHITECTURE.md` ou `DECISIONS.md`. Os dados do protótipo continuam simulados; logs não podem ser fonte de verdade visual e nenhum estado sem fonte estruturada no runtime/Central pode ser promovido para a Home operacional.
+Depois dessa auditoria, aprovar, modificar ou rejeitar as conclusões da RC 3.5. A arquitetura operacional ainda não deve ser alterada antes dessa decisão.
 
 ## 3. Realizar a quarta rodada e converter o desenho aprovado em contrato executável
 
