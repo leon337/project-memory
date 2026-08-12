@@ -129,7 +129,7 @@ A RC também propôs manter a Home V4.1 como fundação, em vez de redesenhar o 
 
 Nenhum código operacional da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
 
-## Protótipo visual repo-local — segunda revisão sincronizada e validada no host
+## Protótipo visual repo-local — segunda revisão sincronizada, validada e em RC física
 
 A materialização visual da RC 3.5 existe dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato permanece em `prototypes/pm-universal-operator-ui/` e continua sendo apenas um protótipo estático, sem alterar Goal Runtime, TaskStore, Durable Action Journal, Policy, lease/heartbeat, FAILSAFE, Emergency Stop, EvidenceRecord ou GoalVerifier.
 
@@ -147,7 +147,11 @@ A primeira inspeção física revelou inconsistência entre posição da etapa e
 
 O `README.md` do protótipo documenta a semântica de progresso e a regra de medidas. A segunda revisão foi coberta pelo CI da `main` no run `31552332820`, head `83f96934b59997ffc6e71030bb5314c1d84ded7c`: job `test` concluído com sucesso, incluindo instalação, Chromium Playwright, compilação e testes.
 
-No host real, `atualizar-robo` trouxe a revisão por fast-forward seguro e `validar-robo` passou com `406 passed, 1 warning`, working tree limpa e todos os pré-requisitos Linux/X11/desktop/Chromium verdes. A reabertura da interface e a RC física dos estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além do drawer e da responsividade, ainda estão pendentes.
+No host real, `atualizar-robo` trouxe a revisão por fast-forward seguro e `validar-robo` passou com `406 passed, 1 warning`, working tree limpa e todos os pré-requisitos Linux/X11/desktop/Chromium verdes.
+
+A segunda revisão foi então reaberta fisicamente no Firefox e o estado inicial `executing` foi inspecionado com zoom de 110%. O resultado inicial é PASS para as correções principais: a tela mostra `40%`, `2 de 5 comprovadas` e `Etapa atual: 3 de 5` como informações separadas; a leitura rápida mostra 2 comprovadas, 1 em andamento e 2 pendentes; capability, rota, journal, lease e recovery não aparecem permanentemente na Home; o bloco de conexões também não ocupa mais a superfície principal. O layout permaneceu coerente nesse viewport/zoom observado, mas isso ainda não comprova responsividade geral.
+
+Ainda permanecem pendentes na RC física os estados `verifying`, `recovering`, falha segura e `succeeded`, o drawer `Detalhes técnicos`, outros tamanhos de viewport/zoom e a checagem final de acessibilidade/clareza.
 
 ## Situação
 
@@ -155,4 +159,4 @@ PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a 
 
 O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; a validação mais recente passou com 406 testes e todos os pré-requisitos do host verdes.
 
-A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript está sincronizada e validada fisicamente no host. O próximo passo é reabrir a interface e concluir a RC visual antes de aprovar ou modificar a RC 3.5 e então realizar a quarta rodada.
+A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript está em RC física. O estado `executing` passou na inspeção inicial; o próximo passo é testar `verifying` e então os demais estados/drawer/responsividade antes de aprovar ou modificar a RC 3.5 e realizar a quarta rodada.
