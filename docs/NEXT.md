@@ -1,10 +1,12 @@
 # NEXT
 
-## 1. Sincronizar e revalidar a segunda revisão do protótipo no host
+## 1. Reabrir a segunda revisão do protótipo e confirmar a versão local
 
 A `main` contém a segunda revisão de `prototypes/pm-universal-operator-ui/`, com progresso comprovado separado da etapa atual, detalhes técnicos movidos para drawer, conexões retiradas da Home, escala responsiva relativa e testes dedicados de proteção.
 
-No host Linux, executar `atualizar-robo` e depois `validar-robo`. Só após ambos concluírem verdes, reabrir o protótipo no navegador e confirmar que a versão local corresponde à revisão nova.
+O host Linux já executou `atualizar-robo` e `validar-robo` com sucesso; a validação mais recente passou com `406 passed, 1 warning`, working tree limpa e todos os pré-requisitos Linux/X11/desktop/Chromium verdes.
+
+Reabrir agora `prototypes/pm-universal-operator-ui/index.html` no navegador e confirmar visualmente que a versão local corresponde à revisão nova antes de iniciar a auditoria de estados.
 
 ## 2. Concluir a RC visual e decidir a RC 3.5
 
