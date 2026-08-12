@@ -1,13 +1,15 @@
 # NEXT
 
-## 1. Auditar o drawer `Detalhes técnicos`
+## 1. Aprovar ou ajustar o Protocolo de Continuidade v1.2 endurecido
 
-Os cinco estados críticos do protótipo (`executing`, `verifying`, `recovering`, falha segura e `succeeded`) já foram inspecionados fisicamente e passaram na semântica visual esperada. O próximo teste é abrir `Detalhes técnicos` e confirmar que capability, rota, journal, lease, recovery e referência de credencial aparecem somente nessa camada secundária, sem segredo real, sem sobreposição incorreta e com fechamento funcional por botão, backdrop e `Esc` quando aplicável.
+A RC normal e a auditoria adversarial foram concluídas. A versão final candidata deve incorporar: autoridade por domínio entre os arquivos canônicos; separação entre estado remoto e local; dois eixos de estado (governança e evidência); canonicalização pendente quando LEANDRO aprova algo antes da persistência; detecção de conflito canônico e concorrência entre chats; revalidação de opções antigas; testes vinculados à versão/ambiente; PASS/FAIL por critério; `SEM OPÇÕES` limitado apenas à apresentação; e checkpoint documental por conjunto lógico, com registro imediato para decisão, FAIL crítico, mudança de direção ou gate.
 
-## 2. Auditar responsividade, zoom, acessibilidade e clareza final
+O protocolo ainda não deve ser tratado como vigente até aprovação explícita de LEANDRO.
 
-Depois do drawer, testar a mesma Home em tamanhos de viewport menores e maiores e em níveis de zoom diferentes. Confirmar que a escala baseada em `rem`, `%`, `fr`, `clamp()`, `minmax()` e unidades de viewport mantém hierarquia, legibilidade, controles utilizáveis e ausência de cortes/overflow indevido. Revisar também foco de teclado, contraste funcional, leitura sem depender somente de cor e clareza das mensagens de execução, verificação, recovery e falha segura.
+## 2. Retomar a RC física pelo drawer `Detalhes técnicos`
 
-## 3. Decidir a RC 3.5 e somente então realizar a quarta rodada
+Os cinco estados críticos do protótipo (`executing`, `verifying`, `recovering`, falha segura e `succeeded`) já passaram na semântica visual observada. Depois de fechar o protocolo, abrir `Detalhes técnicos` e confirmar que capability, rota, journal, lease, recovery e referência de credencial aparecem somente nessa camada secundária, sem segredo real, sem sobreposição incorreta e com fechamento funcional por botão, backdrop e `Esc` quando aplicável.
 
-Com drawer e responsividade/acessibilidade aprovados, aprovar, modificar ou rejeitar a RC 3.5. Se aprovada, atualizar `ARCHITECTURE.md` e `DECISIONS.md` com a arquitetura vigente e então realizar a quarta rodada para congelar os contratos do primeiro slice Git/GitHub sandbox e transformá-los em missão implementável com critérios de aceitação, capacidades, sequência de entrega, testes e evidências exigidas. Toda nova capacidade deve preservar Policy Layer, lease/heartbeat, Durable Journal, FAILSAFE, Emergency Stop, percepção independente, EvidenceRecord e GoalVerifier como única autoridade de conclusão, sem replay cego entre rotas ou retries/reclaims.
+## 3. Fechar responsividade/acessibilidade e decidir a RC 3.5 antes da quarta rodada
+
+Depois do drawer, testar tamanhos de viewport e zoom diferentes, foco de teclado, contraste funcional, leitura sem depender apenas de cor e clareza das mensagens. A escala relativa (`rem`, `%`, `fr`, `clamp()`, `minmax()` e unidades de viewport) deve manter hierarquia e ausência de overflow indevido. Só depois aprovar, modificar ou rejeitar a RC 3.5; se aprovada, atualizar `ARCHITECTURE.md` e `DECISIONS.md` e então realizar a quarta rodada do primeiro slice Git/GitHub sandbox.
