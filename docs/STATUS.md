@@ -145,7 +145,7 @@ A primeira inspeção física revelou inconsistência entre posição da etapa e
 - a decisão D-033 oficializa essa regra de medidas relativas/responsivas para protótipos e UI operacional futura;
 - foram adicionados três testes em `tests/test_universal_operator_prototype.py` para proteger a escala responsiva, a separação entre etapa atual e progresso comprovado e a permanência dos campos técnicos no drawer secundário.
 
-O `README.md` do protótipo documenta a semântica de progresso e a regra de medidas. A segunda revisão ainda precisa ser trazida ao host, validada e reaberta no navegador para RC física dos estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além do drawer e da responsividade.
+O `README.md` do protótipo documenta a semântica de progresso e a regra de medidas. A segunda revisão foi coberta pelo CI da `main` no run `31552332820`, head `83f96934b59997ffc6e71030bb5314c1d84ded7c`: job `test` concluído com sucesso, incluindo instalação, Chromium Playwright, compilação e testes. A revisão ainda precisa ser trazida ao host, validada e reaberta no navegador para RC física dos estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além do drawer e da responsividade.
 
 ## Situação
 
@@ -153,4 +153,4 @@ PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a 
 
 O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; `validar-robo` passou com 403 testes e todos os pré-requisitos do host verdes.
 
-A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript foi implementada na `main` com a regra responsiva D-033. O próximo passo é sincronizar o host, validar e inspecionar fisicamente essa segunda revisão antes de aprovar ou modificar a RC 3.5 e então realizar a quarta rodada.
+A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript foi implementada na `main` com a regra responsiva D-033 e CI verde. O próximo passo é sincronizar o host, validar e inspecionar fisicamente essa segunda revisão antes de aprovar ou modificar a RC 3.5 e então realizar a quarta rodada.
