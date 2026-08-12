@@ -129,27 +129,23 @@ A RC também propôs manter a Home V4.1 como fundação, em vez de redesenhar o 
 
 Nenhum código operacional da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
 
-## Protótipo visual repo-local — aberto e em RC visual
+## Protótipo visual repo-local — segunda revisão implementada, nova inspeção física pendente
 
-A materialização visual da RC 3.5 existe dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato está em `prototypes/pm-universal-operator-ui/` e contém:
+A materialização visual da RC 3.5 existe dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato permanece em `prototypes/pm-universal-operator-ui/` e continua sendo apenas um protótipo estático, sem alterar Goal Runtime, TaskStore, Durable Action Journal, Policy, lease/heartbeat, FAILSAFE, Emergency Stop, EvidenceRecord ou GoalVerifier.
 
-- `index.html` — estrutura da Home candidata;
-- `styles.css` — identidade visual, estados, responsividade e acessibilidade básica;
-- `app.js` — alternância local entre `executing`, `verifying`, `recovering`, falha segura e `succeeded`;
-- `README.md` — fronteira entre protótipo visual e produto operacional.
+A primeira inspeção física revelou inconsistência entre posição da etapa e percentual comprovado, excesso de detalhes técnicos na superfície principal, redundância de estado e ocupação da Home por conexões. Esses achados foram corrigidos na segunda revisão do protótipo:
 
-O protótipo é deliberadamente estático e identifica seus dados como simulados. Ele não altera Goal Runtime, TaskStore, Durable Action Journal, Policy, lease/heartbeat, FAILSAFE, Emergency Stop, EvidenceRecord ou GoalVerifier.
+- a etapa atual e o progresso comprovado agora são informações distintas: na demonstração inicial, a etapa atual permanece `3 de 5`, mas o progresso é `40%` e `2 de 5 comprovadas`;
+- `executing`, `verifying`, `recovering` e falha segura mantêm o progresso comprovado em 40% até existir evidência suficiente; `succeeded` passa a 100% e marca as cinco etapas como comprovadas;
+- capability, rota, journal, lease, recovery e referência de credencial ficam no drawer `Detalhes técnicos`, em vez de aparecerem permanentemente na Home;
+- o bloco de conexões foi retirado da área principal do objetivo; a Home agora prioriza objetivo, progresso, etapa atual, evidência e estados de execução/verificação/recovery;
+- a coluna secundária passou a mostrar apenas leitura rápida do objetivo, última comprovação e a regra de separação entre superfície operacional e camada técnica;
+- `styles.css` foi refeito para usar escala relativa e responsiva com `rem`, `%`, `fr`, `clamp()`, `minmax()` e viewport units quando apropriado; `px` ficou restrito a bordas de `1px`;
+- breakpoints usam `rem` e o layout possui adaptações para desktop, notebook, tablet e mobile;
+- a decisão D-033 oficializa essa regra de medidas relativas/responsivas para protótipos e UI operacional futura;
+- foram adicionados três testes em `tests/test_universal_operator_prototype.py` para proteger a escala responsiva, a separação entre etapa atual e progresso comprovado e a permanência dos campos técnicos no drawer secundário.
 
-O protótipo foi aberto com sucesso no navegador do host real em 2026-08-11 e a primeira inspeção visual foi iniciada. Achados atuais, ainda como RC e não como decisão aprovada:
-
-- a hierarquia geral está legível e a distinção entre etapas comprovadas, etapa em execução e etapas pendentes funciona visualmente;
-- existe uma inconsistência semântica importante: a tela mostra `60%` e `3 de 5 etapas` enquanto apenas duas etapas estão comprovadas e a terceira ainda está em execução; o indicador precisa distinguir posição atual de percentual realmente concluído/comprovado;
-- detalhes técnicos aparecem permanentemente na coluna direita (`capacidade`, `rota`, `lease`, `replay`) apesar de existir o botão `Detalhes técnicos`; isso contradiz a proposta de manter a superfície principal simples e mover dados técnicos para uma camada secundária;
-- o estado `Executando` aparece em vários pontos ao mesmo tempo, criando redundância visual que pode ser reduzida;
-- a caixa de conexões ocupa espaço de alta prioridade durante um objetivo ativo e deve ser reavaliada frente ao foco principal em objetivo, progresso, verificação e recuperação;
-- responsividade, estados de `verifying`, `recovering`, falha segura e `succeeded`, além das interações do botão de detalhes técnicos, ainda precisam ser auditados no navegador.
-
-A finalidade continua sendo auditar arquitetura de informação e UX antes da quarta rodada. Nenhum estado mostrado no protótipo poderá ser promovido para a Home operacional sem uma fonte estruturada correspondente no runtime/Central.
+O `README.md` do protótipo documenta a semântica de progresso e a regra de medidas. A segunda revisão ainda precisa ser trazida ao host, validada e reaberta no navegador para RC física dos estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além do drawer e da responsividade.
 
 ## Situação
 
@@ -157,4 +153,4 @@ PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a 
 
 O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; `validar-robo` passou com 403 testes e todos os pré-requisitos do host verdes.
 
-A direção de produto está definida, a RC 3.5 foi concluída como proposta e o protótipo HTML/CSS/JavaScript foi aberto fisicamente para a RC visual. O próximo passo de produto é concluir essa auditoria visual, corrigir ou rejeitar os achados e então aprovar ou modificar a RC 3.5 antes da quarta rodada.
+A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript foi implementada na `main` com a regra responsiva D-033. O próximo passo é sincronizar o host, validar e inspecionar fisicamente essa segunda revisão antes de aprovar ou modificar a RC 3.5 e então realizar a quarta rodada.
