@@ -21,7 +21,7 @@ Comandos oficiais locais:
 
 Checkpoints físicos: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
 
-O host Linux/X11 foi validado em Python 3.12.3 com `399 passed, 1 warning`, compilação PASS, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+O host Linux/X11 foi revalidado em 2026-08-11 com Python 3.12.3, `403 passed, 1 warning`, compilação PASS, working tree limpa, branch `main`, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
 ## Matriz física concluída
 
@@ -84,9 +84,9 @@ O journal não persiste texto digitado integral, screenshot ou URL completa. Rec
 
 A restauração do ambiente local foi concluída em 2026-08-11: a `main` local foi sincronizada por `atualizar-robo`, o stash temporário `backup-local-antes-atualizacao-2026-08-10` foi aplicado, os arquivos locais reapareceram como não rastreados (`??`), o stash permaneceu disponível durante a conferência e só então foi removido com `git stash drop`. Após o drop, `git stash list` ficou sem esse backup e os arquivos locais continuaram presentes. Não foram observados marcadores de conflito na saída conferida.
 
-O working tree local continua contendo esses arquivos locais não rastreados. Em 2026-08-11, uma nova tentativa de `atualizar-robo` retornou `RESULTADO: STOP`, corretamente, sem descartar arquivos. O `git status` confirmou que a sujeira observada é composta por materiais não monitorados pelo Git; o host ainda não foi limpo nem atualizado para a `main` nova.
+Em seguida, os 17 arquivos não rastreados foram preservados em ZIP verificado fora do repositório; depois disso o working tree ficou limpo. `atualizar-robo` concluiu com `RESULTADO: ATUALIZADO COM SEGURANÇA` e `validar-robo` concluiu com `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
-## Empacotamento seguro de arquivos locais — implementado na `main`, teste físico pendente
+## Empacotamento seguro de arquivos locais — implementado e validado fisicamente
 
 Foi adicionada a rotina `context_anchor.local_archive` e registrado o comando `empacotar-locais` no pacote. A finalidade é resolver exatamente o caso em que materiais pessoais/auxiliares não rastreados impedem `atualizar-robo` de operar.
 
@@ -96,7 +96,7 @@ Antes de remover qualquer original, o ZIP passa por `ZipFile.testzip()` e por co
 
 Foram adicionados quatro testes dedicados cobrindo: empacotamento de arquivos não rastreados com nomes Unicode e estrutura aninhada; STOP quando existe alteração rastreada; STOP quando o destino fica dentro do repositório; e preservação dos originais quando a verificação do ZIP falha. O job de CI do commit `abd0de4ea9a65a0e660ea9efbc1464bbc0f5bdf5`, run `31547985476`, concluiu com sucesso, incluindo compile e test.
 
-O teste no host real ainda está pendente porque a versão local anterior não contém o novo comando e não pode receber a atualização enquanto o working tree estiver sujo. O bootstrap combinado é baixar apenas `src/context_anchor/local_archive.py` da `main` para fora do repositório, executá-lo contra `/home/leo/project-memory`, conferir o ZIP e o resultado de working tree limpa e somente então executar `atualizar-robo` e `validar-robo`.
+O teste no host real também passou: 17 arquivos locais foram selecionados, o ZIP `project-memory-arquivos-locais-2026-08-11_211334.zip` foi criado na Área de Trabalho, a integridade passou, os originais foram arquivados e o resultado final mostrou `Working tree ........... LIMPA` e `RESULTADO: ARQUIVOS LOCAIS PRESERVADOS E REPOSITÓRIO LIMPO`.
 
 ## Próxima direção estratégica aprovada
 
@@ -129,9 +129,9 @@ A RC também propôs manter a Home V4.1 como fundação, em vez de redesenhar o 
 
 Nenhum código operacional da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
 
-## Protótipo visual repo-local — criado para auditoria
+## Protótipo visual repo-local — aberto e em RC visual
 
-A materialização visual da RC 3.5 foi iniciada dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato está em `prototypes/pm-universal-operator-ui/` e contém:
+A materialização visual da RC 3.5 existe dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato está em `prototypes/pm-universal-operator-ui/` e contém:
 
 - `index.html` — estrutura da Home candidata;
 - `styles.css` — identidade visual, estados, responsividade e acessibilidade básica;
@@ -140,10 +140,21 @@ A materialização visual da RC 3.5 foi iniciada dentro do próprio repositório
 
 O protótipo é deliberadamente estático e identifica seus dados como simulados. Ele não altera Goal Runtime, TaskStore, Durable Action Journal, Policy, lease/heartbeat, FAILSAFE, Emergency Stop, EvidenceRecord ou GoalVerifier.
 
-A finalidade é auditar arquitetura de informação e UX antes da quarta rodada. Nenhum estado mostrado no protótipo poderá ser promovido para a Home operacional sem uma fonte estruturada correspondente no runtime/Central.
+O protótipo foi aberto com sucesso no navegador do host real em 2026-08-11 e a primeira inspeção visual foi iniciada. Achados atuais, ainda como RC e não como decisão aprovada:
+
+- a hierarquia geral está legível e a distinção entre etapas comprovadas, etapa em execução e etapas pendentes funciona visualmente;
+- existe uma inconsistência semântica importante: a tela mostra `60%` e `3 de 5 etapas` enquanto apenas duas etapas estão comprovadas e a terceira ainda está em execução; o indicador precisa distinguir posição atual de percentual realmente concluído/comprovado;
+- detalhes técnicos aparecem permanentemente na coluna direita (`capacidade`, `rota`, `lease`, `replay`) apesar de existir o botão `Detalhes técnicos`; isso contradiz a proposta de manter a superfície principal simples e mover dados técnicos para uma camada secundária;
+- o estado `Executando` aparece em vários pontos ao mesmo tempo, criando redundância visual que pode ser reduzida;
+- a caixa de conexões ocupa espaço de alta prioridade durante um objetivo ativo e deve ser reavaliada frente ao foco principal em objetivo, progresso, verificação e recuperação;
+- responsividade, estados de `verifying`, `recovering`, falha segura e `succeeded`, além das interações do botão de detalhes técnicos, ainda precisam ser auditados no navegador.
+
+A finalidade continua sendo auditar arquitetura de informação e UX antes da quarta rodada. Nenhum estado mostrado no protótipo poderá ser promovido para a Home operacional sem uma fonte estruturada correspondente no runtime/Central.
 
 ## Situação
 
 PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada e nenhum checkpoint físico do Durable Journal permanece pendente.
 
-A direção de produto está definida, a RC 3.5 foi concluída como proposta e existe um protótipo HTML/CSS/JavaScript versionado no próprio repositório para auditoria visual. A `main` também contém agora a rotina segura de empacotamento dos arquivos locais, com CI verde, mas o host ainda precisa executar esse bootstrap, atualizar e validar antes de abrir o protótipo. Depois disso, o próximo passo de produto volta a ser revisar o protótipo e aprovar, modificar ou rejeitar as conclusões da RC antes da quarta rodada.
+O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; `validar-robo` passou com 403 testes e todos os pré-requisitos do host verdes.
+
+A direção de produto está definida, a RC 3.5 foi concluída como proposta e o protótipo HTML/CSS/JavaScript foi aberto fisicamente para a RC visual. O próximo passo de produto é concluir essa auditoria visual, corrigir ou rejeitar os achados e então aprovar ou modificar a RC 3.5 antes da quarta rodada.
