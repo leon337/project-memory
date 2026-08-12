@@ -21,7 +21,7 @@ Comandos oficiais locais:
 
 Checkpoints físicos: `after_prepare`, `after_in_flight`, `after_backend`, `after_executed`, `before_ack`, `after_ack`.
 
-O host Linux/X11 foi revalidado em 2026-08-11 com Python 3.12.3, `403 passed, 1 warning`, compilação PASS, working tree limpa, branch `main`, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+O host Linux/X11 foi revalidado em 2026-08-11 após sincronizar a segunda revisão do protótipo, com Python 3.12.3, `406 passed, 1 warning`, compilação PASS, working tree limpa, branch `main`, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
 ## Matriz física concluída
 
@@ -129,7 +129,7 @@ A RC também propôs manter a Home V4.1 como fundação, em vez de redesenhar o 
 
 Nenhum código operacional da `PM-UNIVERSAL-OPERATOR-001` foi implementado e nenhuma dessas propostas está aprovada como arquitetura vigente.
 
-## Protótipo visual repo-local — segunda revisão implementada, nova inspeção física pendente
+## Protótipo visual repo-local — segunda revisão sincronizada e validada no host
 
 A materialização visual da RC 3.5 existe dentro do próprio repositório, sem dependência de Figma ou outra ferramenta externa. O artefato permanece em `prototypes/pm-universal-operator-ui/` e continua sendo apenas um protótipo estático, sem alterar Goal Runtime, TaskStore, Durable Action Journal, Policy, lease/heartbeat, FAILSAFE, Emergency Stop, EvidenceRecord ou GoalVerifier.
 
@@ -145,12 +145,14 @@ A primeira inspeção física revelou inconsistência entre posição da etapa e
 - a decisão D-033 oficializa essa regra de medidas relativas/responsivas para protótipos e UI operacional futura;
 - foram adicionados três testes em `tests/test_universal_operator_prototype.py` para proteger a escala responsiva, a separação entre etapa atual e progresso comprovado e a permanência dos campos técnicos no drawer secundário.
 
-O `README.md` do protótipo documenta a semântica de progresso e a regra de medidas. A segunda revisão foi coberta pelo CI da `main` no run `31552332820`, head `83f96934b59997ffc6e71030bb5314c1d84ded7c`: job `test` concluído com sucesso, incluindo instalação, Chromium Playwright, compilação e testes. A revisão ainda precisa ser trazida ao host, validada e reaberta no navegador para RC física dos estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além do drawer e da responsividade.
+O `README.md` do protótipo documenta a semântica de progresso e a regra de medidas. A segunda revisão foi coberta pelo CI da `main` no run `31552332820`, head `83f96934b59997ffc6e71030bb5314c1d84ded7c`: job `test` concluído com sucesso, incluindo instalação, Chromium Playwright, compilação e testes.
+
+No host real, `atualizar-robo` trouxe a revisão por fast-forward seguro e `validar-robo` passou com `406 passed, 1 warning`, working tree limpa e todos os pré-requisitos Linux/X11/desktop/Chromium verdes. A reabertura da interface e a RC física dos estados `executing`, `verifying`, `recovering`, falha segura e `succeeded`, além do drawer e da responsividade, ainda estão pendentes.
 
 ## Situação
 
 PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada e nenhum checkpoint físico do Durable Journal permanece pendente.
 
-O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; `validar-robo` passou com 403 testes e todos os pré-requisitos do host verdes.
+O fluxo local de preservação/atualização/validação também está comprovado no host: `empacotar-locais` preservou 17 arquivos e deixou o working tree limpo; `atualizar-robo` concluiu por fast-forward seguro; a validação mais recente passou com 406 testes e todos os pré-requisitos do host verdes.
 
-A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript foi implementada na `main` com a regra responsiva D-033 e CI verde. O próximo passo é sincronizar o host, validar e inspecionar fisicamente essa segunda revisão antes de aprovar ou modificar a RC 3.5 e então realizar a quarta rodada.
+A direção de produto está definida, a RC 3.5 permanece como proposta e a segunda revisão do protótipo HTML/CSS/JavaScript está sincronizada e validada fisicamente no host. O próximo passo é reabrir a interface e concluir a RC visual antes de aprovar ou modificar a RC 3.5 e então realizar a quarta rodada.
