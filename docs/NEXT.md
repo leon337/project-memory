@@ -1,10 +1,10 @@
 # NEXT
 
-## 0. Remediar o FAIL físico do Gate 2 — Issue #19
+## 0. Gate 2R concluído — bloqueio de fidelidade de input removido
 
-O smoke físico atual falhou de forma segura por fidelidade de input: Caps Lock estava ligado e o caminho `linux-unicode-input` materializou os codepoints Unicode como texto literal em vez de produzir `ç`, `ã` e `ú`. O GoalVerifier recusou o critério `text_present`, portanto não houve falso sucesso.
+O Gate 2R isolou Caps Lock como causa raiz do FAIL físico do Issue #19, adicionou regressões, implementou normalização/restauração fail-closed no `type_text` e repetiu o smoke físico com GoalVerifier `verified=true` e readback AT-SPI exato. O artefato canônico é `artifacts/gates/GATE-02R-INPUT-FIDELITY-REMEDIATION-20260907.md`.
 
-Antes de retomar qualquer expansão do Operador Universal ou repetir o smoke, abrir um gate de remediação explícito para o Issue #19. A correção deve preservar foco, FAILSAFE e clipboard do usuário, adicionar regressões para estado de modificadores/Unicode e só então autorizar um novo smoke físico de uma rodada com GoalVerifier `verified=true` e readback AT-SPI exato.
+Não há nova ação de input pendente neste gate. A continuidade volta à prioridade estratégica abaixo; nova implementação operacional continua dependente de gate/autorização explícita.
 
 ## 1. Aprovar ou ajustar o Protocolo de Continuidade v1.2 endurecido
 
