@@ -171,11 +171,11 @@ O teste físico que abriu o editor e depois falhou por `429 RESOURCE_EXHAUSTED` 
 
 ## D-020 — Digitação Unicode precisa de caminho próprio no Linux
 
-`pyautogui.write(...)` permanece para trechos ASCII.
+`pyautogui.write(...)` permanece para trechos ASCII. Caracteres não ASCII usam entrada Unicode do Linux (`Ctrl+Shift+U` + código hexadecimal + Enter), preservando foco e FAILSAFE.
 
-Caracteres não ASCII usam entrada Unicode do Linux (`Ctrl+Shift+U` + código hexadecimal + Enter), preservando foco e FAILSAFE.
+Antes de qualquer emissão física de texto em X11, o backend deve observar o estado real do Caps Lock. Se estiver ligado, a digitação normaliza temporariamente o lock para OFF e restaura obrigatoriamente o estado inicial em `finally`. Se o estado não puder ser observado, a ação falha fechada antes de digitar. O clipboard do usuário não é usado por essa estratégia.
 
-Essa decisão existe porque o teste físico de `Olá mundo` perdeu o caractere `á` usando apenas `pyautogui.write(...)`.
+A regra original existe porque o teste físico de `Olá mundo` perdeu o caractere `á` usando apenas `pyautogui.write(...)`. O Gate 2 de 2026-09-07 mostrou que Caps Lock ON também corrompia tanto ASCII quanto o protocolo Unicode; o Gate 2R confirmou fisicamente que a normalização/restauração resolve os dois casos e preserva readback exato.
 
 ## D-021 — `succeeded` significa objetivo completo comprovado
 

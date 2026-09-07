@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import shutil
@@ -371,6 +372,78 @@ class PyAutoGuiDesktopBackend:
     def _xdotool_path() -> str | None:
         return shutil.which("xdotool")
 
+    @staticmethod
+    def _xset_path() -> str | None:
+        return shutil.which("xset")
+
+    def _caps_lock_enabled(self) -> bool | None:
+        # Unit tests and non-desktop callers can exercise the backend without a
+        # live X server. Physical input, however, always has DISPLAY and must
+        # know the lock state before emitting keyboard events.
+        if not os.environ.get("DISPLAY"):
+            return False
+        xset = self._xset_path()
+        if not xset:
+            return None
+        try:
+            completed = subprocess.run(
+                [xset, "q"],
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=2,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if completed.returncode != 0:
+            return None
+        match = re.search(r"Caps Lock:\s*(on|off)", completed.stdout, re.IGNORECASE)
+        if not match:
+            return None
+        return match.group(1).casefold() == "on"
+
+    def _set_caps_lock_enabled(self, enabled: bool) -> None:
+        current = self._caps_lock_enabled()
+        if current is None:
+            raise RuntimeError(
+                "Não foi possível observar o estado do Caps Lock antes da digitação física."
+            )
+        if current == enabled:
+            return
+        xdotool = self._xdotool_path()
+        if not xdotool:
+            raise RuntimeError(
+                "xdotool indisponível para normalizar o Caps Lock com segurança."
+            )
+        try:
+            completed = subprocess.run(
+                [xdotool, "key", "Caps_Lock"],
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=2,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(
+                f"Falha ao alternar Caps Lock com segurança: {type(exc).__name__}: {exc}"
+            ) from exc
+        if completed.returncode != 0:
+            raise RuntimeError(
+                "Falha ao alternar Caps Lock com segurança: xdotool retornou erro."
+            )
+
+        deadline = time.monotonic() + 0.75
+        while time.monotonic() < deadline:
+            observed = self._caps_lock_enabled()
+            if observed == enabled:
+                return
+            time.sleep(0.03)
+        raise RuntimeError(
+            "Caps Lock não atingiu o estado esperado após a tentativa de normalização."
+        )
+
     def _active_window_id(self) -> str | None:
         xdotool = self._xdotool_path()
         if not xdotool:
@@ -638,6 +711,12 @@ class PyAutoGuiDesktopBackend:
         gui = self._pyautogui()
         self._assert_pointer_outside_failsafe_zone(gui)
         window_id, window_title = self._focused_window_for_input()
+        caps_lock_initial = self._caps_lock_enabled()
+        if caps_lock_initial is None:
+            raise RuntimeError(
+                "Não foi possível determinar o estado do Caps Lock; "
+                "o Robô recusou digitar para preservar fidelidade do texto."
+            )
 
         def guard_each_chunk() -> None:
             if self._input_guard is not None:
@@ -645,11 +724,17 @@ class PyAutoGuiDesktopBackend:
             self._assert_pointer_outside_failsafe_zone(gui)
             self._focused_window_for_input()
 
-        input_method = self._type_text_with_unicode(
-            gui,
-            text,
-            before_input=guard_each_chunk,
-        )
+        try:
+            if caps_lock_initial:
+                self._set_caps_lock_enabled(False)
+            input_method = self._type_text_with_unicode(
+                gui,
+                text,
+                before_input=guard_each_chunk,
+            )
+        finally:
+            if caps_lock_initial:
+                self._set_caps_lock_enabled(True)
         return {
             "action": "type_text",
             "characters": len(text),

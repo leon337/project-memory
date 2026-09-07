@@ -151,6 +151,144 @@ def test_type_text_preserves_unicode_with_linux_codepoint_input(monkeypatch) -> 
     assert result["verified"] is True
 
 
+def test_caps_lock_enabled_reads_xset_indicator(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    monkeypatch.setenv("DISPLAY", ":0")
+
+    monkeypatch.setattr(
+        desktop_module.shutil,
+        "which",
+        lambda name: "/usr/bin/xset" if name == "xset" else None,
+    )
+
+    class Completed:
+        returncode = 0
+        stdout = "  00: Caps Lock:   on     01: Num Lock: off\n"
+
+    monkeypatch.setattr(desktop_module.subprocess, "run", lambda *args, **kwargs: Completed())
+
+    assert backend._caps_lock_enabled() is True
+
+
+def test_set_caps_lock_enabled_toggles_and_verifies(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    states = iter((True, False))
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: next(states), raising=False)
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        commands.append(argv)
+        return Completed()
+
+    monkeypatch.setattr(desktop_module.subprocess, "run", fake_run)
+
+    backend._set_caps_lock_enabled(False)
+
+    assert commands == [["/usr/bin/xdotool", "key", "Caps_Lock"]]
+
+
+def test_type_text_temporarily_disables_and_restores_caps_lock(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+    transitions: list[bool] = []
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: True, raising=False)
+    monkeypatch.setattr(
+        backend,
+        "_set_caps_lock_enabled",
+        lambda enabled: transitions.append(enabled),
+        raising=False,
+    )
+
+    backend.type_text("Validação")
+
+    assert transitions == [False, True]
+
+
+def test_type_text_attempts_caps_restore_when_normalization_fails(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+    transitions: list[bool] = []
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: True, raising=False)
+
+    def set_caps(enabled: bool) -> None:
+        transitions.append(enabled)
+        if enabled is False:
+            raise RuntimeError("normalization verification failed")
+
+    monkeypatch.setattr(backend, "_set_caps_lock_enabled", set_caps, raising=False)
+
+    with pytest.raises(RuntimeError, match="normalization verification failed"):
+        backend.type_text("teste")
+
+    assert transitions == [False, True]
+    assert gui.writes == []
+
+
+def test_type_text_restores_caps_lock_when_typing_fails(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+    transitions: list[bool] = []
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: True, raising=False)
+    monkeypatch.setattr(
+        backend,
+        "_set_caps_lock_enabled",
+        lambda enabled: transitions.append(enabled),
+        raising=False,
+    )
+
+    def fail_write(text: str, interval: float = 0.0) -> None:
+        raise RuntimeError("synthetic typing failure")
+
+    gui.write = fail_write
+
+    with pytest.raises(RuntimeError, match="synthetic typing failure"):
+        backend.type_text("teste")
+
+    assert transitions == [False, True]
+
+
+def test_type_text_fails_closed_when_caps_lock_state_is_unknown(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: None, raising=False)
+
+    with pytest.raises(RuntimeError, match="Caps Lock"):
+        backend.type_text("teste")
+
+    assert gui.writes == []
+
+
 def test_click_refreshes_expected_focus(monkeypatch) -> None:
     backend = PyAutoGuiDesktopBackend()
     gui = FakeGui()

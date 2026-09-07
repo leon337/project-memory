@@ -9,17 +9,17 @@ purpose: >-
 lifecycle: ACTIVE
 
 snapshot:
-  current_workstream: gate-2-physical-smoke-remediation
-  current_status: MVP_0_3_BASELINE_RECONCILED__GATE_2_FAIL__INPUT_FIDELITY_REMEDIATION_REQUIRED
+  current_workstream: gate-2r-input-fidelity-remediation
+  current_status: MVP_0_3_BASELINE_RECONCILED__GATE_2R_PASS__INPUT_FIDELITY_RESTORED__READY_FOR_NEXT_GATE
   next_action: >-
-    Aguardar autorização explícita de LEANDRO para um gate de remediação do Issue #19:
-    corrigir fidelidade de digitação física (Caps Lock e Unicode), adicionar regressões
-    e somente depois reexecutar um smoke físico de uma rodada.
+    Gate 2R concluído. Aguardar autorização explícita de LEANDRO para a próxima
+    prioridade canônica em docs/NEXT.md; nenhuma nova implementação operacional
+    é autorizada por esta cápsula.
   blockers:
     - O Protocolo de Continuidade v1.2 permanece candidato e não deve ser tratado como vigente sem aprovação explícita de LEANDRO.
-    - Gate 2 físico atual falhou de forma segura: Issue #19 rastreia fidelidade de input com Caps Lock ligado e Unicode via Ctrl+Shift+U não materializado corretamente.
-    - Não repetir o smoke físico antes de uma remediação autorizada e regressões específicas para modificadores/Unicode.
     - A nova fase PM-UNIVERSAL-OPERATOR-001 permanece em planejamento; implementação operacional ainda não foi iniciada segundo o estado canônico atual.
+  resolved_findings:
+    - Issue #19 / Gate 2: fidelidade de input com Caps Lock ON remediada e revalidada fisicamente no Gate 2R.
 
 sources:
   current_state: docs/STATUS.md
@@ -28,7 +28,8 @@ sources:
   next_action: docs/NEXT.md
   gate_1_evidence: artifacts/gates/GATE-01-PHYSICAL-RECONCILIATION-20260907.md
   gate_2_evidence: artifacts/gates/GATE-02-PHYSICAL-SMOKE-20260907.md
+  gate_2r_evidence: artifacts/gates/GATE-02R-INPUT-FIDELITY-REMEDIATION-20260907.md
   gate_2_issue: https://github.com/leon337/project-memory/issues/19
   canonical_registry: leon337/multiagent-collaboration-framework/context/projects/project-memory.yaml
 
-observed_at: '2026-09-07T01:12:57-03:00'
+observed_at: '2026-09-07T01:35:32-03:00'

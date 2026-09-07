@@ -31,6 +31,14 @@ O diagnóstico confirmou layout XKB `br`, locale `pt_BR.UTF-8` e Caps Lock ligad
 
 Issue #19 rastreia a remediação. A matriz física histórica abaixo continua sendo evidência dos commits/ambientes em que foi executada; ela não substitui o FAIL do smoke atual. Evidência completa: `artifacts/gates/GATE-02-PHYSICAL-SMOKE-20260907.md`.
 
+## Gate 2R — remediação de fidelidade de input (2026-09-07) — PASS
+
+O Issue #19 foi reproduzido em experimentos mínimos e a causa raiz foi isolada no estado real de Caps Lock. Com Caps Lock ligado, `pyautogui.write` invertia maiúsculas/minúsculas e a sequência Unicode `Ctrl+Shift+U` não era materializada pelo Xed; com Caps Lock desligado, o mesmo backend produziu ASCII e Unicode corretamente. A alternativa `xdotool type --clearmodifiers` foi descartada porque falhou em multibyte e alterou o estado do Caps Lock.
+
+A correção em `985fec485374cca0e57306ce7176cdfa652f27d9` faz `type_text` observar o Caps Lock antes de emitir teclado, normalizar temporariamente para OFF quando necessário e restaurar o estado inicial em `finally`; se o estado não puder ser observado numa sessão X11 física, a ação falha fechada antes da digitação. Clipboard não é usado. Seis regressões foram vistas RED antes da implementação; depois da correção, `tests/test_desktop_focus.py` passou 25/25 e a suíte integral passou com 412 testes.
+
+No smoke físico E2E do mesmo candidato, task `c77e553d-f787-421e-b90f-54571b878f4e` terminou `succeeded` em uma tentativa, GoalVerifier marcou `verified=true`, readback AT-SPI observou exatamente `Validação real número 1`, journal de `open_app` e `type_text` ficou `acknowledged`, não houve retry/replay e o Caps Lock permaneceu ON após a execução. Marcador: `PASS_GATE: HOME_V4_1_PHYSICAL`. Evidência: `artifacts/gates/GATE-02R-INPUT-FIDELITY-REMEDIATION-20260907.md`.
+
 ## Matriz física concluída
 
 ### Cenário normal — PASS
