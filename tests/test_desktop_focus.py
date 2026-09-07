@@ -346,6 +346,7 @@ def test_non_editor_app_with_confirmed_focus_can_receive_keyboard(monkeypatch) -
         },
     )
     monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Firefox")
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: False)
     monkeypatch.setattr(desktop_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
 
     opened = backend.open_application("firefox")
