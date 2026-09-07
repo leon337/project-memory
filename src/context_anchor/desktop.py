@@ -724,9 +724,9 @@ class PyAutoGuiDesktopBackend:
             self._assert_pointer_outside_failsafe_zone(gui)
             self._focused_window_for_input()
 
-        if caps_lock_initial:
-            self._set_caps_lock_enabled(False)
         try:
+            if caps_lock_initial:
+                self._set_caps_lock_enabled(False)
             input_method = self._type_text_with_unicode(
                 gui,
                 text,

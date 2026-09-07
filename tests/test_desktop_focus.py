@@ -217,6 +217,32 @@ def test_type_text_temporarily_disables_and_restores_caps_lock(monkeypatch) -> N
     assert transitions == [False, True]
 
 
+def test_type_text_attempts_caps_restore_when_normalization_fails(monkeypatch) -> None:
+    backend = PyAutoGuiDesktopBackend()
+    gui = FakeGui()
+    backend._gui = gui
+    backend._expected_window_id = "200"
+    transitions: list[bool] = []
+
+    monkeypatch.setattr(backend, "_active_window_id", lambda: "200")
+    monkeypatch.setattr(backend, "_window_title", lambda window_id=None: "Editor")
+    monkeypatch.setattr(backend, "_xdotool_path", lambda: "/usr/bin/xdotool")
+    monkeypatch.setattr(backend, "_caps_lock_enabled", lambda: True, raising=False)
+
+    def set_caps(enabled: bool) -> None:
+        transitions.append(enabled)
+        if enabled is False:
+            raise RuntimeError("normalization verification failed")
+
+    monkeypatch.setattr(backend, "_set_caps_lock_enabled", set_caps, raising=False)
+
+    with pytest.raises(RuntimeError, match="normalization verification failed"):
+        backend.type_text("teste")
+
+    assert transitions == [False, True]
+    assert gui.writes == []
+
+
 def test_type_text_restores_caps_lock_when_typing_fails(monkeypatch) -> None:
     backend = PyAutoGuiDesktopBackend()
     gui = FakeGui()
