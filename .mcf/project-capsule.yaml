@@ -10,9 +10,7 @@ lifecycle: ACTIVE
 
 snapshot:
   current_workstream: gate-0-canonical-continuity
-  current_status: >-
-    MVP_0_3_BASELINE_VALIDATED__UNIVERSAL_OPERATOR_PLANNING__
-    CANONICAL_CONTINUITY_IN_REVIEW
+  current_status: MVP_0_3_BASELINE_VALIDATED__UNIVERSAL_OPERATOR_PLANNING__CANONICAL_CONTINUITY_IN_REVIEW
   next_action: >-
     Revisar e integrar a canonicalização MCF/project-memory; depois reconciliar o
     estado físico atual do notebook Linux/X11 com docs/STATUS.md antes de qualquer
