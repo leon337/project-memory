@@ -75,6 +75,12 @@ A task terminou `succeeded`, `goal_completed=true`, `verified=true`, attempts=1.
 
 Xed, Painel, Central e Robô iniciados para a validação foram encerrados. Portas 8000/8765 ficaram livres e Caps Lock permaneceu no estado inicial ON.
 
+## Pós-merge — isolamento de teste com DISPLAY real
+
+A primeira execução de `validar-robo` em `main` retornou `1 failed, 411 passed`. A falha estava em `test_non_editor_app_with_confirmed_focus_can_receive_keyboard`: o teste mockava `shutil.which` para expor apenas `firefox` e `xdotool`; com `DISPLAY=:0`, isso escondia `xset` e fazia o novo fail-closed de Caps Lock interromper corretamente a digitação simulada.
+
+O follow-up foi restrito ao teste: `_caps_lock_enabled` foi fixado como `False` naquele cenário porque o objetivo do teste é validar foco/teclado em aplicativo não-editor, não integração X11 de lock state. Nenhum código de produção foi alterado. Com o isolamento corrigido, `tests/test_desktop_focus.py` passou 25/25 e a suíte integral, executada com `DISPLAY=:0` e Caps Lock real ON, passou `412 passed, 1 warning`.
+
 ## Resultado
 
 **PASS — INPUT FIDELITY RESTAURADA NO CENÁRIO FÍSICO QUE HAVIA FALHADO.**
