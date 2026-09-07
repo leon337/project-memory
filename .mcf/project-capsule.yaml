@@ -9,15 +9,15 @@ purpose: >-
 lifecycle: ACTIVE
 
 snapshot:
-  current_workstream: gate-0-canonical-continuity
-  current_status: MVP_0_3_BASELINE_VALIDATED__UNIVERSAL_OPERATOR_PLANNING__CANONICAL_CONTINUITY_ACTIVE__GATE_0_COMPLETE
+  current_workstream: gate-1-physical-reconciliation
+  current_status: MVP_0_3_BASELINE_RECONCILED__GATE_1_PASS__READY_FOR_PHYSICAL_SMOKE
   next_action: >-
-    Aguardar autorização explícita de LEANDRO para iniciar o Gate 1 de reconciliação
-    do estado físico atual do notebook Linux/X11 com docs/STATUS.md antes de qualquer
-    nova implementação operacional.
+    Aguardar autorização explícita de LEANDRO para um próximo gate de smoke físico
+    mínimo no host Linux/X11 atual, um cenário por vez, antes de qualquer nova
+    implementação operacional.
   blockers:
     - O Protocolo de Continuidade v1.2 permanece candidato e não deve ser tratado como vigente sem aprovação explícita de LEANDRO.
-    - O estado físico documentado mais recente precisa ser revalidado no host atual antes de novas alegações operacionais.
+    - A matriz física histórica não foi reexecutada em 2026-09-07; o Gate 1 prova baseline técnica atual e prontidão para teste físico, não uma nova ação física de GUI.
     - A nova fase PM-UNIVERSAL-OPERATOR-001 permanece em planejamento; implementação operacional ainda não foi iniciada segundo o estado canônico atual.
 
 sources:
@@ -25,6 +25,7 @@ sources:
   architecture: docs/ARCHITECTURE.md
   decisions: docs/DECISIONS.md
   next_action: docs/NEXT.md
+  gate_1_evidence: artifacts/gates/GATE-01-PHYSICAL-RECONCILIATION-20260907.md
   canonical_registry: leon337/multiagent-collaboration-framework/context/projects/project-memory.yaml
 
-observed_at: '2026-09-07T00:56:35-03:00'
+observed_at: '2026-09-07T01:02:49-03:00'
