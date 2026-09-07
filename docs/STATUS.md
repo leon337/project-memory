@@ -39,6 +39,8 @@ A correção em `985fec485374cca0e57306ce7176cdfa652f27d9` faz `type_text` obser
 
 No smoke físico E2E do mesmo candidato, task `c77e553d-f787-421e-b90f-54571b878f4e` terminou `succeeded` em uma tentativa, GoalVerifier marcou `verified=true`, readback AT-SPI observou exatamente `Validação real número 1`, journal de `open_app` e `type_text` ficou `acknowledged`, não houve retry/replay e o Caps Lock permaneceu ON após a execução. Marcador: `PASS_GATE: HOME_V4_1_PHYSICAL`. Evidência: `artifacts/gates/GATE-02R-INPUT-FIDELITY-REMEDIATION-20260907.md`.
 
+No pós-merge, a primeira execução de `validar-robo` encontrou 1 FAIL apenas em teste: `test_non_editor_app_with_confirmed_focus_can_receive_keyboard` ocultava `xset` ao mockar `shutil.which`, e com `DISPLAY=:0` isso acionava corretamente o fail-closed de Caps Lock. O follow-up isolou explicitamente o estado de Caps Lock nesse teste de Firefox, sem alterar runtime. Reexecução da suíte integral com `DISPLAY=:0` e Caps Lock real ON: `412 passed, 1 warning`.
+
 ## Matriz física concluída
 
 ### Cenário normal — PASS
