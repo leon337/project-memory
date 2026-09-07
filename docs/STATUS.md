@@ -39,6 +39,8 @@ A correção em `985fec485374cca0e57306ce7176cdfa652f27d9` faz `type_text` obser
 
 No smoke físico E2E do mesmo candidato, task `c77e553d-f787-421e-b90f-54571b878f4e` terminou `succeeded` em uma tentativa, GoalVerifier marcou `verified=true`, readback AT-SPI observou exatamente `Validação real número 1`, journal de `open_app` e `type_text` ficou `acknowledged`, não houve retry/replay e o Caps Lock permaneceu ON após a execução. Marcador: `PASS_GATE: HOME_V4_1_PHYSICAL`. Evidência: `artifacts/gates/GATE-02R-INPUT-FIDELITY-REMEDIATION-20260907.md`.
 
+Após merge do PR #23, `validar-robo` expôs uma única regressão de isolamento de teste, sem alteração necessária no runtime: um stub do teste de foco mascarava a nova dependência `xset`. O PR #24 corrigiu somente esse teste. A `main` final `f3a80cedc4d2b753753c9a430fe2e0e5bc261a06` foi então revalidada com working tree limpa, compilação PASS, `412 passed, 1 warning`, sessão X11 e dependências desktop/Chromium PASS, resultando em `PRONTO PARA TESTE FÍSICO`. O Issue #19 está apto a fechamento.
+
 ## Matriz física concluída
 
 ### Cenário normal — PASS
