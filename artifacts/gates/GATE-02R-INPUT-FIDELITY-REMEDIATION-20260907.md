@@ -75,8 +75,20 @@ A task terminou `succeeded`, `goal_completed=true`, `verified=true`, attempts=1.
 
 Xed, Painel, Central e Robô iniciados para a validação foram encerrados. Portas 8000/8765 ficaram livres e Caps Lock permaneceu no estado inicial ON.
 
+## Pós-merge / fechamento
+
+O PR #23 foi integrado em `main` e a primeira execução de `validar-robo` revelou uma regressão exclusivamente de isolamento de teste: `test_non_editor_app_with_confirmed_focus_can_receive_keyboard` mascarava `xset` ao substituir `shutil.which()`. O runtime físico não foi alterado para resolver isso.
+
+O ajuste mínimo de teste foi integrado pelo PR #24. Na `main` final `f3a80cedc4d2b753753c9a430fe2e0e5bc261a06`, `validar-robo` retornou:
+
+- working tree limpa / branch `main`;
+- compilação PASS;
+- `412 passed, 1 warning`;
+- X11, PyAutoGUI, Pillow, PyScreeze, `xdotool`, `scrot` e Chromium Playwright PASS;
+- `RESULTADO: PRONTO PARA TESTE FÍSICO`.
+
 ## Resultado
 
-**PASS — INPUT FIDELITY RESTAURADA NO CENÁRIO FÍSICO QUE HAVIA FALHADO.**
+**PASS — INPUT FIDELITY RESTAURADA E REVALIDADA NA `main`.**
 
-O Issue #19 só deve ser encerrado após merge e revalidação da `main`.
+Os critérios de aceite do Issue #19 foram satisfeitos e o issue pode ser encerrado.
