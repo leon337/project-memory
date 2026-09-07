@@ -10,10 +10,10 @@ lifecycle: ACTIVE
 
 snapshot:
   current_workstream: gate-0-canonical-continuity
-  current_status: MVP_0_3_BASELINE_VALIDATED__UNIVERSAL_OPERATOR_PLANNING__CANONICAL_CONTINUITY_IN_REVIEW
+  current_status: MVP_0_3_BASELINE_VALIDATED__UNIVERSAL_OPERATOR_PLANNING__CANONICAL_CONTINUITY_ACTIVE__GATE_0_COMPLETE
   next_action: >-
-    Revisar e integrar a canonicalização MCF/project-memory; depois reconciliar o
-    estado físico atual do notebook Linux/X11 com docs/STATUS.md antes de qualquer
+    Aguardar autorização explícita de LEANDRO para iniciar o Gate 1 de reconciliação
+    do estado físico atual do notebook Linux/X11 com docs/STATUS.md antes de qualquer
     nova implementação operacional.
   blockers:
     - O Protocolo de Continuidade v1.2 permanece candidato e não deve ser tratado como vigente sem aprovação explícita de LEANDRO.
@@ -27,4 +27,4 @@ sources:
   next_action: docs/NEXT.md
   canonical_registry: leon337/multiagent-collaboration-framework/context/projects/project-memory.yaml
 
-observed_at: '2026-09-07T00:50:00-03:00'
+observed_at: '2026-09-07T00:56:35-03:00'
