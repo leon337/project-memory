@@ -9,28 +9,30 @@ purpose: >-
 lifecycle: ACTIVE
 
 snapshot:
-  current_workstream: gate-2r-complete
-  current_status: MVP_0_3_BASELINE_RECONCILED__GATE_2R_PASS__INPUT_FIDELITY_RESTORED__READY_FOR_NEXT_GATE
+  current_workstream: gate-3-multi-ai-continuity
+  current_status: GATE_2R_PASS__GATE_3_CANONICALIZATION_PENDING__MCF_PR_201__PROJECT_OVERLAY_PENDING
   next_action: >-
-    Gate 2R concluído. Aguardar autorização explícita de LEANDRO para a próxima
-    prioridade canônica em docs/NEXT.md; nenhuma nova implementação operacional
-    é autorizada por esta cápsula.
+    Concluir o PR pareado do project-memory e executar o gate cross-repo contra o
+    draft PR MCF #201. Não repetir Gate 2R e não iniciar implementação operacional
+    de PM-UNIVERSAL-OPERATOR-001 por esta cápsula.
   blockers:
-    - O Protocolo de Continuidade v1.2 permanece candidato e não deve ser tratado como vigente sem aprovação explícita de LEANDRO.
-    - A nova fase PM-UNIVERSAL-OPERATOR-001 permanece em planejamento; implementação operacional ainda não foi iniciada segundo o estado canônico atual.
+    - Gate 3 permanece CANONICALIZATION_PENDING até persistência/aceitação dos PRs pareados e verificação objetiva; aprovação humana não equivale a PASS/CANONICAL.
+    - PM-UNIVERSAL-OPERATOR-001 permanece em planejamento; implementação operacional não foi autorizada por este gate.
   resolved_findings:
     - Issue #19 / Gate 2: fidelidade de input com Caps Lock ON remediada e revalidada fisicamente no Gate 2R.
-    - Pós-merge: `main` f3a80ced revalidada com `validar-robo`, 412 testes PASS e resultado PRONTO PARA TESTE FÍSICO.
+    - "Pós-merge: `main` f3a80ced revalidada com `validar-robo`, 412 testes PASS e resultado PRONTO PARA TESTE FÍSICO."
 
 sources:
   current_state: docs/STATUS.md
   architecture: docs/ARCHITECTURE.md
   decisions: docs/DECISIONS.md
   next_action: docs/NEXT.md
+  continuity_overlay: docs/CONTINUITY.md
   gate_1_evidence: artifacts/gates/GATE-01-PHYSICAL-RECONCILIATION-20260907.md
   gate_2_evidence: artifacts/gates/GATE-02-PHYSICAL-SMOKE-20260907.md
   gate_2r_evidence: artifacts/gates/GATE-02R-INPUT-FIDELITY-REMEDIATION-20260907.md
   gate_2_issue: https://github.com/leon337/project-memory/issues/19
+  mcf_pr_201: https://github.com/leon337/multiagent-collaboration-framework/pull/201
   canonical_registry: leon337/multiagent-collaboration-framework/context/projects/project-memory.yaml
 
-observed_at: '2026-09-07T01:43:35-03:00'
+observed_at: '2026-09-07T20:14:45-03:00'

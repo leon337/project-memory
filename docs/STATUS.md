@@ -181,6 +181,16 @@ Conclusão parcial da RC física: os cinco estados de demonstração (`executing
 
 Ainda permanecem pendentes na RC física o drawer `Detalhes técnicos`, responsividade em outros tamanhos/zooms e a checagem final de acessibilidade/clareza. A aprovação da RC 3.5 continua pendente até fechar essas inspeções.
 
+## Gate 3 — arquitetura aprovada, canonicalização pendente
+
+### Governança
+
+A arquitetura do Gate 3 foi aprovada pelo humano. O MCF Universal Continuity Protocol está qualificado e há um draft do PR #201; este branch materializa o overlay específico do project-memory em `docs/CONTINUITY.md`. Gate 3 ainda não foi aceito, mesclado nem tornado baseline canônico. A aceitação depende da canonicalização coordenada entre os repositórios e dos PRs pareados.
+
+### Evidência
+
+A aprovação arquitetural e a existência do draft são evidência de governança, não evidência de persistência canônica. Até que os documentos dos dois repositórios sejam persistidos, verificados e aceitos em conjunto, o estado permanece `CANONICALIZATION_PENDING`. Nenhuma implementação runtime do protocolo foi autorizada por este gate.
+
 ## Situação
 
 PM-DURABLE-JOURNAL-001 está fisicamente validada no host Linux/X11 para toda a matriz planejada e nenhum checkpoint físico do Durable Journal permanece pendente.
