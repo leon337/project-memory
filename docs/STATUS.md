@@ -23,6 +23,14 @@ Checkpoints físicos: `after_prepare`, `after_in_flight`, `after_backend`, `afte
 
 O host Linux/X11 foi revalidado em 2026-08-11 após sincronizar a segunda revisão do protótipo, com Python 3.12.3, `406 passed, 1 warning`, compilação PASS, working tree limpa, branch `main`, sessão X11 PASS, PyAutoGUI/Pillow/PyScreeze/xdotool/scrot PASS e Chromium Playwright PASS. Resultado observado: `RESULTADO: PRONTO PARA TESTE FÍSICO`.
 
+## Gate 2 — smoke físico atual (2026-09-07) — FAIL seguro
+
+Após a reconciliação do Gate 1, o smoke físico mínimo foi executado uma única vez no host `leo-N43SM` sobre a base `5fda7f24...`. A task `d0a7fb12-64ea-4eba-9033-9a5b770a8d5a` abriu Xed e emitiu `type_text`, mas o readback AT-SPI observou `vALIDAE7\nE3\nO REAL NFA\nMERO 1` em vez de `Validação real número 1`. O GoalVerifier recusou `text_present` e a task terminou `failed`, preservando a regra de não declarar sucesso sem evidência final correspondente.
+
+O diagnóstico confirmou layout XKB `br`, locale `pt_BR.UTF-8` e Caps Lock ligado. O receipt de `type_text` registrou `input_method=linux-unicode-input`; os trechos `e7`, `e3` e `fa` correspondem aos codepoints de `ç`, `ã` e `ú`, indicando que a sequência `Ctrl+Shift+U` não entrou no modo Unicode e foi materializada literalmente. O teste unitário atual usa `FakeGui` e não cobre o comportamento físico dessas condições.
+
+Issue #19 rastreia a remediação. A matriz física histórica abaixo continua sendo evidência dos commits/ambientes em que foi executada; ela não substitui o FAIL do smoke atual. Evidência completa: `artifacts/gates/GATE-02-PHYSICAL-SMOKE-20260907.md`.
+
 ## Matriz física concluída
 
 ### Cenário normal — PASS

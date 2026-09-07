@@ -1,5 +1,11 @@
 # NEXT
 
+## 0. Remediar o FAIL físico do Gate 2 — Issue #19
+
+O smoke físico atual falhou de forma segura por fidelidade de input: Caps Lock estava ligado e o caminho `linux-unicode-input` materializou os codepoints Unicode como texto literal em vez de produzir `ç`, `ã` e `ú`. O GoalVerifier recusou o critério `text_present`, portanto não houve falso sucesso.
+
+Antes de retomar qualquer expansão do Operador Universal ou repetir o smoke, abrir um gate de remediação explícito para o Issue #19. A correção deve preservar foco, FAILSAFE e clipboard do usuário, adicionar regressões para estado de modificadores/Unicode e só então autorizar um novo smoke físico de uma rodada com GoalVerifier `verified=true` e readback AT-SPI exato.
+
 ## 1. Aprovar ou ajustar o Protocolo de Continuidade v1.2 endurecido
 
 A RC normal e a auditoria adversarial foram concluídas. A versão final candidata deve incorporar: autoridade por domínio entre os arquivos canônicos; separação entre estado remoto e local; dois eixos de estado (governança e evidência); canonicalização pendente quando LEANDRO aprova algo antes da persistência; detecção de conflito canônico e concorrência entre chats; revalidação de opções antigas; testes vinculados à versão/ambiente; PASS/FAIL por critério; `SEM OPÇÕES` limitado apenas à apresentação; e checkpoint documental por conjunto lógico, com registro imediato para decisão, FAIL crítico, mudança de direção ou gate.
