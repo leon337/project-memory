@@ -1,0 +1,32 @@
+schema_version: 1
+project_id: project-memory
+
+purpose: >-
+  Operador digital local para Linux/X11 que recebe objetivos em linguagem natural,
+  executa trabalho real no computador e só conclui objetivos após verificação por
+  evidência independente e GoalVerifier.
+
+lifecycle: ACTIVE
+
+snapshot:
+  current_workstream: gate-0-canonical-continuity
+  current_status: >-
+    MVP_0_3_BASELINE_VALIDATED__UNIVERSAL_OPERATOR_PLANNING__
+    CANONICAL_CONTINUITY_IN_REVIEW
+  next_action: >-
+    Revisar e integrar a canonicalização MCF/project-memory; depois reconciliar o
+    estado físico atual do notebook Linux/X11 com docs/STATUS.md antes de qualquer
+    nova implementação operacional.
+  blockers:
+    - O Protocolo de Continuidade v1.2 permanece candidato e não deve ser tratado como vigente sem aprovação explícita de LEANDRO.
+    - O estado físico documentado mais recente precisa ser revalidado no host atual antes de novas alegações operacionais.
+    - A nova fase PM-UNIVERSAL-OPERATOR-001 permanece em planejamento; implementação operacional ainda não foi iniciada segundo o estado canônico atual.
+
+sources:
+  current_state: docs/STATUS.md
+  architecture: docs/ARCHITECTURE.md
+  decisions: docs/DECISIONS.md
+  next_action: docs/NEXT.md
+  canonical_registry: leon337/multiagent-collaboration-framework/context/projects/project-memory.yaml
+
+observed_at: '2026-09-07T00:50:00-03:00'
