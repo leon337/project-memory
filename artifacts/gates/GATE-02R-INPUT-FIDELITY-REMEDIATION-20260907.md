@@ -3,7 +3,7 @@
 Data: 2026-09-07
 Host: `leo-N43SM`
 Issue: #19
-Candidato físico: `c7a5c12cb5c8dfdfaf6c2146565181455591eba7`
+Candidato físico: `985fec485374cca0e57306ce7176cdfa652f27d9`
 
 ## Objetivo
 
@@ -25,15 +25,15 @@ Conclusão: Caps Lock era a causa raiz comum do desvio ASCII e da falha do proto
 
 ## TDD
 
-Foram adicionadas cinco regressões em `tests/test_desktop_focus.py` cobrindo leitura X11 do Caps Lock, transição verificada, normalização/restauração, restauração em exceção e fail-closed quando o estado é desconhecido.
+Foram adicionadas seis regressões em `tests/test_desktop_focus.py` cobrindo leitura X11 do Caps Lock, transição verificada, normalização/restauração, restauração em exceção e fail-closed quando o estado é desconhecido.
 
-Antes da implementação: 5/5 RED pelo comportamento ausente.
-Depois da implementação:
+Antes da implementação inicial: 5/5 RED pelo comportamento ausente. Na revisão pré-merge foi encontrado um risco adicional: a normalização para OFF acontecia antes do `try`, podendo impedir a restauração caso a própria normalização falhasse após alterar o estado. Um sexto teste foi visto RED nesse cenário e o hardening moveu a normalização para dentro do bloco protegido por `finally`.
+Depois da implementação/hardening:
 
-- regressões Caps Lock: 5/5 PASS;
-- `tests/test_desktop_focus.py`: 24/24 PASS;
+- regressões Caps Lock: 6/6 PASS;
+- `tests/test_desktop_focus.py`: 25/25 PASS;
 - compilação `src + tests`: PASS;
-- suíte integral: 411 testes PASS.
+- suíte integral: 412 testes PASS.
 
 ## Implementação
 
@@ -56,7 +56,7 @@ Com Caps Lock ON antes da ação, o backend escreveu `Validação real número 1
 
 Foi executado uma única vez `scripts/validate_home_v4_1_physical.py` no candidato.
 
-Task: `dc23248b-5932-4bcd-830b-1e4a7fcdbf85`.
+Task: `c77e553d-f787-421e-b90f-54571b878f4e`.
 
 Resultado observado:
 
