@@ -6,11 +6,11 @@ O Gate 2R isolou Caps Lock como causa raiz do FAIL físico do Issue #19, adicion
 
 Não há nova ação de input pendente neste gate. A continuidade volta à prioridade estratégica abaixo; nova implementação operacional continua dependente de gate/autorização explícita.
 
-## 1. Aprovar ou ajustar o Protocolo de Continuidade v1.2 endurecido
+## 1. Canonicalizar o Gate 3 e aceitar os PRs pareados
 
-A RC normal e a auditoria adversarial foram concluídas. A versão final candidata deve incorporar: autoridade por domínio entre os arquivos canônicos; separação entre estado remoto e local; dois eixos de estado (governança e evidência); canonicalização pendente quando LEANDRO aprova algo antes da persistência; detecção de conflito canônico e concorrência entre chats; revalidação de opções antigas; testes vinculados à versão/ambiente; PASS/FAIL por critério; `SEM OPÇÕES` limitado apenas à apresentação; e checkpoint documental por conjunto lógico, com registro imediato para decisão, FAIL crítico, mudança de direção ou gate.
+Substituir a aprovação do protocolo pela canonicalização coordenada entre o repositório do MCF e o project-memory: persistir os documentos universais e o overlay específico, verificar referências, autoridade por domínio e consistência entre os dois lados, e aceitar os PRs pareados (incluindo o draft do PR #201 quando pronto). Até essa aceitação conjunta, o estado permanece `CANONICALIZATION_PENDING`; aprovação isolada não torna o Gate 3 canônico.
 
-O protocolo ainda não deve ser tratado como vigente até aprovação explícita de LEANDRO.
+O trabalho de produto da RC 3.5 e a implementação do primeiro slice permanecem depois do Gate 3. Esta etapa documental não autoriza implementação de `PM-UNIVERSAL-OPERATOR-001` nem alterações no runtime.
 
 ## 2. Retomar a RC física pelo drawer `Detalhes técnicos`
 

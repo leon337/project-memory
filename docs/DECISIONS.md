@@ -343,3 +343,11 @@ A interface do projeto deve usar unidades relativas e responsivas como regra de 
 Valores fixos em `px` não devem ser a base do layout. Eles ficam restritos a necessidades técnicas finas, como bordas de `1px`, ou a casos explicitamente justificados.
 
 A mesma regra vale para protótipos HTML/CSS/JavaScript e para a UI operacional futura. O objetivo é evitar uma interface calibrada para uma resolução específica e manter hierarquia, proporção, legibilidade e usabilidade de forma previsível conforme o espaço disponível muda.
+
+## D-034 — Continuidade híbrida e canonicalização verificável
+
+O MCF é a autoridade pela continuidade universal, governança e descoberta. O project-memory é a autoridade pela verdade técnica do projeto e pelo overlay específico deste repositório. Runtime live e SQLite/Durable Journal são a autoridade pela verdade da execução ao vivo. Memória de chat não possui autoridade canônica.
+
+Estado remoto e estado local permanecem separados e não podem ser tratados como uma única confirmação. Uma aprovação, antes de ser persistida e verificada nas fontes canônicas correspondentes, move o estado para `CANONICALIZATION_PENDING`; somente a persistência e a verificação coordenadas podem permitir aceitação canônica.
+
+Esta decisão estabelece uma continuidade híbrida entre governança universal e verdade técnica/operacional por domínio. Ela não altera a arquitetura do runtime, não muda a autoridade do GoalVerifier ou do Durable Journal e não autoriza a implementação de `PM-UNIVERSAL-OPERATOR-001`.
